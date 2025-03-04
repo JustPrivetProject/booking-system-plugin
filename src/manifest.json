@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Booking System Plugin",
+  "version": "1.0",
+  "description": "Help to booking slot",
+  "permissions": ["storage", "activeTab", "scripting", "cookies", "scripting", "webRequest"],
+  "host_permissions": ["https://ebrama.baltichub.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-144x144.png",
+      "48": "icons/icon-144x144.png",
+      "128": "icons/icon-144x144.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://ebrama.baltichub.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "content_security_policy": {
+  "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
+}
+}
