@@ -18,7 +18,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://ebrama.baltichub.com/*"],
+      "matches": ["https://*.baltichub.com/*"],
       "js": ["content.js"]
     }
   ],

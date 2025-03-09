@@ -36,12 +36,12 @@ chrome.webRequest.onBeforeRequest.addListener(
       let rawData = details.requestBody.raw;
       if (rawData && rawData[0]) {
         let decoder = new TextDecoder("utf-8");
-        let body = decoder.decode(rawData[0].bytes); // Декодируем тело запроса
+        let body = decoder.decode(rawData[0].bytes); // Decode request body
 
         chrome.storage.local.get({ requestCache: {} }, (data) => {
           let cache = data.requestCache;
 
-          // Проверяем, существует ли запрос в кэше по requestId
+          // Check if the request already exists in the cache by requestId
           if (!cache[details.requestId]) {
             cache[details.requestId] = { url: details.url, body };
             chrome.storage.local.set({ requestCache: cache }, () => {
@@ -58,7 +58,7 @@ chrome.webRequest.onBeforeRequest.addListener(
   ["requestBody"]
 );
 
-// Функция повторной отправки запросов
+// Function to retry requests
 function retryRequests() {
   chrome.storage.local.get({ retryQueue: [], retryEnabled: true }, async (data) => {
     if (!data.retryEnabled) {
@@ -71,7 +71,7 @@ function retryRequests() {
 
     for (const req of queue) {
       try {
-        let body = typeof req.body === "string" ? req.body : JSON.stringify(req.body); // Гарантируем строку
+        let body = typeof req.body === "string" ? req.body : JSON.stringify(req.body); // Ensure string
 
         let response = await fetch(req.url, {
           method: "POST",
@@ -99,28 +99,28 @@ chrome.webRequest.onCompleted.addListener(
   (details) => {
     chrome.storage.local.get({ requestCache: {} }, (data) => {
       let cache = data.requestCache;
-      delete cache[details.requestId]; // Удаляем обработанный запрос
+      delete cache[details.requestId]; // Remove processed request
       chrome.storage.local.set({ requestCache: cache });
     });
   },
   { urls: ["*://*/Home/GetSlotsForPreview*"] }
 );
 
-// Перехват ответов и добавление в очередь при ошибке
+// Intercept responses and add to queue on error
 chrome.webRequest.onCompleted.addListener(
   (details) => {
-    if (details.statusCode !== 200) {
+    if (details.statusCode == 200) {
       console.log("Request failed, checking cache:", details.requestId);
 
       chrome.storage.local.get({ requestCache: {}, retryQueue: [] }, (data) => {
         let cache = data.requestCache;
         let queue = data.retryQueue;
 
-        // Проверяем, если запрос уже есть в кэше, не добавляем его в очередь
+        // Check if the request is already in the cache, do not add it to the queue
         if (cache[details.requestId]) {
-          // Проверяем, не добавлен ли запрос уже в очередь
+          // Check if the request is already in the retry queue
           
-            queue.push(cache[details.requestId]); // Добавляем запрос в очередь
+            queue.push(cache[details.requestId]); // Add request to queue
             chrome.storage.local.set({ retryQueue: queue }, () => {
               console.log("Added to retry queue:", cache[details.requestId].url);
             });
@@ -134,8 +134,8 @@ chrome.webRequest.onCompleted.addListener(
   { urls: ["*://*/Home/GetSlotsForPreview*"] }
 );
 
-// Интервал для повторных попыток
-chrome.storage.local.set({ retryEnabled: true }); // По умолчанию включено
-const RETRY_INTERVAL = 60 * 1000; // 10 секунд
-// Запускаем повторные попытки раз в 10 секунд
+// Settings
+chrome.storage.local.set({ retryEnabled: true });
+const RETRY_INTERVAL = 60 * 1000;
+// Start retry attempts every 10 seconds
 setInterval(retryRequests, RETRY_INTERVAL);

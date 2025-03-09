@@ -6,7 +6,7 @@ document.getElementById("fetch-btn").addEventListener("click", () => {
     return;
   }
 
-  // Преобразуем YYYY-MM-DD → DD.MM.YYYY
+  // Convert YYYY-MM-DD → DD.MM.YYYY
   const dateObj = new Date(dateInput);
   const formattedDate = dateObj.toLocaleDateString("ru-RU"); // "04.03.2025"
 
@@ -42,15 +42,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function updateQueueDisplay() {
   try {
-    // Получаем очередь из хранилища
+    // Get the queue from storage
     const { retryQueue } = await new Promise(resolve =>
       chrome.storage.local.get({ retryQueue: [] }, resolve)
     );
 
     let table = document.getElementById("queueTable");
-    table.innerHTML = ""; // Очищаем таблицу
+    table.innerHTML = ""; // Clear the table
 
-    // Заполняем таблицу данными из очереди
+    // Populate the table with data from the queue
     retryQueue.forEach((req, index) => {
       let row = document.createElement("tr");
       row.innerHTML = `
@@ -61,7 +61,7 @@ async function updateQueueDisplay() {
       table.appendChild(row);
     });
 
-    // Добавляем обработчики кнопок
+    // Add button handlers
     document.querySelectorAll(".remove-button").forEach((btn) => {
       btn.addEventListener("click", () => removeRequestFromRetryQueue(btn.dataset.index));
     });
@@ -72,7 +72,7 @@ async function updateQueueDisplay() {
 
 async function removeRequestFromRetryQueue(index) {
   try {
-    // Получаем очередь повторных запросов из хранилища
+    // Get the retry queue from storage
     const { retryQueue } = await new Promise(resolve =>
       chrome.storage.local.get({ retryQueue: [] }, resolve)
     );
@@ -84,32 +84,34 @@ async function removeRequestFromRetryQueue(index) {
       return;
     }
 
-    // Удаляем запрос из очереди
+    // Remove the request from the queue
     retryQueue.splice(index, 1);
 
-    // Обновляем хранилище после удаления
+    // Update storage after removal
     await new Promise(resolve =>
       chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
     );
 
     console.log("Request removed from retry queue:", req.url);
-    updateQueueDisplay(); // Обновляем отображение очереди
+    updateQueueDisplay(); // Update the queue display
   } catch (error) {
     console.error("Error removing request from queue:", error);
   }
 }
 
-// Обновлять очередь при открытии popup
+// Update the queue when the popup is opened
 document.addEventListener("DOMContentLoaded", updateQueueDisplay);
 
 document.getElementById("stopRetry").addEventListener("click", () => {
   chrome.storage.local.set({ retryEnabled: false }, () => {
     console.log("Retrying stopped.");
+    alert("Retrying stopped.");
   });
 });
 
 document.getElementById("startRetry").addEventListener("click", () => {
   chrome.storage.local.set({ retryEnabled: true }, () => {
     console.log("Retrying enabled.");
+    alert("Retrying enabled.");
   });
 });
