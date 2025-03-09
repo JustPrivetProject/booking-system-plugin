@@ -2,96 +2,9 @@
 <html>
 <head>
   <title>Popup</title>
+  <link rel="stylesheet" href="./styles.css"> // https://fonts.google.com/icons
   <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <script src="popup.js" defer></script>
-    <style>
-    /* Основные стили */
-    body {
-        width: 400px;  /* Ширина окна */
-        height: 600px; /* Высота окна */
-        overflow: auto; /* Скроллинг, если контент выходит за границы */
-        font-family: Arial, sans-serif;
-        flex-direction: column;
-        align-items: center; /* Центрируем элементы */
-        justify-content: flex-start;
-        padding: 20px; /* Отступ по краям */
-        box-sizing: border-box; /* Учитываем padding в ширине */
-    }
-
-    .input-container {
-        display: flex;
-        align-items: center;
-        width: 100%;
-        gap: 10px; /* Отступ между полем и кнопкой */
-    }
-
-    input {
-        flex: 1; /* Заполняет всё доступное пространство */
-        padding: 10px;
-        font-size: 14px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-    }
-
-    button.search {
-        width: 40px; /* Квадратная форма */
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 16px;
-        transition: 0.3s;
-    }
-
-    /* Стили для диалога */
-    .dialog-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      display: none; /* По умолчанию скрыто */
-    }
-
-    .dialog-box {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-        max-width: 400px;
-        width: 80%;
-        max-height: 80vh; /* Ограничиваем высоту окна */
-        overflow-y: auto; /* Включаем вертикальный скролл */
-        display: flex;
-        flex-direction: column;
-    }
-
-    .dialog-box button {
-        margin-top: 10px;
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 8px;
-        cursor: pointer;
-        width: 100%;
-    }
-
-    #response {
-        flex-grow: 1; /* Растягиваем контейнер для данных */
-    }
-
-    .dialog-box button:hover {
-      background: #0056b3;
-    }
-  </style>
 </head>
 <body>
   <div class="input-container">
@@ -105,6 +18,18 @@
       <div id="response"></div>
       <button id="close-dialog">Close</button>
     </div>
+  </div>
+  <h2>Retry Queue</h2>
+  <table id="queueTable">
+    <tr>
+      <th>#</th>
+      <th>URL</th>
+      <th>Action</th>
+    </tr>
+  </table>
+  <div class="control-container">
+  <button id="startRetry" title="Start all record"><span class="material-icons">sync</span></button>
+  <button id="stopRetry" title="Stop all record"><span class="material-icons">stop</span></button>
   </div>
 </body>
 </html>

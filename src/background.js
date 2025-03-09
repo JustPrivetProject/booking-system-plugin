@@ -26,7 +26,116 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
     })();
 
-    return true; // Указываем, что `sendResponse` будет вызван асинхронно
+    return true;
   }
 });
 
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    if (details.method === "POST" && details.requestBody) {
+      let rawData = details.requestBody.raw;
+      if (rawData && rawData[0]) {
+        let decoder = new TextDecoder("utf-8");
+        let body = decoder.decode(rawData[0].bytes); // Декодируем тело запроса
+
+        chrome.storage.local.get({ requestCache: {} }, (data) => {
+          let cache = data.requestCache;
+
+          // Проверяем, существует ли запрос в кэше по requestId
+          if (!cache[details.requestId]) {
+            cache[details.requestId] = { url: details.url, body };
+            chrome.storage.local.set({ requestCache: cache }, () => {
+              console.log("Cached Request:", details.requestId, details.url);
+            });
+          } else {
+            console.log("Request already in cache:", details.requestId, details.url);
+          }
+        });
+      }
+    }
+  },
+  { urls: ["*://*/Home/GetSlotsForPreview*"] },
+  ["requestBody"]
+);
+
+// Функция повторной отправки запросов
+function retryRequests() {
+  chrome.storage.local.get({ retryQueue: [], retryEnabled: true }, async (data) => {
+    if (!data.retryEnabled) {
+      console.log("Retrying is disabled.");
+      return;
+    }
+
+    let queue = data.retryQueue;
+    let newQueue = [];
+
+    for (const req of queue) {
+      try {
+        let body = typeof req.body === "string" ? req.body : JSON.stringify(req.body); // Гарантируем строку
+
+        let response = await fetch(req.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body,
+        });
+
+        if (!response.ok) {
+          console.warn("Retry failed, keeping in queue:", req.url);
+          newQueue.push(req);
+        } else {
+          console.log("Request retried successfully:", req.url);
+        }
+      } catch (err) {
+        console.error("Error retrying request:", err);
+        newQueue.push(req);
+      }
+    }
+
+    chrome.storage.local.set({ retryQueue: newQueue });
+  });
+}
+
+chrome.webRequest.onCompleted.addListener(
+  (details) => {
+    chrome.storage.local.get({ requestCache: {} }, (data) => {
+      let cache = data.requestCache;
+      delete cache[details.requestId]; // Удаляем обработанный запрос
+      chrome.storage.local.set({ requestCache: cache });
+    });
+  },
+  { urls: ["*://*/Home/GetSlotsForPreview*"] }
+);
+
+// Перехват ответов и добавление в очередь при ошибке
+chrome.webRequest.onCompleted.addListener(
+  (details) => {
+    if (details.statusCode !== 200) {
+      console.log("Request failed, checking cache:", details.requestId);
+
+      chrome.storage.local.get({ requestCache: {}, retryQueue: [] }, (data) => {
+        let cache = data.requestCache;
+        let queue = data.retryQueue;
+
+        // Проверяем, если запрос уже есть в кэше, не добавляем его в очередь
+        if (cache[details.requestId]) {
+          // Проверяем, не добавлен ли запрос уже в очередь
+          
+            queue.push(cache[details.requestId]); // Добавляем запрос в очередь
+            chrome.storage.local.set({ retryQueue: queue }, () => {
+              console.log("Added to retry queue:", cache[details.requestId].url);
+            });
+          } else {
+            console.log("Request is already in the retry queue:", cache[details.requestId].url);
+          }
+       
+      });
+    }
+  },
+  { urls: ["*://*/Home/GetSlotsForPreview*"] }
+);
+
+// Интервал для повторных попыток
+chrome.storage.local.set({ retryEnabled: true }); // По умолчанию включено
+const RETRY_INTERVAL = 60 * 1000; // 10 секунд
+// Запускаем повторные попытки раз в 10 секунд
+setInterval(retryRequests, RETRY_INTERVAL);

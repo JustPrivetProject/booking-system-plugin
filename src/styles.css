@@ -1,0 +1,119 @@
+/* Main styles */
+body {
+    width: 400px;  /* Window width */
+    height: 600px; /* Window height */
+    overflow: auto; /* Scrolling if content overflows */
+    font-family: Arial, sans-serif;
+    flex-direction: column;
+    align-items: center; /* Center elements */
+    justify-content: flex-start;
+    padding: 20px; /* Padding around edges */
+    box-sizing: border-box; /* Include padding in width */
+    display: flex;
+}
+
+.input-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px; /* Space between input and button */
+}
+
+input {
+    flex: 1; /* Fill all available space */
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button.search {
+    width: 40px; /* Square shape */
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: 0.3s;
+}
+
+/* Styles for dialog */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    display: none; /* Hidden by default */
+}
+
+.dialog-box {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
+    width: 80%;
+    max-height: 80vh; /* Limit dialog height */
+    overflow-y: auto; /* Enable vertical scroll */
+    display: flex;
+    flex-direction: column;
+}
+
+.dialog-box button {
+    margin-top: 10px;
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    width: 100%;
+}
+
+#response {
+    flex-grow: 1; /* Stretch container for data */
+}
+
+.dialog-box button:hover {
+    background: #0056b3;
+}
+/* Table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Arial', sans-serif;
+}
+th, td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: left;
+}
+th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+tr:hover {
+    background-color: #d1f7d1;
+}
+.icon {
+    font-size: 24px;
+}
+/* Button */
+.control-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px;
+    gap: 10px; /* Space between input and button */
+}
