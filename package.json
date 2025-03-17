@@ -1,11 +1,15 @@
 {
-  "name": "booking-system-plugin",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Ilya Murashka",
-  "license": "ISC"
+    "name": "booking-system-plugin",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "format": "prettier --write ."
+    },
+    "author": "Ilya Murashka",
+    "license": "ISC",
+    "devDependencies": {
+        "prettier": "3.5.3"
+    }
 }

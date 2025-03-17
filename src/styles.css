@@ -1,6 +1,6 @@
 /* Main styles */
 body {
-    width: 400px;  /* Window width */
+    width: 400px; /* Window width */
     height: 600px; /* Window height */
     overflow: auto; /* Scrolling if content overflows */
     font-family: Arial, sans-serif;
@@ -99,7 +99,7 @@ table {
 
 /* Заголовки */
 th {
-    background-color: #4CAF50;
+    background-color: #4caf50;
     color: white;
     font-weight: bold;
     text-align: left;
@@ -141,7 +141,7 @@ tr:hover {
 
 /* Улучшенные кнопки */
 button.table-button {
-    background: #00AACC;
+    background: #00aacc;
     color: white;
     border: none;
     padding: 8px 12px;

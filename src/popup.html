@@ -1,35 +1,47 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Popup</title>
-  <link rel="stylesheet" href="./styles.css"> <!--// https://fonts.google.com/icons -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-  <script src="popup.js" defer></script>
-</head>
-<body>
-  <div class="input-container">
-  <input type="date" id="date-input">
-  <button class="search" id="fetch-btn">
-    <span class="material-icons">search</span>
-  </button>
-</div>
-  <div class="dialog-overlay" id="dialog">
-    <div class="dialog-box">
-      <div id="response"></div>
-      <button id="close-dialog">Close</button>
-    </div>
-  </div>
-  <h2>Retry Queue</h2>
-  <table id="queueTable">
-    <tr>
-      <th>#</th>
-      <th>URL</th>
-      <th>Action</th>
-    </tr>
-  </table>
-  <div class="control-container">
-  <button class="table-button" id="startRetry" title="Start all record"><span class="material-icons">sync</span></button>
-  <button class="table-button" id="stopRetry" title="Stop all record"><span class="material-icons">stop</span></button>
-  </div>
-</body>
+    <head>
+        <title>Popup</title>
+        <link rel="stylesheet" href="./styles.css" />
+        <!--// https://fonts.google.com/icons -->
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+        />
+        <script src="popup.js" defer></script>
+    </head>
+    <body>
+        <div class="input-container">
+            <input type="date" id="date-input" />
+            <button class="search" id="fetch-btn">
+                <span class="material-icons">search</span>
+            </button>
+        </div>
+        <div class="dialog-overlay" id="dialog">
+            <div class="dialog-box">
+                <div id="response"></div>
+                <button id="close-dialog">Close</button>
+            </div>
+        </div>
+        <h2>Retry Queue</h2>
+        <table id="queueTable">
+            <tr>
+                <th>#</th>
+                <th>URL</th>
+                <th>Action</th>
+            </tr>
+        </table>
+        <div class="control-container">
+            <button
+                class="table-button"
+                id="startRetry"
+                title="Start all record"
+            >
+                <span class="material-icons">sync</span>
+            </button>
+            <button class="table-button" id="stopRetry" title="Stop all record">
+                <span class="material-icons">stop</span>
+            </button>
+        </div>
+    </body>
 </html>
