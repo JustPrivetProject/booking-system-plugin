@@ -10,7 +10,7 @@ const waitForElement = (selector, callback) => {
     observer.observe(document.body, { childList: true, subtree: true })
 }
 
-waitForElement('#SlotsTileDetails', (targetNode) => {
+waitForElement('#slotsDisplay', (targetNode) => {
     const enableButtons = () => {
         targetNode.querySelectorAll('button[disabled]').forEach((button) => {
             button.removeAttribute('disabled')
@@ -25,7 +25,36 @@ waitForElement('#SlotsTileDetails', (targetNode) => {
     observer.observe(targetNode, { childList: true, subtree: true })
 })
 
-// // Create an observer to monitor changes in the DOM
+waitForElement('#toast-container', () => {
+    chrome.runtime.sendMessage({ action: "showError", message: "An error occurred!" });
+})
+
+let enterInterval = null; // Храним ID интервала
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "startEnterSpam") {
+        if (!enterInterval) {
+            enterInterval = setInterval(() => {
+                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+                console.log('Enter pressed');
+            }, 2000);
+        }
+        sendResponse({ status: "Started" });
+    } 
+    
+    else if (message.action === "stopEnterSpam") {
+        if (enterInterval) {
+            clearInterval(enterInterval); // Останавливаем интервал
+            enterInterval = null; // Обнуляем переменную
+            console.log("❌ Enter spam stopped");
+        }
+        sendResponse({ status: "Stopped" });
+    }
+});
+
+
+// Create an observer to monitor changes in the DOM
 // const observer = new MutationObserver((mutationsList, observer) => {
 //     // Iterate through all changes in the DOM
 //     mutationsList.forEach(mutation => {
