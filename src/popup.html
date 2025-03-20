@@ -11,18 +11,6 @@
         <script src="popup.js" defer></script>
     </head>
     <body>
-        <div class="input-container">
-            <input type="date" id="date-input" />
-            <button class="search" id="fetch-btn">
-                <span class="material-icons">search</span>
-            </button>
-        </div>
-        <div class="dialog-overlay" id="dialog">
-            <div class="dialog-box">
-                <div id="response"></div>
-                <button id="close-dialog">Close</button>
-            </div>
-        </div>
         <h2>Retry Queue</h2>
         <table id="queueTable">
             <tr>
@@ -42,12 +30,6 @@
             <button class="table-button" id="stopRetry" title="Stop all record">
                 <span class="material-icons">stop</span>
             </button>
-            <button class="table-button" id="startLoop" title="Start Loop">
-              <span class="material-icons">start</span>
-          </button>
-          <button class="table-button" id="stopLoop" title="Stop Loop">
-            <span class="material-icons">pause</span>
-        </button>
         </div>
     </body>
 </html>

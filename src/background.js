@@ -30,25 +30,6 @@ parseSlotsIntoButtons = (htmlText) => {
     })
     return buttons
 }
-
-// Button for searching
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'fetchData') {
-        ;(async () => {
-            try {
-                const response = await getSlots(request.date)
-                const htmlText = await response.text()
-
-                sendResponse({ success: true, html: htmlText })
-            } catch (error) {
-                console.error('Fetch error:', error)
-                sendResponse({ success: false, error: error.message })
-            }
-        })()
-
-        return true
-    }
-})
 //
 function normalizeFormData(formData) {
     const result = {}
@@ -64,40 +45,18 @@ function normalizeFormData(formData) {
 
     return result
 }
-
-function objectToFormData(obj) {
-  const formData = new FormData();
-  
-  Object.entries(obj).forEach(([key, value]) => {
-    // Handle arrays
-    if (Array.isArray(value)) {
-      value.forEach(item => {
-        formData.append(key, item);
-      });
-    } else {
-      formData.append(key, value);
-    }
-  });
-  
-  return formData;
-}
 // Cache logic
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
         if (details.method === 'POST' && details.requestBody) {
             console.log('Request:', details.requestId, details.url)
-            
-            let body = normalizeFormData(details.requestBody).formData;
-            console.log(
-              'Request Body:',
-              body
-          )
+            console.log('Request Body:', details.requestBody)
             chrome.storage.local.get({ requestCacheBody: {} }, (data) => {
                 let cacheBody = data.requestCacheBody
 
                 cacheBody[details.requestId] = {
                     url: details.url,
-                    body,
+                    body: details.requestBody,
                     timestamp: Date.now(),
                 }
 
@@ -145,37 +104,6 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
     ['requestHeaders']
 )
 
-chrome.webRequest.onHeadersReceived.addListener(
-    (details) => {
-        chrome.storage.local.get({ responseCache: {} }, (data) => {
-            let cache = data.responseCache
-
-            if (!cache[details.requestId]) {
-                cache[details.requestId] = {
-                    url: details.url,
-                    responseHeaders: details.responseHeaders,
-                }
-
-                chrome.storage.local.set({ responseCache: cache }, () => {
-                    console.log(
-                        'Cached Response Headers:',
-                        details.requestId,
-                        details.url
-                    )
-                })
-            } else {
-                console.log(
-                    'Response Headers already in cache:',
-                    details.requestId,
-                    details.url
-                )
-            }
-        })
-    },
-    { urls: [maskForCache] },
-    ['responseHeaders']
-)
-
 // Function to retry requests
 function retryRequests() {
     chrome.storage.local.get(
@@ -191,11 +119,8 @@ function retryRequests() {
 
             for (const req of queue) {
                 try {
-                    const time = req.body.SlotStart[0].split(' ') // (2) ['20.02.2025', '22:00:00']
-                        // typeof req.body === 'string'
-                        // console.log('Slot start time',req.body.SlotStart)
-                        // console.log('Slot start time21323',req.body)
-                    // time = ['19.03.2025', '22:00:00']
+                    let body = normalizeFormData(req.body).formData
+                    const time = body.SlotStart[0].split(' ')
                     const slots = await getSlots(time[0])
                     const htmlText = await slots.text()
                     const buttons = parseSlotsIntoButtons(htmlText)
@@ -205,14 +130,29 @@ function retryRequests() {
                     ).disabled
                     // const isDisabled = false
                     if (!isDisabled) {
+                        const formData = new FormData()
+
+                        // Заполняем FormData данными из объекта
+                        Object.entries(req.body.formData).forEach(
+                            ([key, value]) => {
+                                if (Array.isArray(value)) {
+                                    value.forEach((item) => {
+                                        formData.append(key, item)
+                                    })
+                                } else {
+                                    formData.append(key, value)
+                                }
+                            }
+                        )
+
                         let response = await fetch(req.url, {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json',
+                                ...req.headersCache.headers,
                                 'X-Extension-Request': 'JustPrivetProject',
                                 credentials: 'include',
                             },
-                            body: objectToFormData(req.body),
+                            body: formData,
                         })
                         let parsedResponse = await response.text() // Was successful 1 time, but get error on parse response
                         console.log('Response:', parsedResponse)
@@ -248,135 +188,81 @@ function retryRequests() {
     )
 }
 
-chrome.webRequest.onCompleted.addListener(
-    (details) => {
-        chrome.storage.local.get(
-            {
-                requestCacheBody: {},
-                requestCacheHeaders: {},
-                responseCache: {},
-            },
-            (data) => {
-                let bodyCache = data.requestCacheBody
-                let headersCache = data.requestCacheHeaders
-                let responseCache = data.responseCache
-
-                delete bodyCache[details.requestId] // Remove processed request body
-                delete headersCache[details.requestId] // Remove processed request headers
-                delete responseCache[details.requestId] // Remove processed response cache
-
-                chrome.storage.local.set({
-                    requestCacheBody: bodyCache,
-                    requestCacheHeaders: headersCache,
-                    responseCache: responseCache,
-                })
-            }
-        )
-    },
-    { urls: [maskForCache] }
-)
-
-// TODO: https://trello.com/c/42rY2esL/2-how-to-handle-fail-request
-// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-//     if (message.action === 'showError') {
+// chrome.webRequest.onCompleted.addListener(
+//     (details) => {
 //         chrome.storage.local.get(
 //             {
 //                 requestCacheBody: {},
-//                 retryQueue: [],
 //                 requestCacheHeaders: {},
+//                 responseCache: {},
 //             },
 //             (data) => {
-//                 let requestCacheBody = data.requestCacheBody
-//                 let requestCacheHeaders = data.requestCacheHeaders
-//                 let queue = data.retryQueue
-//                 // TODO: We should use upper listener on message
-//                 // Check if the request is already in the cache, do not add it to the queue
-//                 if (
-//                     !requestCacheHeaders[details.requestId].headers.find(
-//                         (h) => {
-//                             return (
-//                                 h.name.toLowerCase() === 'x-extension-request'
-//                             )
-//                         }
-//                     )
-//                 ) {
-//                     if (requestCacheBody[details.requestId]) {
-//                         // Check if the request is already in the retry queue
+//                 let bodyCache = data.requestCacheBody
+//                 let headersCache = data.requestCacheHeaders
+//                 let responseCache = data.responseCache
 
-//                         queue.push(requestCacheBody[details.requestId]) // Add request to queue
-//                         chrome.storage.local.set({ retryQueue: queue }, () => {
-//                             console.log(
-//                                 'Added to retry queue:',
-//                                 requestCacheBody[details.requestId].url
-//                             )
-//                         })
-//                     } else {
-//                         console.log(
-//                             'Request is already in the retry queue:',
-//                             requestCacheBody[details.requestId].url
-//                         )
-//                     }
-//                 }
+//                 delete bodyCache[details.requestId] // Remove processed request body
+//                 delete headersCache[details.requestId] // Remove processed request headers
+//                 delete responseCache[details.requestId] // Remove processed response cache
+
+//                 chrome.storage.local.set({
+//                     requestCacheBody: bodyCache,
+//                     requestCacheHeaders: headersCache,
+//                     responseCache: responseCache,
+//                 })
 //             }
 //         )
-//     }
-// })
+//     },
+//     { urls: [maskForCache] }
+// )
 
-// Intercept responses and add to queue on error
-chrome.webRequest.onCompleted.addListener(
-    (details) => {
-        // TODO: Think about it // TODO: https://trello.com/c/42rY2esL/2-how-to-handle-fail-request
-        if (details.statusCode == 200) {
-            console.log('❌ Request failed, checking cache:', details.requestId)
+function getLastProperty(obj) {
+    let keys = Object.keys(obj) // Get all keys
+    if (keys.length === 0) return null // Return null if the object is empty
 
-            chrome.storage.local.get(
-                {
-                    requestCacheBody: {},
-                    retryQueue: [],
-                    requestCacheHeaders: {},
-                },
-                (data) => {
-                    let requestCacheBody = data.requestCacheBody
-                    let requestCacheHeaders = data.requestCacheHeaders
-                    let queue = data.retryQueue
-                    // TODO: We should use upper listener on message
-                    // Check if the request is already in the cache, do not add it to the queue
-                    if (
-                        !requestCacheHeaders[details.requestId].headers.find(
-                            (h) => {
-                                return (
-                                    h.name.toLowerCase() ===
-                                    'x-extension-request'
-                                )
-                            }
+    let lastKey = keys[keys.length - 1] // Get the last key
+    return { ...obj[lastKey] } // Return both key and value
+}
+
+// TODO: https://trello.com/c/42rY2esL/2-how-to-handle-fail-request
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'showError') {
+        console.log('❌ Request failed, checking cache')
+
+        chrome.storage.local.get(
+            {
+                requestCacheBody: {},
+                retryQueue: [],
+                requestCacheHeaders: {},
+            },
+            (data) => {
+                let requestCacheBody = getLastProperty(data.requestCacheBody)
+                let requestCacheHeaders = getLastProperty(
+                    data.requestCacheHeaders
+                )
+                let queue = data.retryQueue
+
+                if (requestCacheBody) {
+                    // Check if the request is already in the retry queue
+                    const retryObject = requestCacheBody
+                    retryObject.headersCache = requestCacheHeaders
+                    queue.push(retryObject) // Add request to queue
+                    chrome.storage.local.set({ retryQueue: queue }, () => {
+                        console.log(
+                            'Added to retry queue:',
+                            requestCacheBody.url
                         )
-                    ) {
-                        if (requestCacheBody[details.requestId]) {
-                            // Check if the request is already in the retry queue
-
-                            queue.push(requestCacheBody[details.requestId]) // Add request to queue
-                            chrome.storage.local.set(
-                                { retryQueue: queue },
-                                () => {
-                                    console.log(
-                                        'Added to retry queue:',
-                                        requestCacheBody[details.requestId].url
-                                    )
-                                }
-                            )
-                        } else {
-                            console.log(
-                                'Request is already in the retry queue:',
-                                requestCacheBody[details.requestId].url
-                            )
-                        }
-                    }
+                    })
+                } else {
+                    console.log(
+                        'Request is already in the retry queue:',
+                        requestCacheBody.url
+                    )
                 }
-            )
-        }
-    },
-    { urls: [maskForCache] }
-)
+            }
+        )
+    }
+})
 
 // Settings
 chrome.storage.local.set({ retryEnabled: true })
