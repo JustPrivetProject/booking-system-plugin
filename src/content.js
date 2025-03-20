@@ -1,14 +1,25 @@
 const waitForElement = (selector, callback) => {
     const observer = new MutationObserver(() => {
-        const element = document.querySelector(selector)
+        const element = document.querySelector(selector);
+        
         if (element) {
-            observer.disconnect()
-            callback(element)
-        }
-    })
+            callback(element);
 
-    observer.observe(document.body, { childList: true, subtree: true })
-}
+            // Wait for the element to disappear before continuing
+            const checkRemoval = new MutationObserver(() => {
+                if (!document.querySelector(selector)) {
+                    checkRemoval.disconnect(); // Stop observing disappearance
+                    observer.observe(document.body, { childList: true, subtree: true }); // Re-enable observer
+                }
+            });
+
+            checkRemoval.observe(document.body, { childList: true, subtree: true });
+            observer.disconnect(); // Temporarily stop observing until element disappears
+        }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+};
 
 waitForElement('#slotsDisplay', (targetNode) => {
     const enableButtons = () => {
