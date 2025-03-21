@@ -11,13 +11,17 @@
         <script src="popup.js" defer></script>
     </head>
     <body>
-        <h2>Retry Queue</h2>
         <table id="queueTable">
+            <thead>
             <tr>
                 <th>#</th>
-                <th>URL</th>
-                <th>Action</th>
+                <th>Numer zadania</th>
+                <th>Oczekiwany czas</th>
+                <th>Stan</th>
+                <th>Akcje</th>
             </tr>
+            </thead>
+            <tbody id="queueTableBody"></tbody>
         </table>
         <div class="control-container">
             <button

@@ -168,6 +168,8 @@ function retryRequests() {
                                 'Request retried successfully:',
                                 req.url
                             )
+                            req.status = 'success'
+                            newQueue.push(req)
                         }
                     } else {
                         console.warn(
@@ -246,6 +248,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     // Check if the request is already in the retry queue
                     const retryObject = requestCacheBody
                     retryObject.headersCache = requestCacheHeaders
+                    retryObject.status = 'in-progress'
                     queue.push(retryObject) // Add request to queue
                     chrome.storage.local.set({ retryQueue: queue }, () => {
                         console.log(

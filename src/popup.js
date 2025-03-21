@@ -1,3 +1,18 @@
+function normalizeFormData(formData) {
+    const result = {}
+
+    for (const key in formData) {
+        // If it's an array with only one item, use that item directly
+        if (Array.isArray(formData[key]) && formData[key].length === 1) {
+            result[key] = formData[key][0]
+        } else {
+            result[key] = formData[key]
+        }
+    }
+
+    return result
+}
+
 async function updateQueueDisplay() {
     try {
         // Get the queue from storage
@@ -5,18 +20,28 @@ async function updateQueueDisplay() {
             chrome.storage.local.get({ retryQueue: [] }, resolve)
         )
 
-        let table = document.getElementById('queueTable')
-        table.innerHTML = '' // Clear the table
+        let tableBody = document.getElementById('queueTableBody')
+        tableBody.innerHTML = '' // Clear the table
 
         // Populate the table with data from the queue
         retryQueue.forEach((req, index) => {
+            let containerInfo = normalizeFormData(req.body).formData
             let row = document.createElement('tr')
+            /**
+            *   <th>#</th>
+                <th>Numer zadania</th>
+                <th>Oczekiwany czas</th>
+                <th>Stan</th>
+                <th>Action</th>
+             */
             row.innerHTML = `
         <td>${index + 1}</td>
-        <td>${req.url}</td>
+        <td>${containerInfo["SelectedTasks[0].TaskNo"][0]}</td>
+        <td>${containerInfo.SlotStart[0]}</td>
+        <td class="status ${req.status}"></td>
         <td><button class="remove-button" data-index="${index}"><span class="material-icons icon">delete</span></button></td>
       `
-            table.appendChild(row)
+            tableBody.appendChild(row)
         })
 
         // Add button handlers
