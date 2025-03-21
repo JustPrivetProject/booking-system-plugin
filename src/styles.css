@@ -24,7 +24,7 @@ table {
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
 }
 
-/* Заголовки */
+/* Header */
 th {
     background-color: #00aacc;
     color: white;
@@ -62,7 +62,7 @@ tr:hover {
     border: 1px solid black;
 }
 
-/* Цвета статуса */
+/* Status colors */
 .in-progress::before {
     background-color: #ffcc00;
 }
