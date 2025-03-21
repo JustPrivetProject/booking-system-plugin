@@ -47,3 +47,26 @@ waitForElement('#toast-container', () => {
         console.error("Chrome runtime API is not available");
     }
 })
+
+
+// waitForElement('#toast-container', () => {
+//     window.postMessage({ 
+//         type: "FROM_CONTENT_SCRIPT", 
+//         action: "showError", 
+//         message: "An error occurred!" 
+//     }, "*");
+// })
+
+// window.addEventListener("message", function(event) {
+//     if (event.source === window && 
+//         event.data.type && 
+//         event.data.type === "FROM_CONTENT_SCRIPT") {
+        
+//         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+//             chrome.runtime.sendMessage({
+//                 action: event.data.action,
+//                 message: event.data.message
+//             });
+//         }
+//     }
+// }, false);

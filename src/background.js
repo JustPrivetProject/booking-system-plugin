@@ -250,11 +250,10 @@ function retryRequests() {
     )
 }
 
-// TODO: https://trello.com/c/42rY2esL/2-how-to-handle-fail-request
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'showError') {
         console.log('❌ Request failed, checking cache')
-
+        chrome.storage.local.set({ retryEnabled: false })
         chrome.storage.local.get(
             {
                 requestCacheBody: {},
@@ -274,7 +273,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.status = 'in-progress'
                     retryObject.taskNumber =
-                        normalizeFormData(requestCacheBody).formData[
+                        normalizeFormData(requestCacheBody.body).formData[
                             'SelectedTasks[0].TaskNo'
                         ][0]
                     queue.push(retryObject) // Add request to queue
@@ -290,6 +289,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         requestCacheBody.url
                     )
                 }
+                chrome.storage.local.set({ retryEnabled: true })
             }
         )
         sendResponse({ success: true })
