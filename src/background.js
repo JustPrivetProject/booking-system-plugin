@@ -253,14 +253,18 @@ function retryRequests() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'showError') {
         console.log('❌ Request failed, checking cache')
-        chrome.storage.local.set({ retryEnabled: false })
+
         chrome.storage.local.get(
             {
                 requestCacheBody: {},
                 retryQueue: [],
                 requestCacheHeaders: {},
+                retryEnabled: true,
             },
             (data) => {
+                if (data.retryEnabled) {
+                    chrome.storage.local.set({ retryEnabled: false })
+                }
                 let requestCacheBody = getLastProperty(data.requestCacheBody)
                 let requestCacheHeaders = getLastProperty(
                     data.requestCacheHeaders
@@ -272,10 +276,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const retryObject = requestCacheBody
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.status = 'in-progress'
-                    retryObject.taskNumber =
-                        normalizeFormData(requestCacheBody.body).formData[
-                            'SelectedTasks[0].TaskNo'
-                        ][0]
+                    retryObject.taskNumber = normalizeFormData(
+                        requestCacheBody.body
+                    ).formData['SelectedTasks[0].TaskNo'][0]
                     queue.push(retryObject) // Add request to queue
                     chrome.storage.local.set({ retryQueue: queue }, () => {
                         console.log(
@@ -289,7 +292,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         requestCacheBody.url
                     )
                 }
-                chrome.storage.local.set({ retryEnabled: true })
+                chrome.storage.local.set({ retryEnabled: data.retryEnabled })
             }
         )
         sendResponse({ success: true })
