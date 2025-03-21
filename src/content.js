@@ -37,5 +37,13 @@ waitForElement('#slotsDisplay', (targetNode) => {
 })
 
 waitForElement('#toast-container', () => {
-    chrome.runtime.sendMessage({ action: "showError", message: "An error occurred!" });
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ action: "showError", message: "An error occurred!" }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error("Error sending message:", chrome.runtime.lastError);
+            }
+        });
+    } else {
+        console.error("Chrome runtime API is not available");
+    }
 })

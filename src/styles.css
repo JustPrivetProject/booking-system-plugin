@@ -71,6 +71,10 @@ tr:hover {
     background-color: green;
 }
 
+.another-task::before {
+    background-color: rgb(0, 45, 128);
+}
+
 .icon {
     font-size: 18px;
     color: #333;

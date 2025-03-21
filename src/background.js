@@ -19,18 +19,6 @@ async function getSlots(date) {
     })
 }
 
-parseSlotsIntoButtons = (htmlText) => {
-    const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
-    const buttons = [...htmlText.matchAll(buttonRegex)].map((match) => {
-        const buttonHTML = match[0] // Весь найденный тег <button>...</button>
-        const text = match[1].trim() // Текст внутри кнопки
-        const disabled = /disabled/i.test(buttonHTML) // Проверяем наличие атрибута disabled
-
-        return { text, disabled }
-    })
-    return buttons
-}
-//
 function normalizeFormData(formData) {
     const result = {}
 
@@ -45,12 +33,32 @@ function normalizeFormData(formData) {
 
     return result
 }
+
+function getLastProperty(obj) {
+    let keys = Object.keys(obj) // Get all keys
+    if (keys.length === 0) return null // Return null if the object is empty
+
+    let lastKey = keys[keys.length - 1] // Get the last key
+    return { ...obj[lastKey] } // Return both key and value
+}
+
+parseSlotsIntoButtons = (htmlText) => {
+    const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
+    const buttons = [...htmlText.matchAll(buttonRegex)].map((match) => {
+        const buttonHTML = match[0] // Весь найденный тег <button>...</button>
+        const text = match[1].trim() // Текст внутри кнопки
+        const disabled = /disabled/i.test(buttonHTML) // Проверяем наличие атрибута disabled
+
+        return { text, disabled }
+    })
+    return buttons
+}
+//
+
 // Cache logic
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
         if (details.method === 'POST' && details.requestBody) {
-            console.log('Request:', details.requestId, details.url)
-            console.log('Request Body:', details.requestBody)
             chrome.storage.local.get({ requestCacheBody: {} }, (data) => {
                 let cacheBody = data.requestCacheBody
 
@@ -117,70 +125,122 @@ function retryRequests() {
             let queue = data.retryQueue
             let newQueue = []
 
-            for (const req of queue) {
-                try {
-                    let body = normalizeFormData(req.body).formData
-                    const time = body.SlotStart[0].split(' ')
-                    const slots = await getSlots(time[0])
-                    const htmlText = await slots.text()
-                    const buttons = parseSlotsIntoButtons(htmlText)
+            for (let i = 0; i < queue.length; i++) {
+                const req = queue[i]
+                if (req.status === 'in-progress') {
+                    try {
+                        let body = normalizeFormData(req.body).formData
+                        const taskNumber = body['SelectedTasks[0].TaskNo'][0]
+                        const time = body.SlotStart[0].split(' ')
 
-                    const isDisabled = buttons.find((button) =>
-                        button.text.includes(time[1].slice(0, 5))
-                    ).disabled
-                    // const isDisabled = false
-                    if (!isDisabled) {
-                        const formData = new FormData()
-
-                        // Заполняем FormData данными из объекта
-                        Object.entries(req.body.formData).forEach(
-                            ([key, value]) => {
-                                if (Array.isArray(value)) {
-                                    value.forEach((item) => {
-                                        formData.append(key, item)
-                                    })
-                                } else {
-                                    formData.append(key, value)
-                                }
-                            }
-                        )
-
-                        let response = await fetch(req.url, {
-                            method: 'POST',
-                            headers: {
-                                ...req.headersCache.headers,
-                                'X-Extension-Request': 'JustPrivetProject',
-                                credentials: 'include',
-                            },
-                            body: formData,
-                        })
-                        let parsedResponse = await response.text() // Was successful 1 time, but get error on parse response
-                        console.log('Response:', parsedResponse)
-                        if (!!parsedResponse.error) {
-                            // TODO: {"error":"Brak dostępnych slotów","messageCode":"CannotCreateTvaInSelectedSlot"}
+                        // check if task was succeed in another queen
+                        if (
+                            req.status === 'in-progress' &&
+                            queue.some(
+                                (task) =>
+                                    task.taskNumber === req.taskNumber &&
+                                    task.status === 'success'
+                            )
+                        ) {
                             console.warn(
-                                '❌ Retry failed, keeping in queue:',
-                                req.url
+                                '✅ The request was executed in another task:',
+                                taskNumber,
+                                time.join(', ')
                             )
+                            req.status = 'another-task'
                             newQueue.push(req)
-                        } else {
-                            console.log(
-                                'Request retried successfully:',
-                                req.url
+                            continue
+                        }
+
+                        // check if slot is available
+                        const slots = await getSlots(time[0])
+                        const htmlText = await slots.text()
+                        const buttons = parseSlotsIntoButtons(htmlText)
+                        const isHasSlot = buttons.find((button) =>
+                            button.text.includes(time[1].slice(0, 5))
+                        ).disabled
+
+                        // If there are no slots, keep the request in the queue
+                        if (!isHasSlot) {
+                            const formData = new FormData()
+
+                            // Fill FormData from Object
+                            Object.entries(req.body.formData).forEach(
+                                ([key, value]) => {
+                                    if (Array.isArray(value)) {
+                                        value.forEach((item) => {
+                                            formData.append(key, item)
+                                        })
+                                    } else {
+                                        formData.append(key, value)
+                                    }
+                                }
                             )
-                            req.status = 'success'
+
+                            let response = await fetch(req.url, {
+                                method: 'POST',
+                                headers: {
+                                    ...req.headersCache.headers,
+                                    'X-Extension-Request': 'JustPrivetProject',
+                                    credentials: 'include',
+                                },
+                                body: formData,
+                            })
+                            let parsedResponse = await response.text()
+                            console.log('Response:', parsedResponse)
+                            if (parsedResponse.includes('error')) {
+                                if (
+                                    parsedResponse.includes(
+                                        'CannotCreateTvaInSelectedSlot'
+                                    )
+                                ) {
+                                    console.warn(
+                                        '❌ Retry failed, keeping in queue:',
+                                        taskNumber,
+                                        time.join(', ')
+                                    )
+                                    newQueue.push(req)
+                                } else if (
+                                    parsedResponse.includes(
+                                        'TaskWasUsedInAnotherTva'
+                                    )
+                                ) {
+                                    console.warn(
+                                        '✅ The request was executed in another task:',
+                                        taskNumber,
+                                        time.join(', ')
+                                    )
+                                    req.status = 'another-task'
+                                    newQueue.push(req)
+                                } else {
+                                    console.error(
+                                        '❌ Unknown error occurred:',
+                                        parsedResponse
+                                    )
+                                    newQueue.push(req)
+                                }
+                            } else {
+                                console.log(
+                                    '✅Request retried successfully:',
+                                    taskNumber,
+                                    time.join(', ')
+                                )
+                                req.status = 'success'
+                                newQueue.push(req)
+                            }
+                        } else {
+                            console.warn(
+                                '❌ No slots, keeping in queue:',
+                                taskNumber,
+                                time.join(', ')
+                            )
                             newQueue.push(req)
                         }
-                    } else {
-                        console.warn(
-                            '❌ No slots, keeping in queue:',
-                            time.join(', '),
-                            req.url
-                        )
+                    } catch (err) {
+                        console.error('Error retrying request:', err)
                         newQueue.push(req)
                     }
-                } catch (err) {
-                    console.error('Error retrying request:', err)
+                } else {
                     newQueue.push(req)
                 }
             }
@@ -188,42 +248,6 @@ function retryRequests() {
             chrome.storage.local.set({ retryQueue: newQueue })
         }
     )
-}
-
-// chrome.webRequest.onCompleted.addListener(
-//     (details) => {
-//         chrome.storage.local.get(
-//             {
-//                 requestCacheBody: {},
-//                 requestCacheHeaders: {},
-//                 responseCache: {},
-//             },
-//             (data) => {
-//                 let bodyCache = data.requestCacheBody
-//                 let headersCache = data.requestCacheHeaders
-//                 let responseCache = data.responseCache
-
-//                 delete bodyCache[details.requestId] // Remove processed request body
-//                 delete headersCache[details.requestId] // Remove processed request headers
-//                 delete responseCache[details.requestId] // Remove processed response cache
-
-//                 chrome.storage.local.set({
-//                     requestCacheBody: bodyCache,
-//                     requestCacheHeaders: headersCache,
-//                     responseCache: responseCache,
-//                 })
-//             }
-//         )
-//     },
-//     { urls: [maskForCache] }
-// )
-
-function getLastProperty(obj) {
-    let keys = Object.keys(obj) // Get all keys
-    if (keys.length === 0) return null // Return null if the object is empty
-
-    let lastKey = keys[keys.length - 1] // Get the last key
-    return { ...obj[lastKey] } // Return both key and value
 }
 
 // TODO: https://trello.com/c/42rY2esL/2-how-to-handle-fail-request
@@ -249,6 +273,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const retryObject = requestCacheBody
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.status = 'in-progress'
+                    retryObject.taskNumber =
+                        normalizeFormData(requestCacheBody).formData[
+                            'SelectedTasks[0].TaskNo'
+                        ][0]
                     queue.push(retryObject) // Add request to queue
                     chrome.storage.local.set({ retryQueue: queue }, () => {
                         console.log(
@@ -264,7 +292,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
             }
         )
+        sendResponse({ success: true })
     }
+    return true
 })
 
 // Settings
