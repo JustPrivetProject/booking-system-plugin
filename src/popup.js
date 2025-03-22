@@ -13,6 +13,14 @@ function normalizeFormData(formData) {
     return result
 }
 
+  // set up google icons
+  function getStatusIcon(status) {
+    if (status === "in-progress") return "loop";
+    if (status === "success") return "check_circle";
+    if (status === "another-task") return "check_circle";
+    return "report";
+  }
+
 async function updateQueueDisplay() {
     try {
         // Get the queue from storage
@@ -29,16 +37,16 @@ async function updateQueueDisplay() {
             let row = document.createElement('tr')
             /**
             *   <th>#</th>
-                <th>Numer zadania</th>
+                <th>Tv App Id</th>
                 <th>Oczekiwany czas</th>
                 <th>Stan</th>
                 <th>Action</th>
              */
             row.innerHTML = `
         <td>${index + 1}</td>
-        <td>${containerInfo["SelectedTasks[0].TaskNo"][0]}</td>
+        <td>${containerInfo.TvAppId[0]}</td>
         <td>${containerInfo.SlotStart[0]}</td>
-        <td class="status ${req.status}"></td>
+        <td class="status ${req.status}" title="${req.status_message}"><span class="material-icons status-icon">${getStatusIcon(req.status)}</span></td>
         <td><button class="remove-button" data-index="${index}"><span class="material-icons icon">delete</span></button></td>
       `
             tableBody.appendChild(row)
