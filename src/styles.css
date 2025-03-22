@@ -101,6 +101,12 @@ tr:hover {
     gap: 12px;
 }
 
+button {
+    background-color: transparent;
+    border: none;
+    border-style: none;
+}
+
 button.table-button {
     background: #00aacc;
     color: white;
