@@ -7,7 +7,7 @@ body {
     flex-direction: column;
     align-items: center; /* Center elements */
     justify-content: flex-start;
-    padding: 20px; /* Padding around edges */
+    /* padding: 20px; Padding around edges */
     box-sizing: border-box; /* Include padding in width */
     display: flex;
 }
@@ -24,6 +24,14 @@ table {
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
 }
 
+button {
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease-in-out;
+}
+
 /* Header */
 th {
     background-color: #00aacc;
@@ -32,10 +40,39 @@ th {
     text-align: left;
     padding: 12px;
 }
-
+/* Table data */
 td {
-    border-bottom: 1px solid #ddd;
+    /* border-bottom: 1px solid #ddd; */
     padding: 12px;
+}
+
+td.actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2px;
+}
+
+td.actions button {
+    border: none;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+    background: white;
+}
+
+td.actions button:hover {
+    background: #f9f9f9;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+td.actions .remove-button {
+    background: red; 
+    span {
+        color: white;
+    }
+}
+
+td.actions .remove-button:hover {
+    background-color: #d90000;
 }
 
 tr:nth-child(even) {
@@ -45,10 +82,6 @@ tr:nth-child(even) {
 tr:hover {
     background-color: #e6f7e6;
     transition: background 0.3s ease;
-}
-
-.status-icon {
-    font-size: 24px;
 }
 
 .in-progress .status-icon {
@@ -66,6 +99,10 @@ tr:hover {
 
 .error .status-icon {
     color: red;
+}
+
+.paused .status-icon {
+    color: orange;
 }
 
 @keyframes spin {
@@ -97,26 +134,18 @@ tr:hover {
     align-items: flex-end;
     justify-content: flex-end;
     width: 100%;
-    padding: 10px;
-    gap: 12px;
-}
-
-button {
-    background-color: transparent;
-    border: none;
-    border-style: none;
+    padding: 12px;
+    padding-right: 24px;
+    gap: 4px;
 }
 
 button.table-button {
     background: #00aacc;
     color: white;
     border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: 0.3s;
 }
 
 button.table-button:hover {
-    background: #00778f;
+    background: #0096b4;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }

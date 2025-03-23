@@ -18,6 +18,7 @@ function normalizeFormData(formData) {
     if (status === "in-progress") return "loop";
     if (status === "success") return "check_circle";
     if (status === "another-task") return "check_circle";
+    if (status === "paused") return "pause_circle";
     return "report";
   }
 
@@ -46,8 +47,18 @@ async function updateQueueDisplay() {
         <td>${index + 1}</td>
         <td>${containerInfo.TvAppId[0]}</td>
         <td>${containerInfo.SlotStart[0]}</td>
-        <td class="status ${req.status}" title="${req.status_message}"><span class="material-icons status-icon">${getStatusIcon(req.status)}</span></td>
-        <td><button class="remove-button" data-index="${index}"><span class="material-icons icon">delete</span></button></td>
+        <td class="status ${req.status}" title="${req.status_message}"><span class="status-icon material-icons" style="font-size: 36px;">${getStatusIcon(req.status)}</span></td>
+        <td class="actions">
+            <button class="resume-button" data-index="${index}" title="Wznów">
+                <span class="material-icons icon">play_arrow</span>
+            </button>
+            <button class="pause-button" data-index="${index}" title="Wstrzymaj">
+                <span class="material-icons icon">pause</span>
+            </button>
+            <button class="remove-button" data-index="${index}" title="Usuń">
+                <span class="material-icons icon">delete</span>
+            </button>
+        </td>
       `
             tableBody.appendChild(row)
         })
@@ -56,6 +67,16 @@ async function updateQueueDisplay() {
         document.querySelectorAll('.remove-button').forEach((btn) => {
             btn.addEventListener('click', () =>
                 removeRequestFromRetryQueue(btn.dataset.index)
+            )
+        })
+        document.querySelectorAll('.resume-button').forEach((btn) => {
+            btn.addEventListener('click', () =>
+                setInProgressStatusRequest(btn.dataset.index)
+            )
+        })
+        document.querySelectorAll('.pause-button').forEach((btn) => {
+            btn.addEventListener('click', () =>
+                setPauseStatusRequest(btn.dataset.index)
             )
         })
     } catch (error) {
@@ -79,6 +100,66 @@ async function removeRequestFromRetryQueue(index) {
 
         // Remove the request from the queue
         retryQueue.splice(index, 1)
+
+        // Update storage after removal
+        await new Promise((resolve) =>
+            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+        )
+
+        console.log('Request removed from retry queue:', req.url)
+        updateQueueDisplay() // Update the queue display
+    } catch (error) {
+        console.error('Error removing request from queue:', error)
+    }
+}
+
+async function setPauseStatusRequest(index) {
+    try {
+        // Get the retry queue from storage
+        const { retryQueue } = await new Promise((resolve) =>
+            chrome.storage.local.get({ retryQueue: [] }, resolve)
+        )
+
+        let req = retryQueue[index]
+
+        if (!req) {
+            console.log('Request not found at index:', index)
+            return
+        }
+
+        // Remove the request from the queue
+        req.status = 'paused'
+        req.status_message = 'Zadanie jest wstrzymane'
+
+        // Update storage after removal
+        await new Promise((resolve) =>
+            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+        )
+
+        console.log('Request removed from retry queue:', req.url)
+        updateQueueDisplay() // Update the queue display
+    } catch (error) {
+        console.error('Error removing request from queue:', error)
+    }
+}
+
+async function setInProgressStatusRequest(index) {
+    try {
+        // Get the retry queue from storage
+        const { retryQueue } = await new Promise((resolve) =>
+            chrome.storage.local.get({ retryQueue: [] }, resolve)
+        )
+
+        let req = retryQueue[index]
+
+        if (!req) {
+            console.log('Request not found at index:', index)
+            return
+        }
+
+        // Set status in Progress
+        req.status = 'in-progress'
+        req.status_message = 'Zadanie jest w trakcie realizacji'
 
         // Update storage after removal
         await new Promise((resolve) =>
