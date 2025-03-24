@@ -69,14 +69,14 @@ async function updateQueueDisplay() {
                 removeRequestFromRetryQueue(btn.dataset.index)
             )
         })
-        document.querySelectorAll('.resume-button').forEach((btn) => {
-            btn.addEventListener('click', () =>
-                setInProgressStatusRequest(btn.dataset.index)
-            )
-        })
         document.querySelectorAll('.pause-button').forEach((btn) => {
             btn.addEventListener('click', () =>
-                setPauseStatusRequest(btn.dataset.index)
+                setStatusRequest(btn.dataset.index, 'paused', 'Zadanie jest wstrzymane')
+            )
+        })
+        document.querySelectorAll('.resume-button').forEach((btn) => {
+            btn.addEventListener('click', () =>
+                setStatusRequest(btn.dataset.index, 'in-progress', 'Zadanie jest w trakcie realizacji')
             )
         })
     } catch (error) {
@@ -113,7 +113,7 @@ async function removeRequestFromRetryQueue(index) {
     }
 }
 
-async function setPauseStatusRequest(index) {
+async function setStatusRequest(index, status, status_message) {
     try {
         // Get the retry queue from storage
         const { retryQueue } = await new Promise((resolve) =>
@@ -128,38 +128,8 @@ async function setPauseStatusRequest(index) {
         }
 
         // Remove the request from the queue
-        req.status = 'paused'
-        req.status_message = 'Zadanie jest wstrzymane'
-
-        // Update storage after removal
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
-
-        console.log('Request removed from retry queue:', req.url)
-        updateQueueDisplay() // Update the queue display
-    } catch (error) {
-        console.error('Error removing request from queue:', error)
-    }
-}
-
-async function setInProgressStatusRequest(index) {
-    try {
-        // Get the retry queue from storage
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        )
-
-        let req = retryQueue[index]
-
-        if (!req) {
-            console.log('Request not found at index:', index)
-            return
-        }
-
-        // Set status in Progress
-        req.status = 'in-progress'
-        req.status_message = 'Zadanie jest w trakcie realizacji'
+        req.status = status,
+        req.status_message = status_message,
 
         // Update storage after removal
         await new Promise((resolve) =>
