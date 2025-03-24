@@ -23,6 +23,10 @@ function retryRequests() {
     chrome.storage.local.get(
         { retryQueue: [], retryEnabled: true },
         async (data) => {
+            if (data.retryQueue.length === 0) {
+                return
+            }
+
             if (!data.retryEnabled) {
                 console.log('Retrying is disabled.')
                 return
@@ -300,12 +304,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         requestCacheBody.body
                     ).formData['SelectedTasks[0].TaskNo'][0]
                     queue.push(retryObject) // Add request to queue
-                    chrome.storage.local.set({ retryQueue: queue }, () => {
-                        console.log(
-                            'Added to retry queue:',
-                            requestCacheBody.url
-                        )
-                    })
+
+                    // Remove the last request from the cache
+                    const lastKeyBody = Object.keys(data.requestCacheBody).pop()
+                    const lastKeyHeaders = Object.keys(
+                        data.requestCacheHeaders
+                    ).pop()
+
+                    delete data.requestCacheBody[lastKeyBody]
+                    delete data.requestCacheHeaders[lastKeyHeaders]
+
+                    chrome.storage.local.set(
+                        {
+                            requestCacheBody: data.requestCacheBody,
+                            requestCacheHeaders: data.requestCacheHeaders,
+                            retryQueue: queue,
+                        },
+                        () => {
+                            console.log(
+                                'Added to retry queue:',
+                                requestCacheBody.url
+                            )
+                        }
+                    )
                 } else {
                     console.log(
                         'Request is already in the retry queue:',
