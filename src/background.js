@@ -120,6 +120,7 @@ async function processRequest(req, queue) {
         return {
             ...req,
             status: 'another-task',
+            status_message: 'Zadanie zakończone w innym wątku',
         }
     }
 
