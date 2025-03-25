@@ -126,11 +126,7 @@ async function processRequest(req, queue) {
 
     const isSlotAvailable = await checkSlotAvailability(time)
     if (!isSlotAvailable) {
-        console.warn(
-            '❌ No slots, keeping in queue:',
-            tvAppId,
-            time.join(', ')
-        )
+        console.warn('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
         return req
     }
 
@@ -139,8 +135,7 @@ async function processRequest(req, queue) {
 
 function isTaskCompletedInAnotherQueue(req, queue) {
     return queue.some(
-        (task) =>
-            task.tvAppId === req.tvAppId && task.status === 'success'
+        (task) => task.tvAppId === req.tvAppId && task.status === 'success'
     )
 }
 
@@ -170,20 +165,16 @@ async function executeRequest(req, tvAppId, time) {
 
     const parsedResponse = await response.text()
     if (!parsedResponse.includes('error')) {
-        console.log(
-            '✅Request retried successfully:',
-            tvAppId,
-            time.join(', ')
-        )
+        console.log('✅Request retried successfully:', tvAppId, time.join(', '))
         // Send notification to user
         try {
             chrome.notifications.create({
-                type: "basic",
-                iconUrl: "./icons/icon-144x144.png",
+                type: 'basic',
+                iconUrl: './icons/icon-144x144.png',
                 title: 'Zmiana czasu',
-                message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie`,
-                priority: 2
-            });
+                message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie - ${time[1].slice(0, 5)}`,
+                priority: 2,
+            })
         } catch (error) {
             console.error('Error sending notification:', error)
         }
@@ -297,6 +288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 retryQueue: [],
                 requestCacheHeaders: {},
                 retryEnabled: true,
+                tableData: [],
             },
             (data) => {
                 if (data.retryEnabled) {
@@ -309,16 +301,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 let queue = data.retryQueue
 
                 if (requestCacheBody) {
+                    const tableData = data.tableData
                     // Check if the request is already in the retry queue
                     const retryObject = requestCacheBody
+                    const tvAppId = normalizeFormData(
+                        requestCacheBody.body
+                    ).formData.TvAppId[0]
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.status = 'in-progress'
                     retryObject.status_message =
                         'Zadanie jest w trakcie realizacji'
-                    retryObject.tvAppId = normalizeFormData(
-                        requestCacheBody.body
-                    ).formData.TvAppId[0]
-                    queue.push(retryObject) // Add request to queue
+                    retryObject.tvAppId = tvAppId
+                    if(tableData) {
+                        retryObject.containerNumber = tableData.find((row) =>
+                            row.includes(tvAppId)
+                        )[tableData[0].indexOf('Nr kontenera')]
+                    }
+                    // Add request to the retry queue
+                    queue.push(retryObject)
 
                     // Remove the last request from the cache
                     const lastKeyBody = Object.keys(data.requestCacheBody).pop()
@@ -353,18 +353,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         )
         sendResponse({ success: true })
     }
-    if (message.action === 'showNotification') {
-        try {
-            chrome.notifications.create({
-                type: "basic",
-                iconUrl: "./icons/icon-144x144.png",
-                title: 'Test notification',
-                message: 'This is a test notification',
-                priority: 2
-            });
-        } catch (error) {
-            console.error('Error sending notification:', error)
-        }
+    if (message.action === 'parsedTable') {
+        chrome.storage.local.set({ tableData: message.message }, () => {
+            console.log('Table saved in the storage', message.message)
+        })
+        sendResponse({ success: true })
     }
     return true
 })
