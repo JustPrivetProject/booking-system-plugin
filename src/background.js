@@ -108,13 +108,13 @@ function createFormData(formDataObj) {
 
 async function processRequest(req, queue) {
     let body = normalizeFormData(req.body).formData
-    const taskNumber = body['SelectedTasks[0].TaskNo'][0]
+    const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
 
     if (isTaskCompletedInAnotherQueue(req, queue)) {
         console.warn(
             '✅ The request was executed in another task:',
-            taskNumber,
+            tvAppId,
             time.join(', ')
         )
         return {
@@ -128,19 +128,19 @@ async function processRequest(req, queue) {
     if (!isSlotAvailable) {
         console.warn(
             '❌ No slots, keeping in queue:',
-            taskNumber,
+            tvAppId,
             time.join(', ')
         )
         return req
     }
 
-    return await executeRequest(req, taskNumber, time)
+    return await executeRequest(req, tvAppId, time)
 }
 
 function isTaskCompletedInAnotherQueue(req, queue) {
     return queue.some(
         (task) =>
-            task.taskNumber === req.taskNumber && task.status === 'success'
+            task.tvAppId === req.tvAppId && task.status === 'success'
     )
 }
 
@@ -155,7 +155,7 @@ async function checkSlotAvailability(time) {
     return !slotButton.disabled
 }
 
-async function executeRequest(req, taskNumber, time) {
+async function executeRequest(req, tvAppId, time) {
     const formData = createFormData(req.body.formData)
 
     const response = await fetch(req.url, {
@@ -172,9 +172,22 @@ async function executeRequest(req, taskNumber, time) {
     if (!parsedResponse.includes('error')) {
         console.log(
             '✅Request retried successfully:',
-            taskNumber,
+            tvAppId,
             time.join(', ')
         )
+        // Send notification to user
+        try {
+            chrome.notifications.create({
+                type: "basic",
+                iconUrl: "./icons/icon-144x144.png",
+                title: 'Zmiana czasu',
+                message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie`,
+                priority: 2
+            });
+        } catch (error) {
+            console.error('Error sending notification:', error)
+        }
+
         return {
             ...req,
             status: 'success',
@@ -182,15 +195,15 @@ async function executeRequest(req, taskNumber, time) {
         }
     }
 
-    return handleErrorResponse(req, parsedResponse, taskNumber, time)
+    return handleErrorResponse(req, parsedResponse, tvAppId, time)
     // TODO: add action to update grid
 }
 
-function handleErrorResponse(req, parsedResponse, taskNumber, time) {
+function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
         console.warn(
             '❌ Retry failed, keeping in queue:',
-            taskNumber,
+            tvAppId,
             time.join(', ')
         )
         return req
@@ -199,7 +212,7 @@ function handleErrorResponse(req, parsedResponse, taskNumber, time) {
     if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
         console.warn(
             '✅ The request was executed in another task:',
-            taskNumber,
+            tvAppId,
             time.join(', ')
         )
         return {
@@ -302,9 +315,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.status = 'in-progress'
                     retryObject.status_message =
                         'Zadanie jest w trakcie realizacji'
-                    retryObject.taskNumber = normalizeFormData(
+                    retryObject.tvAppId = normalizeFormData(
                         requestCacheBody.body
-                    ).formData['SelectedTasks[0].TaskNo'][0]
+                    ).formData.TvAppId[0]
                     queue.push(retryObject) // Add request to queue
 
                     // Remove the last request from the cache
@@ -339,6 +352,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         )
         sendResponse({ success: true })
+    }
+    if (message.action === 'showNotification') {
+        try {
+            chrome.notifications.create({
+                type: "basic",
+                iconUrl: "./icons/icon-144x144.png",
+                title: 'Test notification',
+                message: 'This is a test notification',
+                priority: 2
+            });
+        } catch (error) {
+            console.error('Error sending notification:', error)
+        }
     }
     return true
 })

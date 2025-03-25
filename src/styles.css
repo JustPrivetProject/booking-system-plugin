@@ -42,7 +42,6 @@ th {
 }
 /* Table data */
 td {
-    /* border-bottom: 1px solid #ddd; */
     padding: 12px;
 }
 
@@ -94,7 +93,7 @@ tr:hover {
 }
 
 .another-task .status-icon {
-    color: yellow;
+    color: #0096b4;
 }
 
 .error .status-icon {
@@ -127,25 +126,4 @@ tr:hover {
     font-size: 24px;
     color: #333;
     cursor: pointer;
-}
-
-.control-container {
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    width: 100%;
-    padding: 12px;
-    padding-right: 24px;
-    gap: 4px;
-}
-
-button.table-button {
-    background: #00aacc;
-    color: white;
-    border: none;
-}
-
-button.table-button:hover {
-    background: #0096b4;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }

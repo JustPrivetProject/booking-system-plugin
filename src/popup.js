@@ -144,17 +144,3 @@ async function setStatusRequest(index, status, status_message) {
 
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', updateQueueDisplay)
-
-document.getElementById('stopRetry').addEventListener('click', () => {
-    chrome.storage.local.set({ retryEnabled: false }, () => {
-        console.log('Retrying stopped.')
-        alert('Retrying stopped.')
-    })
-})
-
-document.getElementById('startRetry').addEventListener('click', () => {
-    chrome.storage.local.set({ retryEnabled: true }, () => {
-        console.log('Retrying enabled.')
-        alert('Retrying enabled.')
-    })
-})

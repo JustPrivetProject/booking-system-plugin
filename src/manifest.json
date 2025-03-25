@@ -7,9 +7,8 @@
         "storage",
         "activeTab",
         "scripting",
-        "cookies",
-        "scripting",
-        "webRequest"
+        "webRequest",
+        "notifications"
     ],
     "host_permissions": ["https://ebrama.baltichub.com/*"],
     "background": {
