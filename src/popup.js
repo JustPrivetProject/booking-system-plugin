@@ -140,12 +140,12 @@ async function setStatusRequest(index, status, status_message) {
             return
         }
 
-        ;(req.status = status),
-            (req.status_message = status_message),
-            // Update storage after updated status
-            await new Promise((resolve) =>
-                chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-            )
+        req.status = status
+        req.status_message = status_message
+        // Update storage after updated status
+        await new Promise((resolve) =>
+            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+        )
 
         console.log('Request was updated new status:', status)
         updateQueueDisplay() // Update the queue display
