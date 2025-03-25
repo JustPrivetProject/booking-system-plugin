@@ -288,6 +288,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 retryQueue: [],
                 requestCacheHeaders: {},
                 retryEnabled: true,
+                test: false,
                 tableData: [],
             },
             (data) => {
@@ -304,15 +305,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const tableData = data.tableData
                     // Check if the request is already in the retry queue
                     const retryObject = requestCacheBody
-                    const tvAppId = normalizeFormData(
-                        requestCacheBody.body
-                    ).formData.TvAppId[0]
+                    const tvAppId = normalizeFormData(requestCacheBody.body)
+                        .formData.TvAppId[0]
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.status = 'in-progress'
                     retryObject.status_message =
                         'Zadanie jest w trakcie realizacji'
                     retryObject.tvAppId = tvAppId
-                    if(tableData) {
+                    if (tableData) {
                         retryObject.containerNumber = tableData.find((row) =>
                             row.includes(tvAppId)
                         )[tableData[0].indexOf('Nr kontenera')]
@@ -321,13 +321,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     queue.push(retryObject)
 
                     // Remove the last request from the cache
-                    const lastKeyBody = Object.keys(data.requestCacheBody).pop()
-                    const lastKeyHeaders = Object.keys(
-                        data.requestCacheHeaders
-                    ).pop()
+                    if (!data.testEnv) {
+                        const lastKeyBody = Object.keys(
+                            data.requestCacheBody
+                        ).pop()
+                        const lastKeyHeaders = Object.keys(
+                            data.requestCacheHeaders
+                        ).pop()
 
-                    delete data.requestCacheBody[lastKeyBody]
-                    delete data.requestCacheHeaders[lastKeyHeaders]
+                        delete data.requestCacheBody[lastKeyBody]
+                        delete data.requestCacheHeaders[lastKeyHeaders]
+                    }
 
                     chrome.storage.local.set(
                         {
@@ -364,6 +368,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Settings
 chrome.storage.local.set({ retryEnabled: true })
+chrome.storage.local.set({ testEnv: false })
 const RETRY_INTERVAL = 15 * 1000
 // Start retry attempts every 60 seconds
 setInterval(retryRequests, RETRY_INTERVAL)
