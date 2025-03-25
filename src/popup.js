@@ -127,16 +127,15 @@ async function setStatusRequest(index, status, status_message) {
             return
         }
 
-        // Remove the request from the queue
         req.status = status,
         req.status_message = status_message,
 
-        // Update storage after removal
+        // Update storage after updated status
         await new Promise((resolve) =>
             chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
         )
 
-        console.log('Request removed from retry queue:', req.url)
+        console.log('Request was updated new status:', status)
         updateQueueDisplay() // Update the queue display
     } catch (error) {
         console.error('Error removing request from queue:', error)
