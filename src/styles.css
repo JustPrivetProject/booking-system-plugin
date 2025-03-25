@@ -1,6 +1,6 @@
 /* Main styles */
 body {
-    width: 550px; /* Window width */
+    width: 470px; /* Window width */
     height: 400px; /* Window height */
     overflow: auto; /* Scrolling if content overflows */
     font-family: Arial, sans-serif;
@@ -25,7 +25,7 @@ table {
 }
 
 button {
-    padding: 4px 8px;
+    padding: 2px 4px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;

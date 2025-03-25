@@ -43,14 +43,12 @@ async function updateQueueDisplay() {
             let containerInfo = normalizeFormData(req.body).formData
             let row = document.createElement('tr')
             /**
-            *   <th>#</th>
-                <th>Tv App Id</th>
+            *   <th>Tv App Id</th>
                 <th>Oczekiwany czas</th>
                 <th>Stan</th>
                 <th>Action</th>
              */
             row.innerHTML = `
-        <td>${index + 1}</td>
         <td>${containerInfo.TvAppId[0]}</td>
         <td>${req.containerNumber ? req.containerNumber : '-'}</td>
         <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
