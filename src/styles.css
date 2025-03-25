@@ -1,6 +1,6 @@
 /* Main styles */
 body {
-    width: 400px; /* Window width */
+    width: 550px; /* Window width */
     height: 400px; /* Window height */
     overflow: auto; /* Scrolling if content overflows */
     font-family: Arial, sans-serif;
@@ -58,10 +58,23 @@ td.actions button {
     background: white;
 }
 
+td.actions button:disabled {
+    background-color: inherit;
+    cursor: not-allowed;
+    span {
+        color: #ccc;
+    }
+}
+
 td.actions button:hover {
     background: #f9f9f9;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
+
+td.actions button:disabled:hover {
+    background-color: inherit;
+    opacity: 0.6;
+  }
 
 td.actions .remove-button {
     background: red; 

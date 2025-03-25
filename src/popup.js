@@ -13,14 +13,20 @@ function normalizeFormData(formData) {
     return result
 }
 
-  // set up google icons
-  function getStatusIcon(status) {
-    if (status === "in-progress") return "loop";
-    if (status === "success") return "check_circle";
-    if (status === "another-task") return "check_circle";
-    if (status === "paused") return "pause_circle";
-    return "report";
-  }
+// set up google icons
+function getStatusIcon(status) {
+    if (status === 'in-progress') return 'loop'
+    if (status === 'success') return 'check_circle'
+    if (status === 'another-task') return 'check_circle'
+    if (status === 'paused') return 'pause_circle'
+    return 'report'
+}
+
+function isDisabled(status) {
+    if (status === 'another-task') return 'disabled'
+    if (status === 'success') return 'disabled'
+    return ''
+}
 
 async function updateQueueDisplay() {
     try {
@@ -46,13 +52,14 @@ async function updateQueueDisplay() {
             row.innerHTML = `
         <td>${index + 1}</td>
         <td>${containerInfo.TvAppId[0]}</td>
-        <td>${containerInfo.SlotStart[0]}</td>
-        <td class="status ${req.status}" title="${req.status_message}"><span class="status-icon material-icons" style="font-size: 36px;">${getStatusIcon(req.status)}</span></td>
+        <td>${req.containerNumber ? req.containerNumber : '-'}</td>
+        <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
+        <td class="status ${req.status}" title="${req.status_message}"><span class="status-icon material-icons" style="font-size: 28px;">${getStatusIcon(req.status)}</span></td>
         <td class="actions">
-            <button class="resume-button" data-index="${index}" title="Wznów">
+            <button class="resume-button" data-index="${index}" title="Wznów" ${isDisabled(req.status)}>
                 <span class="material-icons icon">play_arrow</span>
             </button>
-            <button class="pause-button" data-index="${index}" title="Wstrzymaj">
+            <button class="pause-button" data-index="${index}" title="Wstrzymaj" ${isDisabled(req.status)}>
                 <span class="material-icons icon">pause</span>
             </button>
             <button class="remove-button" data-index="${index}" title="Usuń">
@@ -71,12 +78,20 @@ async function updateQueueDisplay() {
         })
         document.querySelectorAll('.pause-button').forEach((btn) => {
             btn.addEventListener('click', () =>
-                setStatusRequest(btn.dataset.index, 'paused', 'Zadanie jest wstrzymane')
+                setStatusRequest(
+                    btn.dataset.index,
+                    'paused',
+                    'Zadanie jest wstrzymane'
+                )
             )
         })
         document.querySelectorAll('.resume-button').forEach((btn) => {
             btn.addEventListener('click', () =>
-                setStatusRequest(btn.dataset.index, 'in-progress', 'Zadanie jest w trakcie realizacji')
+                setStatusRequest(
+                    btn.dataset.index,
+                    'in-progress',
+                    'Zadanie jest w trakcie realizacji'
+                )
             )
         })
     } catch (error) {
@@ -127,13 +142,12 @@ async function setStatusRequest(index, status, status_message) {
             return
         }
 
-        req.status = status,
-        req.status_message = status_message,
-
-        // Update storage after updated status
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
+        ;(req.status = status),
+            (req.status_message = status_message),
+            // Update storage after updated status
+            await new Promise((resolve) =>
+                chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+            )
 
         console.log('Request was updated new status:', status)
         updateQueueDisplay() // Update the queue display
