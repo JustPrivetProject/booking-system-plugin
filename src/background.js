@@ -164,7 +164,7 @@ async function executeRequest(req, tvAppId, time) {
     })
 
     const parsedResponse = await response.text()
-    if (!parsedResponse.includes('error')) {
+    if (!parsedResponse.includes('error') && response.ok) {
         console.log('✅Request retried successfully:', tvAppId, time.join(', '))
         // Send notification to user
         try {
