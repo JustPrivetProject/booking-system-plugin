@@ -5,7 +5,11 @@ chrome.runtime.onInstalled.addListener(() => {
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
 async function getSlots(date) {
-    return fetch('https://ebrama.baltichub.com/Home/GetSlotsForPreview', {
+    const [day, month, year] = date.split('.').map(Number);
+    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0));
+    const dateAfterTransfer = newDate.toISOString();
+
+    return fetch('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
@@ -14,7 +18,7 @@ async function getSlots(date) {
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
-        body: JSON.stringify({ date: date }),
+        body: JSON.stringify({date: dateAfterTransfer,type:1}), // 26.02.2025
         credentials: 'include',
     })
 }
@@ -123,8 +127,18 @@ async function processRequest(req, queue) {
             status_message: 'Zadanie zakończone w innym wątku',
         }
     }
-
-    const isSlotAvailable = await checkSlotAvailability(time)
+    const slots = await getSlots(time[0])
+    // Check Authorization 
+    if(!slots.ok) {
+    console.warn('❌ Problem with authorization:', tvAppId, time.join(', '))
+       return {
+            ...req,
+            status: 'authorization-error',
+            status_message: 'Problem z autoryzacją',
+        }
+    }
+    const htmlText = await slots.text()
+    const isSlotAvailable = await checkSlotAvailability(htmlText)
     if (!isSlotAvailable) {
         console.warn('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
         return req
@@ -139,9 +153,7 @@ function isTaskCompletedInAnotherQueue(req, queue) {
     )
 }
 
-async function checkSlotAvailability(time) {
-    const slots = await getSlots(time[0])
-    const htmlText = await slots.text()
+async function checkSlotAvailability(htmlText) {
     const buttons = parseSlotsIntoButtons(htmlText)
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
