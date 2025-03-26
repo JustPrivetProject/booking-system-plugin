@@ -19,6 +19,7 @@ function getStatusIcon(status) {
     if (status === 'success') return 'check_circle'
     if (status === 'another-task') return 'check_circle'
     if (status === 'paused') return 'pause_circle'
+    if (status === 'authorization-error') return 'report'
     return 'report'
 }
 
@@ -27,6 +28,17 @@ function isDisabled(status) {
     if (status === 'success') return 'disabled'
     if (status === 'error') return 'disabled'
     return ''
+}
+
+function isPlayDisabled(status) {
+    if (status === 'in-progress') return 'disabled'
+    return isDisabled(status)
+}
+
+function isPauseDisabled(status) {
+    if (status === 'paused') return 'disabled'
+    if (status === 'authorization-error') return 'disabled'
+    return isDisabled(status)
 }
 
 async function updateQueueDisplay() {
@@ -55,10 +67,10 @@ async function updateQueueDisplay() {
         <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
         <td class="status ${req.status}" title="${req.status_message}"><span class="status-icon material-icons" style="font-size: 28px;">${getStatusIcon(req.status)}</span></td>
         <td class="actions">
-            <button class="resume-button" data-index="${index}" title="Wznów" ${isDisabled(req.status)}>
+            <button class="resume-button" data-index="${index}" title="Wznów" ${isPlayDisabled(req.status)}>
                 <span class="material-icons icon">play_arrow</span>
             </button>
-            <button class="pause-button" data-index="${index}" title="Wstrzymaj" ${isDisabled(req.status)}>
+            <button class="pause-button" data-index="${index}" title="Wstrzymaj" ${isPauseDisabled(req.status)}>
                 <span class="material-icons icon">pause</span>
             </button>
             <button class="remove-button" data-index="${index}" title="Usuń">
