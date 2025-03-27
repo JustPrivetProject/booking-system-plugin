@@ -233,6 +233,10 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     }
 }
 
+function generateUniqueId() {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Cache logic
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
@@ -300,7 +304,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 retryQueue: [],
                 requestCacheHeaders: {},
                 retryEnabled: true,
-                test: false,
+                testEnv: false,
                 tableData: [],
             },
             (data) => {
@@ -324,6 +328,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.status_message =
                         'Zadanie jest w trakcie realizacji'
                     retryObject.tvAppId = tvAppId
+                    retryObject.id = generateUniqueId()
                     if (tableData) {
                         const row = retryObject.containerNumber = tableData.find((row) =>
                             row.includes(tvAppId)
