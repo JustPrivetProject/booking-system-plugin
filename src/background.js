@@ -325,9 +325,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         'Zadanie jest w trakcie realizacji'
                     retryObject.tvAppId = tvAppId
                     if (tableData) {
-                        retryObject.containerNumber = tableData.find((row) =>
+                        const row = retryObject.containerNumber = tableData.find((row) =>
                             row.includes(tvAppId)
-                        )[tableData[0].indexOf('Nr kontenera')]
+                        )
+                        if (row) {
+                            retryObject.containerNumber = row[tableData[0].indexOf('Nr kontenera')]
+                        }
                     }
                     // Add request to the retry queue
                     queue.push(retryObject)

@@ -96,6 +96,35 @@ tr:hover {
     transition: background 0.3s ease;
 }
 
+td.group-header {
+    background-color: #0096b4; /* Чуть светлее заголовка таблицы */
+    color: white;
+    font-weight: bold;
+    text-align: left;
+    font-size: 12px;
+    padding: 10px 12px;
+    letter-spacing: 0.5px;
+    border-top: 2px solid white; /* Разделение между группами */
+    border-bottom: 2px solid #007799;
+}
+
+/* Скругление углов только у первой группы */
+td.group-header:first-child {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+}
+
+/* Отделение группы от строк */
+td.group-header + tr td {
+    border-top: 1px solid #ccc; /* Лёгкое разделение */
+}
+
+/* Улучшенный hover-эффект для строк контейнеров */
+tr:hover td {
+    background-color: #daf5ff; /* Мягкий голубой */
+    transition: background 0.3s ease;
+}
+
 .in-progress .status-icon {
     animation: spin-reverse 1s linear infinite;
     color: black;

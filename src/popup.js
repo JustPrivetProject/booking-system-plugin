@@ -48,38 +48,50 @@ async function updateQueueDisplay() {
             chrome.storage.local.get({ retryQueue: [] }, resolve)
         )
 
+        // Группировка по TvAppId
+        const groupedData = retryQueue.reduce((acc, req) => {
+            const tvAppId = req.tvAppId;
+            if (!acc[tvAppId]) acc[tvAppId] = [];
+            acc[tvAppId].push(req);
+            return acc;
+        }, {});
+        console.log(groupedData)
+
         let tableBody = document.getElementById('queueTableBody')
         tableBody.innerHTML = '' // Clear the table
 
         // Populate the table with data from the queue
-        retryQueue.forEach((req, index) => {
+        Object.entries(groupedData).forEach(([tvAppId, items]) => {
+        // Добавляем строку-заголовок группы
+        const groupRow = document.createElement("tr");
+        groupRow.innerHTML = `<td colspan="5" class="group-header">TvAppId: ${tvAppId}, Nr kontenera: ${items[0].containerNumber ? items[0].containerNumber : '-'}</td>`;
+        tableBody.appendChild(groupRow);
+
+        items.forEach((req, index) => {
             let containerInfo = normalizeFormData(req.body).formData
-            let row = document.createElement('tr')
-            /**
-            *   <th>Tv App Id</th>
-                <th>Oczekiwany czas</th>
-                <th>Stan</th>
-                <th>Action</th>
-             */
+            const row = document.createElement("tr");
             row.innerHTML = `
-        <td>${containerInfo.TvAppId[0]}</td>
-        <td>${req.containerNumber ? req.containerNumber : '-'}</td>
-        <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
-        <td class="status ${req.status}" title="${req.status_message}"><span class="status-icon material-icons" style="font-size: 28px;">${getStatusIcon(req.status)}</span></td>
-        <td class="actions">
-            <button class="resume-button" data-index="${index}" title="Wznów" ${isPlayDisabled(req.status)}>
-                <span class="material-icons icon">play_arrow</span>
-            </button>
-            <button class="pause-button" data-index="${index}" title="Wstrzymaj" ${isPauseDisabled(req.status)}>
-                <span class="material-icons icon">pause</span>
-            </button>
-            <button class="remove-button" data-index="${index}" title="Usuń">
-                <span class="material-icons icon">delete</span>
-            </button>
-        </td>
-      `
-            tableBody.appendChild(row)
-        })
+                <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
+                <td class="status ${req.status}" title="${req.status_message}">
+                    <span class="status-icon material-icons" style="font-size: 28px;">
+                        ${getStatusIcon(req.status)}
+                    </span>
+                </td>
+                <td class="actions">
+                    <button class="resume-button" data-index="${index}" title="Wznów" ${isPlayDisabled(req.status)}>
+                        <span class="material-icons icon">play_arrow</span>
+                    </button>
+                    <button class="pause-button" data-index="${index}" title="Wstrzymaj" ${isPauseDisabled(req.status)}>
+                        <span class="material-icons icon">pause</span>
+                    </button>
+                    <button class="remove-button" data-index="${index}" title="Usuń">
+                        <span class="material-icons icon">delete</span>
+                    </button>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    });
 
         // Add button handlers
         document.querySelectorAll('.remove-button').forEach((btn) => {
