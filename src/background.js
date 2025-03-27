@@ -5,9 +5,9 @@ chrome.runtime.onInstalled.addListener(() => {
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
 async function getSlots(date) {
-    const [day, month, year] = date.split('.').map(Number);
-    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0));
-    const dateAfterTransfer = newDate.toISOString();
+    const [day, month, year] = date.split('.').map(Number)
+    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0))
+    const dateAfterTransfer = newDate.toISOString()
 
     return fetch('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
@@ -18,12 +18,12 @@ async function getSlots(date) {
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
-        body: JSON.stringify({date: dateAfterTransfer,type:1}), // 26.02.2025
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
         credentials: 'include',
     })
 }
 function generateUniqueId() {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    return crypto.randomUUID()
 }
 
 function retryRequests() {
@@ -131,17 +131,17 @@ async function processRequest(req, queue) {
         }
     }
     const slots = await getSlots(time[0])
-    // Check Authorization 
-    if(!slots.ok) {
-    console.warn('❌ Problem with authorization:', tvAppId, time.join(', '))
-       return {
+    // Check Authorization
+    if (!slots.ok) {
+        console.warn('❌ Problem with authorization:', tvAppId, time.join(', '))
+        return {
             ...req,
             status: 'authorization-error',
             status_message: 'Problem z autoryzacją',
         }
     }
     const htmlText = await slots.text()
-    const isSlotAvailable = await checkSlotAvailability(htmlText)
+    const isSlotAvailable = await checkSlotAvailability(htmlText, time)
     if (!isSlotAvailable) {
         console.warn('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
         return req
@@ -156,7 +156,7 @@ function isTaskCompletedInAnotherQueue(req, queue) {
     )
 }
 
-async function checkSlotAvailability(htmlText) {
+async function checkSlotAvailability(htmlText, time) {
     const buttons = parseSlotsIntoButtons(htmlText)
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
@@ -329,11 +329,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.tvAppId = tvAppId
                     retryObject.id = generateUniqueId()
                     if (tableData) {
-                        const row = retryObject.containerNumber = tableData.find((row) =>
-                            row.includes(tvAppId)
-                        )
+                        const row = (retryObject.containerNumber =
+                            tableData.find((row) => row.includes(tvAppId)))
                         if (row) {
-                            retryObject.containerNumber = row[tableData[0].indexOf('Nr kontenera')]
+                            retryObject.containerNumber =
+                                row[tableData[0].indexOf('Nr kontenera')]
                         }
                     }
                     // Add request to the retry queue
