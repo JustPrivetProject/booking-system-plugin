@@ -111,14 +111,12 @@ td.group-header {
     font-weight: bold;
     text-align: left;
     font-size: 12px;
-    padding: 10px 12px;
     letter-spacing: 0.5px;
+    padding-top: 2px;
+    padding-bottom: 2px;
     border-top: 2px solid white; /* Разделение между группами */
-    border-bottom: 2px solid #007799;
     cursor: pointer;
-    /* display: flex; */
     align-items: center;
-    gap: 8px;
 }
 
 .toggle-icon {
@@ -130,12 +128,20 @@ td.group-header + tr td {
     border-top: 1px solid #ccc; /* Лёгкое разделение */
 }
 
-/* td.group-header button.group-remove-button {
-    display: flex;
-    justify-content: flex-end;
-} */
+tr[data-is-open="true"] .status-icon {
+    opacity: 0;
+    visibility: hidden;
+}
 
-/* Улучшенный hover-эффект для строк контейнеров */
+tr[data-is-open="false"] .status-icon {
+    opacity: 1;
+    visibility: visible;
+}
+
+.group-header.actions .group-remove-button {
+    margin-left: auto; /* Прижимает кнопку удаления вправо */
+}
+
 tr:hover td {
     background-color: #daf5ff; /* Мягкий голубой */
     transition: background 0.3s ease;

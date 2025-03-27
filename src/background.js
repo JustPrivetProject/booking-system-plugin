@@ -22,6 +22,9 @@ async function getSlots(date) {
         credentials: 'include',
     })
 }
+function generateUniqueId() {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
 
 function retryRequests() {
     chrome.storage.local.get(
@@ -231,10 +234,6 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         status: 'error',
         status_message: 'Nieznany błąd',
     }
-}
-
-function generateUniqueId() {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // Cache logic
