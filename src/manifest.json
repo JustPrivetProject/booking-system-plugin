@@ -5,8 +5,6 @@
     "description": "Help to booking slot",
     "permissions": [
         "storage",
-        "activeTab",
-        "scripting",
         "webRequest",
         "notifications"
     ],
