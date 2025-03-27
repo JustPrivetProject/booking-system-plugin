@@ -71,6 +71,7 @@ async function updateQueueDisplay() {
             let containerInfo = normalizeFormData(req.body).formData
             const row = document.createElement("tr");
             row.innerHTML = `
+                <td></td>
                 <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="status ${req.status}" title="${req.status_message}">
                     <span class="status-icon material-icons" style="font-size: 28px;">

@@ -1,6 +1,6 @@
 /* Main styles */
 body {
-    width: 470px; /* Window width */
+    width: 330px; /* Window width */
     height: 400px; /* Window height */
     overflow: auto; /* Scrolling if content overflows */
     font-family: Arial, sans-serif;
@@ -91,11 +91,6 @@ tr:nth-child(even) {
     background-color: #f9f9f9ec;
 }
 
-tr:hover {
-    background-color: #e6f7e6;
-    transition: background 0.3s ease;
-}
-
 td.group-header {
     background-color: #0096b4; /* Чуть светлее заголовка таблицы */
     color: white;
@@ -109,9 +104,13 @@ td.group-header {
 }
 
 /* Скругление углов только у первой группы */
-td.group-header:first-child {
+/* td.group-header:first-child {
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
+} */
+
+td.group-header:hover {
+    background-color: #0185a0;
 }
 
 /* Отделение группы от строк */
