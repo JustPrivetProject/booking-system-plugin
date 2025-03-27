@@ -83,14 +83,12 @@ function createConfirmationModal(message) {
 function sortStatusesByPriority(statuses) {
     // Define the priority of statuses from the most critical to the least critical
     const priorityOrder = [
-        'success',// Highest priority (critical error)
-        'error',// High priority (paused tasks)
+        'success', // Highest priority (critical error)
+        'error', // High priority (paused tasks)
         'authorization-error', // Medium priority (tasks in progress)
-        'another-task',  // Low priority
+        'another-task', // Low priority
         'in-progress',
-        'paused',  // Lowest priority (completed tasks)
-       
-       
+        'paused', // Lowest priority (completed tasks)
     ]
 
     // Sort statuses according to the defined priority order
@@ -162,27 +160,34 @@ async function restoreGroupStates() {
         const { groupStates = {} } =
             await chrome.storage.local.get('groupStates')
 
-        document.querySelectorAll('.group-header.toggle-cell').forEach((header) => {
-            const groupRow = header.closest('.group-row')
-            if (!groupRow) return
+        document
+            .querySelectorAll('.group-header.toggle-cell')
+            .forEach((header) => {
+                const groupRow = header.closest('.group-row')
+                if (!groupRow) return
 
-            const groupId = groupRow.dataset.groupId
-            const isOpen = groupStates[groupId] || false
-            groupRow.dataset.isOpen = isOpen 
-            // Update header state
-            header.classList.toggle('open', isOpen)
-            const toggleIcon = header.querySelector('.toggle-icon')
-            if (toggleIcon) {
-                toggleIcon.textContent = isOpen ? 'expand_less' : 'expand_more'
-            }
+                const groupId = groupRow.dataset.groupId
+                const isOpen = groupStates[groupId] || false
+                groupRow.dataset.isOpen = isOpen
+                // Update header state
+                header.classList.toggle('open', isOpen)
+                const toggleIcon = header.querySelector('.toggle-icon')
+                if (toggleIcon) {
+                    toggleIcon.textContent = isOpen
+                        ? 'expand_less'
+                        : 'expand_more'
+                }
 
-            // Toggle visibility of child rows
-            let nextRow = groupRow.nextElementSibling
-            while (nextRow && !nextRow.querySelector('.group-header.toggle-cell')) {
-                nextRow.style.display = isOpen ? 'table-row' : 'none'
-                nextRow = nextRow.nextElementSibling
-            }
-        })
+                // Toggle visibility of child rows
+                let nextRow = groupRow.nextElementSibling
+                while (
+                    nextRow &&
+                    !nextRow.querySelector('.group-header.toggle-cell')
+                ) {
+                    nextRow.style.display = isOpen ? 'table-row' : 'none'
+                    nextRow = nextRow.nextElementSibling
+                }
+            })
     } catch (error) {
         console.error('Error restoring group states:', error)
     }
@@ -236,8 +241,10 @@ async function updateQueueDisplay() {
 
         // Populate the table with data from the queue
         Object.entries(groupedData).forEach(([tvAppId, items]) => {
-            const statusForGroup = sortStatusesByPriority(items.map(item => item.status))[0];
-            const statusIconForGroup = getStatusIcon(statusForGroup);
+            const statusForGroup = sortStatusesByPriority(
+                items.map((item) => item.status)
+            )[0]
+            const statusIconForGroup = getStatusIcon(statusForGroup)
             const groupRow = document.createElement('tr')
             groupRow.dataset.groupId = tvAppId
             groupRow.classList.add('group-row')
@@ -312,44 +319,46 @@ async function updateQueueDisplay() {
                 )
             )
         })
-        document.querySelectorAll('.group-header.toggle-cell').forEach((header) => {
-            header.addEventListener('click', async function () {
-                const groupRow = this.closest('.group-row')
-                if (!groupRow) return
+        document
+            .querySelectorAll('.group-header.toggle-cell')
+            .forEach((header) => {
+                header.addEventListener('click', async function () {
+                    const groupRow = this.closest('.group-row')
+                    if (!groupRow) return
 
-                const groupId = groupRow.dataset.groupId
-                const toggleIcon = this.querySelector('.toggle-icon')
+                    const groupId = groupRow.dataset.groupId
+                    const toggleIcon = this.querySelector('.toggle-icon')
 
-                // Toggle open state
-                const isCurrentlyOpen = this.classList.contains('open')
-                this.classList.toggle('open')
-                
-                if (toggleIcon) {
-                    toggleIcon.textContent = isCurrentlyOpen
-                        ? 'expand_more'
-                        : 'expand_less'
-                }
+                    // Toggle open state
+                    const isCurrentlyOpen = this.classList.contains('open')
+                    this.classList.toggle('open')
 
-                // Toggle child rows visibility
-                let nextRow = groupRow.nextElementSibling
-                while (nextRow && !nextRow.querySelector('.group-header')) {
-                    nextRow.style.display = isCurrentlyOpen
-                        ? 'none'
-                        : 'table-row'
-                    nextRow = nextRow.nextElementSibling
-                }
-                groupRow.dataset.isOpen = !isCurrentlyOpen 
-                // Save group state
-                try {
-                    const { groupStates = {} } =
-                        await chrome.storage.local.get('groupStates')
-                    groupStates[groupId] = !isCurrentlyOpen
-                    await chrome.storage.local.set({ groupStates })
-                } catch (error) {
-                    console.error('Error saving group state:', error)
-                }
+                    if (toggleIcon) {
+                        toggleIcon.textContent = isCurrentlyOpen
+                            ? 'expand_more'
+                            : 'expand_less'
+                    }
+
+                    // Toggle child rows visibility
+                    let nextRow = groupRow.nextElementSibling
+                    while (nextRow && !nextRow.querySelector('.group-header')) {
+                        nextRow.style.display = isCurrentlyOpen
+                            ? 'none'
+                            : 'table-row'
+                        nextRow = nextRow.nextElementSibling
+                    }
+                    groupRow.dataset.isOpen = !isCurrentlyOpen
+                    // Save group state
+                    try {
+                        const { groupStates = {} } =
+                            await chrome.storage.local.get('groupStates')
+                        groupStates[groupId] = !isCurrentlyOpen
+                        await chrome.storage.local.set({ groupStates })
+                    } catch (error) {
+                        console.error('Error saving group state:', error)
+                    }
+                })
             })
-        })
         document
             .querySelectorAll('.group-row .group-remove-button')
             .forEach((removeButton) => {
@@ -373,7 +382,7 @@ async function updateQueueDisplay() {
                     ) {
                         const removeBtn =
                             nextRow.querySelector('.remove-button')
-                        if (removeBtn && removeBtn.dataset.id) {
+                        if (removeBtn?.dataset?.id) {
                             idsToDelete.push(removeBtn.dataset.id)
                         }
                         nextRow = nextRow.nextElementSibling
