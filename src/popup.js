@@ -13,6 +13,129 @@ function normalizeFormData(formData) {
     return result
 }
 
+function createConfirmationModal(message) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '1000';
+
+        const modal = document.createElement('div');
+        modal.style.backgroundColor = 'white';
+        modal.style.padding = '20px';
+        modal.style.borderRadius = '8px';
+        modal.style.textAlign = 'center';
+        modal.style.maxWidth = '400px';
+        modal.style.width = '90%';
+
+        const messageEl = document.createElement('p');
+        messageEl.textContent = message;
+        messageEl.style.marginBottom = '20px';
+
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.display = 'flex';
+        buttonsContainer.style.justifyContent = 'center';
+        buttonsContainer.style.gap = '10px';
+
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Anuluj';
+        cancelButton.style.padding = '10px 20px';
+        cancelButton.style.backgroundColor = '#f0f0f0';
+        cancelButton.style.border = 'none';
+        cancelButton.style.borderRadius = '4px';
+
+        const confirmButton = document.createElement('button');
+        confirmButton.textContent = 'Potwierdź';
+        confirmButton.style.padding = '10px 20px';
+        confirmButton.style.backgroundColor = '#ff4d4d';
+        confirmButton.style.color = 'white';
+        confirmButton.style.border = 'none';
+        confirmButton.style.borderRadius = '4px';
+
+        cancelButton.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(false);
+        });
+
+        confirmButton.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(true);
+        });
+
+        buttonsContainer.appendChild(cancelButton);
+        buttonsContainer.appendChild(confirmButton);
+        
+        modal.appendChild(messageEl);
+        modal.appendChild(buttonsContainer);
+        
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+    });
+}
+
+async function removeRequestFromRetryQueue(id) {
+    try {
+        const { retryQueue } = await new Promise((resolve) =>
+            chrome.storage.local.get({ retryQueue: [] }, resolve)
+        );
+
+        const index = retryQueue.findIndex(
+            (req) => req.id === id
+        );
+
+        if (index === -1) {
+            console.log('Request not found:', tvAppId, slotStart);
+            return;
+        }
+
+        let req = retryQueue.splice(index, 1)[0];
+
+        await new Promise((resolve) =>
+            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+        );
+
+        console.log('Request removed:', req.url);
+        updateQueueDisplay();
+    } catch (error) {
+        console.error('Error removing request:', error);
+    }
+}
+
+async function setStatusRequest(id, status, status_message) {
+    try {
+        // Get the retry queue from storage
+        const { retryQueue } = await new Promise((resolve) =>
+            chrome.storage.local.get({ retryQueue: [] }, resolve)
+        )
+
+        let req = retryQueue.find((req) => req.id === id)
+
+        if (!req) {
+            console.log('Request not found at index:', index)
+            return
+        }
+
+        req.status = status
+        req.status_message = status_message
+        // Update storage after updated status
+        await new Promise((resolve) =>
+            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+        )
+
+        console.log('Request was updated new status:', status)
+        updateQueueDisplay() // Update the queue display
+    } catch (error) {
+        console.error('Error removing request from queue:', error)
+    }
+}
+
 // set up google icons
 function getStatusIcon(status) {
     if (status === 'in-progress') return 'loop'
@@ -48,7 +171,7 @@ async function updateQueueDisplay() {
             chrome.storage.local.get({ retryQueue: [] }, resolve)
         )
 
-        // Группировка по TvAppId
+        // Grouping by TvAppId
         const groupedData = retryQueue.reduce((acc, req) => {
             const tvAppId = req.tvAppId
             if (!acc[tvAppId]) acc[tvAppId] = []
@@ -62,7 +185,6 @@ async function updateQueueDisplay() {
 
         // Populate the table with data from the queue
         Object.entries(groupedData).forEach(([tvAppId, items]) => {
-            // Добавляем строку-заголовок группы
             const groupRow = document.createElement('tr')
             groupRow.classList.add('group-row')
             groupRow.innerHTML = `
@@ -79,7 +201,6 @@ async function updateQueueDisplay() {
 
             items.forEach((req, index) => {
                 let containerInfo = normalizeFormData(req.body).formData
-                let dataTime = containerInfo.SlotStart[0]
                 const row = document.createElement('tr')
                 row.innerHTML = `
                 <td></td>
@@ -90,13 +211,13 @@ async function updateQueueDisplay() {
                     </span>
                 </td>
                 <td class="actions">
-                    <button class="resume-button" data-group="${tvAppId}" data-time="${dataTime}" title="Wznów" ${isPlayDisabled(req.status)}>
+                    <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
                         <span class="material-icons icon">play_arrow</span>
                     </button>
-                    <button class="pause-button" data-group="${tvAppId}" data-time="${dataTime}" title="Wstrzymaj" ${isPauseDisabled(req.status)}>
+                    <button class="pause-button" data-id="${req.id}" title="Wstrzymaj" ${isPauseDisabled(req.status)}>
                         <span class="material-icons icon">pause</span>
                     </button>
-                    <button class="remove-button" data-group="${tvAppId}" data-time="${dataTime}" title="Usuń">
+                    <button class="remove-button" data-id="${req.id}" title="Usuń">
                         <span class="material-icons icon">delete</span>
                     </button>
                 </td>
@@ -106,15 +227,14 @@ async function updateQueueDisplay() {
         })
 
         // Add button handlers
-        document.querySelectorAll('.remove-button').forEach((btn) => {
+        document.querySelectorAll('.remove-button:not(.group-remove-button)').forEach((btn) => {
             btn.addEventListener('click', () =>
-                removeRequestFromRetryQueue(btn.dataset.group, btn.dataset.time)
+                removeRequestFromRetryQueue(btn.dataset.id)
             )
         })
         document.querySelectorAll('.pause-button').forEach((btn) => {
             btn.addEventListener('click', () =>
-                setStatusRequest(
-                    btn.dataset.group, btn.dataset.time,
+                setStatusRequest(btn.dataset.id,
                     'paused',
                     'Zadanie jest wstrzymane'
                 )
@@ -122,8 +242,7 @@ async function updateQueueDisplay() {
         })
         document.querySelectorAll('.resume-button').forEach((btn) => {
             btn.addEventListener('click', () =>
-                setStatusRequest(
-                    btn.dataset.group, btn.dataset.time,
+                setStatusRequest(btn.dataset.id,
                     'in-progress',
                     'Zadanie jest w trakcie realizacji'
                 )
@@ -132,19 +251,15 @@ async function updateQueueDisplay() {
 
         document.querySelectorAll('.group-header').forEach((header) => {
             header.addEventListener('click', function () {
-                // Найдём все строки после текущего заголовка группы
                 let nextRow = this.parentElement.nextElementSibling
                 let isOpen = this.classList.contains('open')
 
-                // Переключаем состояние open/close
                 this.classList.toggle('open')
 
-                // Меняем иконку
                 this.querySelector('.toggle-icon').textContent = isOpen
                     ? 'expand_more'
                     : 'expand_less'
 
-                // Перебираем строки, пока не найдём следующий заголовок группы
                 while (nextRow && !nextRow.querySelector('.group-header')) {
                     nextRow.style.display = isOpen ? 'table-row' : 'none'
                     nextRow = nextRow.nextElementSibling
@@ -152,97 +267,41 @@ async function updateQueueDisplay() {
             })
         })
 
-        document.querySelectorAll(".group-header").forEach(header => {
-            const removeButton = header.querySelector(".group-remove-button");
+        document.querySelectorAll(".group-row .group-remove-button").forEach(removeButton => {
+            removeButton.addEventListener("click", async function (event) {
+                event.stopPropagation(); 
         
-            if (removeButton) {
-                removeButton.addEventListener("click", function (event) {
-                    event.stopPropagation(); // Чтобы не срабатывал сворачивание группы
+                const confirmed = await createConfirmationModal('Czy na pewno chcesz usunąć tę grupę?');
+                
+                if (!confirmed) return;
         
-                    let nextRow = header.parentElement.nextElementSibling;
-                    const rowsToDelete = [];
+                const groupHeaderRow = this.closest(".group-row");
+                if (!groupHeaderRow) return;
+                const idsToDelete = [];
         
-                    while (nextRow && !nextRow.classList.contains("group-header")) {
-                        rowsToDelete.push(nextRow);
-                        nextRow = nextRow.nextElementSibling;
+                let nextRow = groupHeaderRow.nextElementSibling;
+                while (nextRow && !nextRow.classList.contains("group-row")) {
+                    const removeBtn = nextRow.querySelector(".remove-button");
+                    if (removeBtn && removeBtn.dataset.id) {
+                        idsToDelete.push(removeBtn.dataset.id);
                     }
+                    nextRow = nextRow.nextElementSibling;
+                }
         
-                    // Удаляем строки начиная с последней
-                    for (let i = rowsToDelete.length - 1; i >= 0; i--) {
-                        const removeBtn = rowsToDelete[i].querySelector(".remove-button");
-                        if (removeBtn) {
-                            removeRequestFromRetryQueue(removeBtn.dataset.index);
-                        }
-                        rowsToDelete[i].remove();
-                    }
+                for (const id of idsToDelete) {
+                    await removeRequestFromRetryQueue(id);
+                }
         
-                    // Удаляем сам заголовок группы
-                    header.parentElement.remove();
+                idsToDelete.forEach(id => {
+                    const row = document.querySelector(`.remove-button[data-id="${id}"]`)?.closest("tr");
+                    if (row) row.remove();
                 });
-            }
+        
+                groupHeaderRow.remove();
+            });
         });
     } catch (error) {
         console.error('Error updating queue display:', error)
-    }
-}
-
-async function removeRequestFromRetryQueue(id, time) {
-    try {
-        // Получаем очередь из хранилища
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        );
-
-        // Находим индекс записи, у которой совпадают TvAppId, containerNumber и SlotStart
-        const index = retryQueue.findIndex(
-            (req) => req.TvAppId === tvAppId && req.SlotStart[0] === slotStart
-        );
-
-        if (index === -1) {
-            console.log('Request not found:', tvAppId, slotStart);
-            return;
-        }
-
-        // Удаляем найденную запись
-        let req = retryQueue.splice(index, 1)[0];
-
-        // Обновляем хранилище
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        );
-
-        console.log('Request removed:', req.url);
-        updateQueueDisplay(); // Обновляем отображение
-    } catch (error) {
-        console.error('Error removing request:', error);
-    }
-}
-
-async function setStatusRequest(index, status, status_message) {
-    try {
-        // Get the retry queue from storage
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        )
-
-        let req = retryQueue[index]
-
-        if (!req) {
-            console.log('Request not found at index:', index)
-            return
-        }
-
-        req.status = status
-        req.status_message = status_message
-        // Update storage after updated status
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
-
-        console.log('Request was updated new status:', status)
-        updateQueueDisplay() // Update the queue display
-    } catch (error) {
-        console.error('Error removing request from queue:', error)
     }
 }
 
