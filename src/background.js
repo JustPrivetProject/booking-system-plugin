@@ -1,13 +1,189 @@
+
 chrome.runtime.onInstalled.addListener(() => {
     console.log('Plugin installed!')
 })
 
+class QueueManager {
+    constructor(storageKey = 'retryQueue') {
+        if (QueueManager.instance) {
+            return QueueManager.instance
+        }
+
+        this.storageKey = storageKey
+        this.updateQueue = Promise.resolve()
+        this.mutex = false 
+        QueueManager.instance = this
+    }
+
+    // Метод для получения единственного экземпляра
+    static getInstance(storageKey = 'retryQueue') {
+        if (!QueueManager.instance) {
+            QueueManager.instance = new QueueManager(storageKey)
+        }
+        return QueueManager.instance
+    }
+
+    // Safely add an item to the queue
+    async addToQueue(newItem) {
+        return this._synchronizedOperation(async () => {
+            const result = await chrome.storage.local.get([this.storageKey])
+            const queue = result[this.storageKey] || []
+
+            // Add unique identifier if not present
+            if (!newItem.id) {
+                newItem.id = crypto.randomUUID()
+            }
+
+            queue.push(newItem)
+            await chrome.storage.local.set({ [this.storageKey]: queue })
+            console.log(`Item added to ${this.storageKey}:`, newItem)
+
+            return queue
+        })
+    }
+
+    // Safely remove an item from the queue
+    async removeFromQueue(id) {
+        return this._synchronizedOperation(async () => {
+            const result = await chrome.storage.local.get([this.storageKey])
+            let queue = result[this.storageKey] || []
+
+            // Remove item
+            queue = queue.filter((item) => item.id !== id)
+
+            // Save updated queue
+            await chrome.storage.local.set({ [this.storageKey]: queue })
+            console.log(`Item removed from ${this.storageKey}. ID:`, id)
+
+            return queue
+        })
+    }
+
+    // Safely update an item in the queue
+    async updateQueueItem(id, updateData) {
+        return this._synchronizedOperation(async () => {
+            const result = await chrome.storage.local.get([this.storageKey])
+            let queue = result[this.storageKey] || []
+
+            // Find and update item
+            const updatedQueue = queue.map((item) =>
+                item.id === id ? { ...item, ...updateData } : item
+            )
+
+            // Save updated queue
+            await chrome.storage.local.set({ [this.storageKey]: updatedQueue })
+            console.log(`Item updated in ${this.storageKey}. ID:`, id)
+
+            return updatedQueue
+        })
+    }
+
+    // Get current queue
+    async getQueue() {
+        const result = await chrome.storage.local.get([this.storageKey])
+        return result[this.storageKey] || []
+    }
+
+    // Internal method to synchronize operations
+    async _synchronizedOperation(operation) {
+        while (this.mutex) {
+            await new Promise(resolve => setTimeout(resolve, 50))
+        }
+
+        // Устанавливаем блокировку
+        this.mutex = true
+
+        try {
+            // Выполняем операцию
+            const result = await operation()
+            return result
+        } catch (error) {
+            console.error(
+                `Error in synchronized operation for ${this.storageKey}:`,
+                error
+            )
+            throw error
+        } finally {
+            // Снимаем блокировку
+            this.mutex = false
+        }
+    }
+
+    async updateEntireQueue(newQueue) {
+        return this._synchronizedOperation(async () => {
+            await chrome.storage.local.set({ [this.storageKey]: newQueue })
+            console.log(`Entire ${this.storageKey} updated`)
+            return newQueue
+        })
+    }
+
+    async startProcessing(processRequest, options = {}) {
+        const { 
+            interval = 5000, 
+            maxConcurrentRequests = 1,
+            retryEnabled = true 
+        } = options
+
+        if (this.isProcessing) {
+            console.log('Processing is already running')
+            return
+        }
+
+        this.isProcessing = true
+
+        const processNextRequests = async () => {
+            if (!retryEnabled) {
+                this.isProcessing = false
+                return
+            }
+
+            try {
+                const queue = await this.getQueue()
+                
+                // Фильтруем запросы в прогрессе
+                const inProgressRequests = queue
+                    .filter(req => req.status === 'in-progress')
+                    .slice(0, maxConcurrentRequests)
+
+                // Последовательная обработка
+                for (const req of inProgressRequests) {
+                    try {
+                        console.log(`Processing request: ${req.id}`)
+                        
+                        const updatedReq = await processRequest(req, queue)
+                        
+                        await this.updateQueueItem(req.id, updatedReq)
+                        
+                        console.log(`Request ${req.id} processed successfully`)
+                    } catch (error) {
+                        console.error(`Error processing request ${req.id}:`, error)
+                        
+                        // Обновляем статус в случае ошибки
+                        await this.updateQueueItem(req.id, {
+                            status: 'error',
+                            status_message: error.message || 'Ошибка при обработке'
+                        })
+                    }
+                }
+            } catch (error) {
+                console.error('Error in queue processing:', error)
+            }
+
+            // Запускаем следующий цикл обработки
+            setTimeout(processNextRequests, interval)
+        }
+
+        // Первый запуск
+        processNextRequests()
+    }
+}
+
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
 async function getSlots(date) {
-    const [day, month, year] = date.split('.').map(Number);
-    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0));
-    const dateAfterTransfer = newDate.toISOString();
+    const [day, month, year] = date.split('.').map(Number)
+    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0))
+    const dateAfterTransfer = newDate.toISOString()
 
     return fetch('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
@@ -18,45 +194,12 @@ async function getSlots(date) {
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
-        body: JSON.stringify({date: dateAfterTransfer,type:1}), // 26.02.2025
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
         credentials: 'include',
     })
 }
-
-function retryRequests() {
-    chrome.storage.local.get(
-        { retryQueue: [], retryEnabled: true },
-        async (data) => {
-            if (data.retryQueue.length === 0) {
-                return
-            }
-
-            if (!data.retryEnabled) {
-                console.log('Retrying is disabled.')
-                return
-            }
-
-            const queue = data.retryQueue
-            const newQueue = []
-
-            for (const req of queue) {
-                if (req.status !== 'in-progress') {
-                    newQueue.push(req)
-                    continue
-                }
-
-                try {
-                    const updatedReq = await processRequest(req, queue)
-                    newQueue.push(updatedReq)
-                } catch (err) {
-                    console.error('Error retrying request:', err)
-                    newQueue.push(req)
-                }
-            }
-
-            chrome.storage.local.set({ retryQueue: newQueue })
-        }
-    )
+function generateUniqueId() {
+    return crypto.randomUUID()
 }
 
 function normalizeFormData(formData) {
@@ -128,17 +271,17 @@ async function processRequest(req, queue) {
         }
     }
     const slots = await getSlots(time[0])
-    // Check Authorization 
-    if(!slots.ok) {
-    console.warn('❌ Problem with authorization:', tvAppId, time.join(', '))
-       return {
+    // Check Authorization
+    if (!slots.ok) {
+        console.warn('❌ Problem with authorization:', tvAppId, time.join(', '))
+        return {
             ...req,
             status: 'authorization-error',
             status_message: 'Problem z autoryzacją',
         }
     }
     const htmlText = await slots.text()
-    const isSlotAvailable = await checkSlotAvailability(htmlText)
+    const isSlotAvailable = await checkSlotAvailability(htmlText, time)
     if (!isSlotAvailable) {
         console.warn('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
         return req
@@ -153,7 +296,7 @@ function isTaskCompletedInAnotherQueue(req, queue) {
     )
 }
 
-async function checkSlotAvailability(htmlText) {
+async function checkSlotAvailability(htmlText, time) {
     const buttons = parseSlotsIntoButtons(htmlText)
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
@@ -291,6 +434,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 )
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    const queueManager = QueueManager.getInstance()
     if (message.action === 'showError') {
         console.log('❌ Request failed, checking cache')
 
@@ -300,10 +444,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 retryQueue: [],
                 requestCacheHeaders: {},
                 retryEnabled: true,
-                test: false,
+                testEnv: false,
                 tableData: [],
             },
-            (data) => {
+            async (data) => {
                 if (data.retryEnabled) {
                     chrome.storage.local.set({ retryEnabled: false })
                 }
@@ -324,14 +468,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.status_message =
                         'Zadanie jest w trakcie realizacji'
                     retryObject.tvAppId = tvAppId
+                    retryObject.id = generateUniqueId()
                     if (tableData) {
-                        retryObject.containerNumber = tableData.find((row) =>
-                            row.includes(tvAppId)
-                        )[tableData[0].indexOf('Nr kontenera')]
+                        const row = (retryObject.containerNumber =
+                            tableData.find((row) => row.includes(tvAppId)))
+                        if (row) {
+                            retryObject.containerNumber =
+                                row[tableData[0].indexOf('Nr kontenera')]
+                        }
                     }
                     // Add request to the retry queue
-                    queue.push(retryObject)
-
+                    await queueManager.addToQueue(retryObject)
                     // Remove the last request from the cache
                     if (!data.testEnv) {
                         const lastKeyBody = Object.keys(
@@ -349,7 +496,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         {
                             requestCacheBody: data.requestCacheBody,
                             requestCacheHeaders: data.requestCacheHeaders,
-                            retryQueue: queue,
                         },
                         () => {
                             console.log(
@@ -375,12 +521,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         sendResponse({ success: true })
     }
+    if (message.target === 'background') {
+        switch (message.action) {
+            case 'removeRequest':
+                queueManager.removeFromQueue(message.data.id)
+                    .then(() => sendResponse({ success: true }))
+                    .catch(error => {
+                        console.error('Error removing request:', error)
+                        sendResponse({ success: false, error: error.message })
+                    })
+                return true  // Indicates that the response is sent asynchronously
+    
+            case 'updateRequestStatus':
+                queueManager.updateQueueItem(message.data.id, { 
+                    status: message.data.status, 
+                    status_message: message.data.status_message 
+                })
+                    .then(() => sendResponse({ success: true }))
+                    .catch(error => {
+                        console.error('Error updating request status:', error)
+                        sendResponse({ success: false, error: error.message })
+                    })
+                return true  // Indicates that the response is sent asynchronously
+    
+            default:
+                console.warn('Unknown action:', message.action)
+                sendResponse({ success: false })
+                return true
+        }
+    }
     return true
 })
 
 // Settings
 chrome.storage.local.set({ retryEnabled: true })
 chrome.storage.local.set({ testEnv: false })
+const queueManager = QueueManager.getInstance()
 const RETRY_INTERVAL = 15 * 1000
 // Start retry attempts every 60 seconds
-setInterval(retryRequests, RETRY_INTERVAL)
+queueManager.startProcessing(processRequest, {
+    interval: RETRY_INTERVAL,  // Интервал между циклами обработки
+    maxConcurrentRequests: 2,  // Максимальное количество параллельных запросов
+    retryEnabled: true  // Можно контролировать через storage
+})

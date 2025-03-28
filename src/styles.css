@@ -1,142 +1,206 @@
-/* Main styles */
-body {
-    width: 470px; /* Window width */
-    height: 400px; /* Window height */
-    overflow: auto; /* Scrolling if content overflows */
-    font-family: Arial, sans-serif;
-    flex-direction: column;
-    align-items: center; /* Center elements */
-    justify-content: flex-start;
-    /* padding: 20px; Padding around edges */
-    box-sizing: border-box; /* Include padding in width */
-    display: flex;
+/* ===== GLOBAL VARIABLES ===== */
+:root {
+    /* Colors */
+    --color-primary: #00aacc;
+    --color-white: white;
+    --color-background-light: #f9f9f9ec;
+    --color-text-light: #888;
+    --color-border-light: #ccc;
+    
+    /* Status colors */
+    --color-in-progress: black;
+    --color-success: green;
+    --color-another-task: #0096b4;
+    --color-error: red;
+    --color-paused: orange;
+    
+    /* Spacing and sizes */
+    --spacing-tiny: 2px;
+    --spacing-small: 4px;
+    --spacing-medium: 12px;
+    
+    /* Shadows and effects */
+    --shadow-light: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    --shadow-button: 0 0 2px rgba(0, 0, 0, 0.2);
+    --shadow-hover: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
-/* Table styles */
+/* ===== GLOBAL STYLES ===== */
+body {
+    width: 350px;
+    height: 50px;
+    overflow: auto;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    box-sizing: border-box;
+}
+
+/* ===== TABLE ===== */
 table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-family: 'Arial', sans-serif;
     border-radius: 12px;
     overflow: hidden;
-    background: white;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    background: var(--color-white);
+    box-shadow: var(--shadow-light);
+    padding-bottom: var(--spacing-tiny);
 }
 
-button {
-    padding: 2px 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease-in-out;
+/* Empty table */
+#queueTableBody:empty::after {
+    content: "Proszę dodać zadania do realizacji.";
+    display: table-row;
+    font-size: 24px;
+    text-align: center;
+    color: var(--color-text-light);
+    padding: var(--spacing-medium);
 }
 
-/* Header */
+#queueTableBody:empty + tr {
+    display: none;
+}
+
+/* ===== HEADERS ===== */
 th {
-    background-color: #00aacc;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-white);
     font-weight: bold;
     text-align: left;
-    padding: 12px;
+    padding: var(--spacing-medium);
 }
-/* Table data */
+
+/* ===== CELLS ===== */
 td {
-    padding: 12px;
+    padding: var(--spacing-medium);
 }
 
 td.actions {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 2px;
+    gap: var(--spacing-tiny);
+}
+
+/* ===== BUTTONS ===== */
+button {
+    padding: var(--spacing-tiny) var(--spacing-small);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease-in-out;
 }
 
 td.actions button {
     border: none;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
-    background: white;
+    box-shadow: var(--shadow-button);
+    background: var(--color-white);
 }
 
 td.actions button:disabled {
     background-color: inherit;
     cursor: not-allowed;
-    span {
-        color: #ccc;
-    }
+}
+
+td.actions button:disabled span {
+    color: var(--color-border-light);
 }
 
 td.actions button:hover {
-    background: #f9f9f9;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    background: var(--color-background-light);
+    box-shadow: var(--shadow-hover);
 }
 
-td.actions button:disabled:hover {
-    background-color: inherit;
-    opacity: 0.6;
-  }
-
+/* Delete button */
 td.actions .remove-button {
-    background: red; 
-    span {
-        color: white;
-    }
+    background: var(--color-error);
+}
+
+td.actions .remove-button span {
+    color: var(--color-white);
 }
 
 td.actions .remove-button:hover {
     background-color: #d90000;
 }
 
+/* ===== ROW HOVER AND ALTERNATION ===== */
 tr:nth-child(even) {
-    background-color: #f9f9f9ec;
+    background-color: var(--color-background-light);
 }
 
-tr:hover {
-    background-color: #e6f7e6;
+tr:hover td {
+    background-color: #daf5ff;
     transition: background 0.3s ease;
 }
 
-.in-progress .status-icon {
-    animation: spin-reverse 1s linear infinite;
-    color: black;
+tr.group-row:hover td {
+    background-color: #018fac;
 }
 
-.success .status-icon {
-    color: green;
+/* ===== GROUPING ===== */
+td.group-header {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    font-weight: bold;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding: var(--spacing-tiny) var(--spacing-medium);
+    border-top: 2px solid var(--color-white);
+    cursor: pointer;
+    align-items: center;
 }
 
-.another-task .status-icon {
-    color: #0096b4;
+.toggle-icon {
+    font-size: 18px;
+    transition: transform 0.3s ease;
 }
 
-.error .status-icon {
-    color: red;
+td.group-header + tr td {
+    border-top: 1px solid var(--color-border-light);
 }
 
-.paused .status-icon {
-    color: orange;
+/* ===== GROUP ACTIONS ===== */
+
+.group-header.actions .group-remove-button {
+    margin-left: auto;
 }
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-@keyframes spin-reverse {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(-360deg);
-    }
-}
-
+/* ===== ICONS AND STATUSES ===== */
 .icon {
     font-size: 24px;
     color: #333;
     cursor: pointer;
+}
+
+/* Status visibility */
+tr[data-is-open="true"] .status-icon {
+    opacity: 0;
+    visibility: hidden;
+}
+
+tr[data-is-open="false"] .status-icon {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Status colors */
+.in-progress .status-icon {
+    animation: spin-reverse 1s linear infinite;
+    color: var(--color-in-progress);
+}
+
+.success .status-icon { color: var(--color-success); }
+.another-task .status-icon { color: var(--color-another-task); }
+.error .status-icon { color: var(--color-error); }
+.paused .status-icon { color: var(--color-paused); }
+
+/* ===== ANIMATIONS ===== */
+@keyframes spin-reverse {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-360deg); }
 }
