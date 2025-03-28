@@ -28,36 +28,45 @@ function generateUniqueId() {
 
 function retryRequests() {
     chrome.storage.local.get(
-        { retryQueue: [], retryEnabled: true },
+        { toQueue: [], retryQueue: [], retryEnabled: true },
         async (data) => {
-            if (data.retryQueue.length === 0) {
-                return
-            }
-
             if (!data.retryEnabled) {
                 console.log('Retrying is disabled.')
                 return
             }
 
-            const queue = data.retryQueue
-            const newQueue = []
+            let retryQueue = data.retryQueue
 
-            for (const req of queue) {
-                if (req.status !== 'in-progress') {
-                    newQueue.push(req)
-                    continue
+            // Переносим задачи из toQueue в retryQueue, но не очищаем toQueue
+            chrome.storage.local.get({ toQueue: [] }, async (latestData) => {
+                let latestToQueue = latestData.toQueue
+                let newRetryQueue = [...retryQueue]
+
+                for (let i = 0; i < latestToQueue.length; i++) {
+                    let request = latestToQueue[i]
+                    if (!newRetryQueue.some((r) => r.id === request.id)) {
+                        request.status = 'in-progress'
+                        request.status_message = 'Zadanie jest w trakcie realizacji'
+                        newRetryQueue.push(request)
+                    }
                 }
 
-                try {
-                    const updatedReq = await processRequest(req, queue)
-                    newQueue.push(updatedReq)
-                } catch (err) {
-                    console.error('Error retrying request:', err)
-                    newQueue.push(req)
-                }
-            }
+                let updatedQueue = await Promise.all(
+                    newRetryQueue.map(async (req) => {
+                        if (req.status !== 'in-progress') return req
 
-            chrome.storage.local.set({ retryQueue: newQueue })
+                        try {
+                            return await processRequest(req, newRetryQueue)
+                        } catch (err) {
+                            console.error('Error retrying request:', err)
+                            return req
+                        }
+                    })
+                )
+
+                // Обновляем только retryQueue
+                chrome.storage.local.set({ retryQueue: updatedQueue })
+            })
         }
     )
 }
@@ -296,10 +305,11 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'showError') {
         console.log('❌ Request failed, checking cache')
-
+    
         chrome.storage.local.get(
             {
                 requestCacheBody: {},
+                toQueue: [],
                 retryQueue: [],
                 requestCacheHeaders: {},
                 retryEnabled: true,
@@ -310,70 +320,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (data.retryEnabled) {
                     chrome.storage.local.set({ retryEnabled: false })
                 }
+    
                 let requestCacheBody = getLastProperty(data.requestCacheBody)
-                let requestCacheHeaders = getLastProperty(
-                    data.requestCacheHeaders
-                )
-                let queue = data.retryQueue
-
+                let requestCacheHeaders = getLastProperty(data.requestCacheHeaders)
+                let toQueue = data.toQueue
+    
                 if (requestCacheBody) {
-                    const tableData = data.tableData
-                    // Check if the request is already in the retry queue
-                    const retryObject = requestCacheBody
-                    const tvAppId = normalizeFormData(requestCacheBody.body)
-                        .formData.TvAppId[0]
-                    retryObject.headersCache = requestCacheHeaders
-                    retryObject.status = 'in-progress'
-                    retryObject.status_message =
-                        'Zadanie jest w trakcie realizacji'
-                    retryObject.tvAppId = tvAppId
-                    retryObject.id = generateUniqueId()
-                    if (tableData) {
-                        const row = (retryObject.containerNumber =
-                            tableData.find((row) => row.includes(tvAppId)))
-                        if (row) {
-                            retryObject.containerNumber =
-                                row[tableData[0].indexOf('Nr kontenera')]
-                        }
+                    const tvAppId = normalizeFormData(requestCacheBody.body).formData.TvAppId[0]
+                    let retryObject = {
+                        ...requestCacheBody,
+                        headersCache: requestCacheHeaders,
+                        status: 'pending',
+                        status_message: 'Zadanie jest w trakcie realizacji',
+                        tvAppId: tvAppId,
+                        id: generateUniqueId()
                     }
-                    // Add request to the retry queue
-                    queue.push(retryObject)
-
-                    // Remove the last request from the cache
+    
+                    toQueue.push(retryObject)
+    
                     if (!data.testEnv) {
-                        const lastKeyBody = Object.keys(
-                            data.requestCacheBody
-                        ).pop()
-                        const lastKeyHeaders = Object.keys(
-                            data.requestCacheHeaders
-                        ).pop()
-
+                        const lastKeyBody = Object.keys(data.requestCacheBody).pop()
+                        const lastKeyHeaders = Object.keys(data.requestCacheHeaders).pop()
+    
                         delete data.requestCacheBody[lastKeyBody]
                         delete data.requestCacheHeaders[lastKeyHeaders]
                     }
-
+    
                     chrome.storage.local.set(
                         {
                             requestCacheBody: data.requestCacheBody,
                             requestCacheHeaders: data.requestCacheHeaders,
-                            retryQueue: queue,
+                            toQueue: toQueue
                         },
                         () => {
-                            console.log(
-                                'Added to retry queue:',
-                                requestCacheBody.url
-                            )
+                            console.log('Added to toQueue:', requestCacheBody.url)
                         }
-                    )
-                } else {
-                    console.log(
-                        'Request is already in the retry queue:',
-                        requestCacheBody.url
                     )
                 }
                 chrome.storage.local.set({ retryEnabled: data.retryEnabled })
             }
         )
+        retryRequests()
         sendResponse({ success: true })
     }
     if (message.action === 'parsedTable') {

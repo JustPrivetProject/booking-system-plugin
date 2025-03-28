@@ -103,24 +103,27 @@ function sortStatusesByPriority(statuses) {
 
 async function removeRequestFromRetryQueue(id) {
     try {
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
+        const { retryQueue, toQueue } = await new Promise((resolve) =>
+            chrome.storage.local.get({ retryQueue: [], toQueue: [] }, resolve)
         )
 
-        const index = retryQueue.findIndex((req) => req.id === id)
+        const queueIndex = retryQueue.findIndex((req) => req.id === id)
+        const indexFromToQueue = toQueue.findIndex((req) => req.id === id)
 
-        if (index === -1) {
-            console.log('Request not found:', tvAppId, slotStart)
-            return
+        if (queueIndex !== -1) {
+            retryQueue.splice(queueIndex, 1)
+            await new Promise((resolve) =>
+                chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
+            )
+            console.log('Request removed from retryQueue:', id)
         }
 
-        let req = retryQueue.splice(index, 1)[0]
-
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
-
-        console.log('Request removed:', req.url)
+        if (indexFromToQueue !== -1) {
+            toQueue.splice(indexFromToQueue, 1)
+            await new Promise((resolve) =>
+                chrome.storage.local.set({ toQueue: toQueue }, resolve)
+            )
+        }
         updateQueueDisplay()
     } catch (error) {
         console.error('Error removing request:', error)
