@@ -36,6 +36,7 @@ body {
     align-items: center;
     justify-content: flex-start;
     box-sizing: border-box;
+    margin-top: 0px;
 }
 
 /* ===== TABLE ===== */
@@ -52,9 +53,9 @@ table {
 
 /* Empty table */
 #queueTableBody:empty::after {
-    content: "Proszę dodać zadania do realizacji.";
+    content: "Proszę dodać zadania do realizacji";
     display: table-row;
-    font-size: 24px;
+    font-size: 14px;
     text-align: center;
     color: var(--color-text-light);
     padding: var(--spacing-medium);
@@ -83,6 +84,9 @@ td.actions {
     justify-content: center;
     align-items: center;
     gap: var(--spacing-tiny);
+    margin-left: auto;
+    justify-content: flex-end;
+    width: 130px;
 }
 
 /* ===== BUTTONS ===== */
