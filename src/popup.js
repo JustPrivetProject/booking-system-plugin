@@ -101,58 +101,37 @@ function sortStatusesByPriority(statuses) {
     })
 }
 
-async function removeRequestFromRetryQueue(id) {
-    try {
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        )
-
-        const index = retryQueue.findIndex((req) => req.id === id)
-
-        if (index === -1) {
-            console.log('Request not found:', tvAppId, slotStart)
+function sendMessageToBackground(action, data) {
+    chrome.runtime.sendMessage({
+        target: 'background',
+        action: action,
+        data: data
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error('Error sending message:', chrome.runtime.lastError)
             return
         }
+        
+        // Обработка ответа от background.js
+        if (response && response.success) {
+            console.log(`Action ${action} completed successfully`)
+            updateQueueDisplay() // Обновление отображения очереди
+        } else {
+            console.error(`Action ${action} failed`)
+        }
+    })
+}
 
-        let req = retryQueue.splice(index, 1)[0]
-
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
-
-        console.log('Request removed:', req.url)
-        updateQueueDisplay()
-    } catch (error) {
-        console.error('Error removing request:', error)
-    }
+async function removeRequestFromRetryQueue(id) {
+    return sendMessageToBackground('removeRequest', { id: id })
 }
 
 async function setStatusRequest(id, status, status_message) {
-    try {
-        // Get the retry queue from storage
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        )
-
-        let req = retryQueue.find((req) => req.id === id)
-
-        if (!req) {
-            console.log('Request not found at index:', index)
-            return
-        }
-
-        req.status = status
-        req.status_message = status_message
-        // Update storage after updated status
-        await new Promise((resolve) =>
-            chrome.storage.local.set({ retryQueue: retryQueue }, resolve)
-        )
-
-        console.log('Request was updated new status:', status)
-        updateQueueDisplay() // Update the queue display
-    } catch (error) {
-        console.error('Error removing request from queue:', error)
-    }
+    return sendMessageToBackground('updateRequestStatus', { 
+        id: id, 
+        status: status, 
+        status_message: status_message 
+    })
 }
 
 async function restoreGroupStates() {
