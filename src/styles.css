@@ -101,11 +101,12 @@ td.actions button {
 }
 
 td.actions button:disabled {
+    background-color: inherit;
     cursor: not-allowed;
 }
 
 td.actions button:disabled span {
-    color: var(--color-text-light);
+    color: var(--color-border-light);
 }
 
 td.actions button:hover {
