@@ -15,6 +15,8 @@ function normalizeFormData(formData) {
 
 function createConfirmationModal(message) {
     return new Promise((resolve) => {
+        const initialBodyHeight = document.querySelector('body').style.height
+        document.body.style.height = '70px'
         const overlay = document.createElement('div')
         overlay.style.position = 'fixed'
         overlay.style.top = '0'
@@ -61,11 +63,13 @@ function createConfirmationModal(message) {
 
         cancelButton.addEventListener('click', () => {
             document.body.removeChild(overlay)
+            document.body.style.height = initialBodyHeight
             resolve(false)
         })
 
         confirmButton.addEventListener('click', () => {
             document.body.removeChild(overlay)
+            document.body.style.height = initialBodyHeight
             resolve(true)
         })
 
@@ -83,12 +87,12 @@ function createConfirmationModal(message) {
 function sortStatusesByPriority(statuses) {
     // Define the priority of statuses from the most critical to the least critical
     const priorityOrder = [
-        'success', // Highest priority (critical error)
-        'error', // High priority (paused tasks)
-        'authorization-error', // Medium priority (tasks in progress)
+        'success', // Highest priority
+        'error', // High priority
+        'authorization-error', // Medium priority
         'another-task', // Low priority
         'in-progress',
-        'paused', // Lowest priority (completed tasks)
+        'paused', // Lowest priority
     ]
 
     // Sort statuses according to the defined priority order
@@ -102,24 +106,30 @@ function sortStatusesByPriority(statuses) {
 }
 
 function sendMessageToBackground(action, data) {
-    chrome.runtime.sendMessage({
-        target: 'background',
-        action: action,
-        data: data
-    }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error('Error sending message:', chrome.runtime.lastError)
-            return
+    chrome.runtime.sendMessage(
+        {
+            target: 'background',
+            action: action,
+            data: data,
+        },
+        (response) => {
+            if (chrome.runtime.lastError) {
+                console.error(
+                    'Error sending message:',
+                    chrome.runtime.lastError
+                )
+                return
+            }
+
+            // Обработка ответа от background.js
+            if (response && response.success) {
+                console.log(`Action ${action} completed successfully`)
+                updateQueueDisplay() // Обновление отображения очереди
+            } else {
+                console.error(`Action ${action} failed`)
+            }
         }
-        
-        // Обработка ответа от background.js
-        if (response && response.success) {
-            console.log(`Action ${action} completed successfully`)
-            updateQueueDisplay() // Обновление отображения очереди
-        } else {
-            console.error(`Action ${action} failed`)
-        }
-    })
+    )
 }
 
 async function removeRequestFromRetryQueue(id) {
@@ -127,10 +137,10 @@ async function removeRequestFromRetryQueue(id) {
 }
 
 async function setStatusRequest(id, status, status_message) {
-    return sendMessageToBackground('updateRequestStatus', { 
-        id: id, 
-        status: status, 
-        status_message: status_message 
+    return sendMessageToBackground('updateRequestStatus', {
+        id: id,
+        status: status,
+        status_message: status_message,
     })
 }
 
@@ -170,6 +180,42 @@ async function restoreGroupStates() {
     } catch (error) {
         console.error('Error restoring group states:', error)
     }
+}
+
+/**
+ * Delete a group state by ID from Chrome storage
+ * @param {string|number} groupId - The ID of the group state to delete
+ * @returns {Promise<Object>} - The updated group states object
+ */
+async function deleteGroupStateById(groupId) {
+    // Get current groupStates from storage
+    const { groupStates = {} } = await chrome.storage.local.get('groupStates')
+
+    // Delete the specified group ID if it exists
+    if (groupId in groupStates) {
+        delete groupStates[groupId]
+
+        // Save the updated groupStates back to storage
+        await chrome.storage.local.set({ groupStates })
+        console.log(`Group state with ID ${groupId} was deleted`)
+    } else {
+        console.log(`Group state with ID ${groupId} does not exist`)
+    }
+
+    return groupStates
+}
+
+async function clearStateGroups() {
+    // Get current groupStates from storage
+    const { groupStates = {} } = await chrome.storage.local.get('groupStates')
+
+    if(!!Object.entries(groupStates).length) {
+        await chrome.storage.local.set({ groupStates: {} })
+        console.log(`Group state was cleared`)
+    
+    }
+
+    return groupStates
 }
 
 // set up google icons
@@ -218,8 +264,13 @@ async function updateQueueDisplay() {
         let tableBody = document.getElementById('queueTableBody')
         tableBody.innerHTML = '' // Clear the table
 
+        const data = Object.entries(groupedData)
+        // clear states on empty grid
+        if (!data.length) {
+            clearStateGroups()
+        }
         // Populate the table with data from the queue
-        Object.entries(groupedData).forEach(([tvAppId, items]) => {
+        data.forEach(([tvAppId, items]) => {
             const statusForGroup = sortStatusesByPriority(
                 items.map((item) => item.status)
             )[0]
@@ -345,7 +396,7 @@ async function updateQueueDisplay() {
                     event.stopPropagation()
 
                     const confirmed = await createConfirmationModal(
-                        'Czy na pewno chcesz usunąć tę grupę?'
+                        'Na pewno chcesz usunąć całą grupę zadań?'
                     )
 
                     if (!confirmed) return
@@ -379,6 +430,7 @@ async function updateQueueDisplay() {
                     })
 
                     groupHeaderRow.remove()
+                    deleteGroupStateById(groupHeaderRow.dataset.groupId)
                 })
             })
     } catch (error) {
