@@ -1,4 +1,3 @@
-
 chrome.runtime.onInstalled.addListener(() => {
     console.log('Plugin installed!')
 })
@@ -11,11 +10,10 @@ class QueueManager {
 
         this.storageKey = storageKey
         this.updateQueue = Promise.resolve()
-        this.mutex = false 
+        this.mutex = false
         QueueManager.instance = this
     }
 
-    // Метод для получения единственного экземпляра
     static getInstance(storageKey = 'retryQueue') {
         if (!QueueManager.instance) {
             QueueManager.instance = new QueueManager(storageKey)
@@ -28,10 +26,37 @@ class QueueManager {
         return this._synchronizedOperation(async () => {
             const result = await chrome.storage.local.get([this.storageKey])
             const queue = result[this.storageKey] || []
+            const slotStart = newItem.slotStart
+            const tvAppId = newItem.tvAppId
+            const status = newItem.status
+
+            if (status === 'success') {
+                const hasSameTvAppId = queue.some(
+                    (item) => item.tvAppId === tvAppId
+                )
+                if (!hasSameTvAppId) {
+                    console.log(
+                        `Item with status 'success' and new tvAppId ${tvAppId} not added to ${this.storageKey}`
+                    )
+                    return queue
+                }
+            }
+
+            const isDuplicate = queue.some(
+                (item) =>
+                    item.tvAppId === tvAppId && item.slotStart === slotStart
+            )
+
+            if (isDuplicate) {
+                console.log(
+                    `Duplicate item with tvAppId ${tvAppId} and slotStart ${slotStart} not added to ${this.storageKey}`
+                )
+                return queue
+            }
 
             // Add unique identifier if not present
             if (!newItem.id) {
-                newItem.id = crypto.randomUUID()
+                newItem.id = generateUniqueId()
             }
 
             queue.push(newItem)
@@ -87,7 +112,7 @@ class QueueManager {
     // Internal method to synchronize operations
     async _synchronizedOperation(operation) {
         while (this.mutex) {
-            await new Promise(resolve => setTimeout(resolve, 50))
+            await new Promise((resolve) => setTimeout(resolve, 50))
         }
 
         // Устанавливаем блокировку
@@ -118,10 +143,10 @@ class QueueManager {
     }
 
     async startProcessing(processRequest, options = {}) {
-        const { 
-            interval = 5000, 
+        const {
+            interval = 5000,
             maxConcurrentRequests = 1,
-            retryEnabled = true 
+            retryEnabled = true,
         } = options
 
         if (this.isProcessing) {
@@ -139,29 +164,33 @@ class QueueManager {
 
             try {
                 const queue = await this.getQueue()
-                
+
                 // Фильтруем запросы в прогрессе
                 const inProgressRequests = queue
-                    .filter(req => req.status === 'in-progress')
+                    .filter((req) => req.status === 'in-progress')
                     .slice(0, maxConcurrentRequests)
 
                 // Последовательная обработка
                 for (const req of inProgressRequests) {
                     try {
                         console.log(`Processing request: ${req.id}`)
-                        
+
                         const updatedReq = await processRequest(req, queue)
-                        
+
                         await this.updateQueueItem(req.id, updatedReq)
-                        
-                        console.log(`Request ${req.id} processed successfully`)
+
+                        console.log(`Request ${req.id} processed successfully`) // TODO: update log way
                     } catch (error) {
-                        console.error(`Error processing request ${req.id}:`, error)
-                        
+                        console.error(
+                            `Error processing request ${req.id}:`,
+                            error
+                        )
+
                         // Обновляем статус в случае ошибки
                         await this.updateQueueItem(req.id, {
                             status: 'error',
-                            status_message: error.message || 'Ошибка при обработке'
+                            status_message:
+                                error.message || 'Error on processing',
                         })
                     }
                 }
@@ -195,6 +224,20 @@ async function getSlots(date) {
             'X-Extension-Request': 'JustPrivetProject',
         },
         body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
+        credentials: 'include',
+    })
+}
+
+async function getEditForm(tvAppId) {
+    return fetch(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-requested-with': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            Accept: '*/*',
+            'X-Extension-Request': 'JustPrivetProject',
+        },
         credentials: 'include',
     })
 }
@@ -376,6 +419,46 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     }
 }
 
+function cleanupCache(data) {
+    if (data.testEnv) {
+        return
+    }
+
+    const lastKeyBody = Object.keys(data.requestCacheBody).pop()
+    const lastKeyHeaders = Object.keys(data.requestCacheHeaders).pop()
+
+    delete data.requestCacheBody[lastKeyBody]
+    delete data.requestCacheHeaders[lastKeyHeaders]
+
+    chrome.storage.local.set({
+        requestCacheBody: data.requestCacheBody,
+        requestCacheHeaders: data.requestCacheHeaders,
+    })
+}
+
+/**
+ * Устанавливает статус и сообщение для объекта retry в зависимости от действия
+ *
+ * @param {Object} retryObject - Объект для установки статуса
+ * @param {string} action - Действие, определяющее статус
+ */
+function setStatus(retryObject, action) {
+    switch (action) {
+        case 'showError':
+            retryObject.status = 'in-progress'
+            retryObject.status_message = 'Zadanie jest w trakcie realizacji'
+            break
+        case 'succeedBooking':
+            retryObject.status = 'success'
+            retryObject.status_message = 'Zadanie zakończone sukcesem'
+            break
+        default:
+            retryObject.status = 'error'
+            retryObject.status_message = 'Nieznane działanie'
+            break
+    }
+}
+
 // Cache logic
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
@@ -435,43 +518,38 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const queueManager = QueueManager.getInstance()
-    if (message.action === 'showError') {
-        console.log('❌ Request failed, checking cache')
+    if (message.action === 'showError' || message.action === 'succeedBooking') {
+        console.log('Getting request from Cache...')
 
         chrome.storage.local.get(
             {
                 requestCacheBody: {},
-                retryQueue: [],
                 requestCacheHeaders: {},
-                retryEnabled: true,
                 testEnv: false,
                 tableData: [],
             },
             async (data) => {
-                if (data.retryEnabled) {
-                    chrome.storage.local.set({ retryEnabled: false })
-                }
                 let requestCacheBody = getLastProperty(data.requestCacheBody)
                 let requestCacheHeaders = getLastProperty(
                     data.requestCacheHeaders
                 )
-                let queue = data.retryQueue
 
                 if (requestCacheBody) {
                     const tableData = data.tableData
-                    // Check if the request is already in the retry queue
-                    const retryObject = requestCacheBody
-                    const tvAppId = normalizeFormData(requestCacheBody.body)
-                        .formData.TvAppId[0]
+                    const retryObject = { ...requestCacheBody }
+                    const requestBody = normalizeFormData(requestCacheBody.body)
+                    const tvAppId = requestBody.formData.TvAppId[0]
+
                     retryObject.headersCache = requestCacheHeaders
-                    retryObject.status = 'in-progress'
-                    retryObject.status_message =
-                        'Zadanie jest w trakcie realizacji'
                     retryObject.tvAppId = tvAppId
-                    retryObject.id = generateUniqueId()
+                    retryObject.startSlot = requestBody.formData.SlotStart[0]
+
+                    setStatus(retryObject, message.action)
+
                     if (tableData) {
                         const row = (retryObject.containerNumber =
                             tableData.find((row) => row.includes(tvAppId)))
+
                         if (row) {
                             retryObject.containerNumber =
                                 row[tableData[0].indexOf('Nr kontenera')]
@@ -480,37 +558,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     // Add request to the retry queue
                     await queueManager.addToQueue(retryObject)
                     // Remove the last request from the cache
-                    if (!data.testEnv) {
-                        const lastKeyBody = Object.keys(
-                            data.requestCacheBody
-                        ).pop()
-                        const lastKeyHeaders = Object.keys(
-                            data.requestCacheHeaders
-                        ).pop()
-
-                        delete data.requestCacheBody[lastKeyBody]
-                        delete data.requestCacheHeaders[lastKeyHeaders]
-                    }
-
-                    chrome.storage.local.set(
-                        {
-                            requestCacheBody: data.requestCacheBody,
-                            requestCacheHeaders: data.requestCacheHeaders,
-                        },
-                        () => {
-                            console.log(
-                                'Added to retry queue:',
-                                requestCacheBody.url
-                            )
-                        }
-                    )
+                    cleanupCache(data)
                 } else {
-                    console.log(
-                        'Request is already in the retry queue:',
-                        requestCacheBody.url
-                    )
+                    console.log('No data in cache object')
                 }
-                chrome.storage.local.set({ retryEnabled: data.retryEnabled })
             }
         )
         sendResponse({ success: true })
@@ -521,29 +572,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         sendResponse({ success: true })
     }
+    if (message.action === 'testGetEditForm') {
+        const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
+       getEditForm().then(body => body.text()).then(text => console.log(text.match(regex)[1])).catch(error => console.log(error));
+       sendResponse({ success: true })
+    }
     if (message.target === 'background') {
         switch (message.action) {
             case 'removeRequest':
-                queueManager.removeFromQueue(message.data.id)
+                queueManager
+                    .removeFromQueue(message.data.id)
                     .then(() => sendResponse({ success: true }))
-                    .catch(error => {
+                    .catch((error) => {
                         console.error('Error removing request:', error)
                         sendResponse({ success: false, error: error.message })
                     })
-                return true  // Indicates that the response is sent asynchronously
-    
+                return true // Indicates that the response is sent asynchronously
+
             case 'updateRequestStatus':
-                queueManager.updateQueueItem(message.data.id, { 
-                    status: message.data.status, 
-                    status_message: message.data.status_message 
-                })
+                queueManager
+                    .updateQueueItem(message.data.id, {
+                        status: message.data.status,
+                        status_message: message.data.status_message,
+                    })
                     .then(() => sendResponse({ success: true }))
-                    .catch(error => {
+                    .catch((error) => {
                         console.error('Error updating request status:', error)
                         sendResponse({ success: false, error: error.message })
                     })
-                return true  // Indicates that the response is sent asynchronously
-    
+                return true // Indicates that the response is sent asynchronously
+
             default:
                 console.warn('Unknown action:', message.action)
                 sendResponse({ success: false })
@@ -560,7 +618,7 @@ const queueManager = QueueManager.getInstance()
 const RETRY_INTERVAL = 15 * 1000
 // Start retry attempts every 60 seconds
 queueManager.startProcessing(processRequest, {
-    interval: RETRY_INTERVAL,  // Интервал между циклами обработки
-    maxConcurrentRequests: 2,  // Максимальное количество параллельных запросов
-    retryEnabled: true  // Можно контролировать через storage
+    interval: RETRY_INTERVAL, // Интервал между циклами обработки
+    maxConcurrentRequests: 2, // Максимальное количество параллельных запросов
+    retryEnabled: true, // Можно контролировать через storage
 })

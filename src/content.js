@@ -72,6 +72,10 @@ waitElementAndSendChromeMessage('#toast-container', "showError", () => {
     return "An error occurred!";
 });
 
+waitElementAndSendChromeMessage('.swal2-icon-success[role="dialog"]', "succeedBooking", () => {
+    return "Successful booking found!";
+});
+
 waitElementAndSendChromeMessage('#Grid table', "parsedTable", () => {
     return parseTable();
 });
@@ -90,25 +94,3 @@ waitForElement('#slotsDisplay', (targetNode) => {
     const observer = new MutationObserver(enableButtons)
     observer.observe(targetNode, { childList: true, subtree: true })
 })
-
-// waitForElement('#toast-container', () => {
-//     window.postMessage({ 
-//         type: "FROM_CONTENT_SCRIPT", 
-//         action: "showError", 
-//         message: "An error occurred!" 
-//     }, "*");
-// })
-
-// window.addEventListener("message", function(event) {
-//     if (event.source === window && 
-//         event.data.type && 
-//         event.data.type === "FROM_CONTENT_SCRIPT") {
-        
-//         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-//             chrome.runtime.sendMessage({
-//                 action: event.data.action,
-//                 message: event.data.message
-//             });
-//         }
-//     }
-// }, false);
