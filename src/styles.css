@@ -27,7 +27,8 @@
 
 /* ===== GLOBAL STYLES ===== */
 body {
-    width: 350px;
+    max-width: 340px;
+    min-width: 320px;
     height: 35px;
     overflow: auto;
     font-family: Arial, sans-serif;
@@ -43,7 +44,7 @@ body {
 table {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 0;
+    border-spacing: 0px;
     border-radius: 12px;
     overflow: hidden;
     background: var(--color-white);
@@ -84,9 +85,10 @@ td.actions {
     justify-content: center;
     align-items: center;
     gap: var(--spacing-tiny);
-    margin-left: auto;
+    /* margin-left: auto; */
     justify-content: flex-end;
-    width: 130px;
+    overflow: hidden;
+    width: 100px;
 }
 
 /* ===== BUTTONS ===== */
@@ -170,9 +172,9 @@ td.group-header + tr td {
 
 /* ===== GROUP ACTIONS ===== */
 
-.group-header.actions .group-remove-button {
+/* .group-header.actions .group-remove-button {
     margin-left: auto;
-}
+} */
 
 /* ===== ICONS AND STATUSES ===== */
 .icon {
