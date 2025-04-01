@@ -415,7 +415,7 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     return {
         ...req,
         status: 'error',
-        status_message: 'Nieznany błąd',
+        status_message: JSON.parse(parsedResponse).error || 'Nieznany błąd',
     }
 }
 
