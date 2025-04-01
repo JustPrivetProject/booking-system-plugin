@@ -231,7 +231,6 @@ function getStatusIcon(status) {
 function isDisabled(status) {
     if (status === 'another-task') return 'disabled'
     if (status === 'success') return 'disabled'
-    if (status === 'error') return 'disabled'
     return ''
 }
 
@@ -280,13 +279,13 @@ async function updateQueueDisplay() {
             groupRow.classList.add('group-row')
             groupRow.innerHTML = `
         <td class="group-header toggle-cell"><span class="toggle-icon material-icons">expand_more</span></td>
-        <td class="group-header" title="Nr kontenera">
-        ${items[0].containerNumber ? items[0].containerNumber : '-'}
-        </td>
-        <td class="group-header ${statusForGroup}" title="Status kontenera">
+        <td class="group-header status ${statusForGroup}" title="Status kontenera">
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${statusIconForGroup}
                     </span></td>
+        <td class="group-header" title="Nr kontenera">
+        ${items[0].containerNumber ? items[0].containerNumber : '-'}
+        </td>
         <td class="group-header actions">
             <button class="group-remove-button remove-button" title="Usuń grupę">
                 <span class="material-icons">delete</span>
@@ -299,12 +298,12 @@ async function updateQueueDisplay() {
                 const row = document.createElement('tr')
                 row.innerHTML = `
                 <td></td>
-                <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="status ${req.status}" title="${req.status_message}">
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${getStatusIcon(req.status)}
                     </span>
                 </td>
+                <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="actions">
                     <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
                         <span class="material-icons icon">play_arrow</span>
