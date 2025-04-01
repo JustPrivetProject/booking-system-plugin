@@ -283,7 +283,7 @@ async function updateQueueDisplay() {
         <td class="group-header" title="Nr kontenera">
         ${items[0].containerNumber ? items[0].containerNumber : '-'}
         </td>
-        <td class="group-header ${statusForGroup}" title="Group Status">
+        <td class="group-header ${statusForGroup}" title="Status kontenera">
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${statusIconForGroup}
                     </span></td>

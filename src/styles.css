@@ -82,10 +82,9 @@ td {
 
 td.actions {
     display: flex;
-    justify-content: center;
     align-items: center;
     gap: var(--spacing-tiny);
-    /* margin-left: auto; */
+    margin-left: auto;
     justify-content: flex-end;
     overflow: hidden;
     width: 100px;
