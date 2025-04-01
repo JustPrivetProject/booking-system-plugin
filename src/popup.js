@@ -16,7 +16,7 @@ function normalizeFormData(formData) {
 function createConfirmationModal(message) {
     return new Promise((resolve) => {
         const initialBodyHeight = document.querySelector('body').style.height
-        document.body.style.height = '70px'
+        document.body.style.height = '100px'
         const overlay = document.createElement('div')
         overlay.style.position = 'fixed'
         overlay.style.top = '0'
