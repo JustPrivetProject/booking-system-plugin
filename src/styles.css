@@ -27,8 +27,7 @@
 
 /* ===== GLOBAL STYLES ===== */
 body {
-    max-width: 340px;
-    min-width: 320px;
+    min-width: 440px;
     height: 35px;
     overflow: auto;
     font-family: Arial, sans-serif;

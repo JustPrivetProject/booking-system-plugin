@@ -283,9 +283,8 @@ async function updateQueueDisplay() {
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${statusIconForGroup}
                     </span></td>
-        <td class="group-header" title="Nr kontenera">
-        ${items[0].containerNumber ? items[0].containerNumber : '-'}
-        </td>
+        <td class="group-header">${items[0].driverName ? items[0].driverName : 'No driver'}</td>
+        <td class="group-header" title="Nr kontenera">${items[0].containerNumber ? items[0].containerNumber : '-'}</td>
         <td class="group-header actions">
             <button class="group-remove-button remove-button" title="Usuń grupę">
                 <span class="material-icons">delete</span>
@@ -303,6 +302,7 @@ async function updateQueueDisplay() {
                         ${getStatusIcon(req.status)}
                     </span>
                 </td>
+                <td></td>
                 <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="actions">
                     <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
