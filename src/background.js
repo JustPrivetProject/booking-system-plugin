@@ -26,7 +26,7 @@ class QueueManager {
         return this._synchronizedOperation(async () => {
             const result = await chrome.storage.local.get([this.storageKey])
             const queue = result[this.storageKey] || []
-            const slotStart = newItem.slotStart
+            const startSlot = newItem.startSlot
             const tvAppId = newItem.tvAppId
             const status = newItem.status
 
@@ -44,12 +44,12 @@ class QueueManager {
 
             const isDuplicate = queue.some(
                 (item) =>
-                    item.tvAppId === tvAppId && item.slotStart === slotStart
+                    item.tvAppId === tvAppId && item.startSlot === startSlot
             )
 
             if (isDuplicate) {
                 consoleLog(
-                    `Duplicate item with tvAppId ${tvAppId} and slotStart ${slotStart} not added to ${this.storageKey}`
+                    `Duplicate item with tvAppId ${tvAppId} and startSlot ${startSlot} not added to ${this.storageKey}`
                 )
                 return queue
             }
@@ -242,29 +242,27 @@ async function getEditForm(tvAppId) {
     })
 }
 function consoleLog(...args) {
-    const log = args.join(' ')
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
     })
     console.log(
-        `%c[${date}] %c[JustPrivetProject] %c${log}`,
+        `%c[${date}] %c[JustPrivetProject]:`,
         'color: #00bfff; font-weight: bold;',
         'color: #ff8c00; font-weight: bold;',
-        'color: #ffffff;'
+        ...args
     )
 }
 
 function consoleError(...args) {
-    const log = args.join(' ')
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
     })
     console.error(
-        `%c[${date}] %c[JustPrivetProject] %c${error}: %c${log}`,
+        `%c[${date}] %c[JustPrivetProject] %c${error}: `,
         'color: #00bfff; font-weight: bold;',
         'color: #ff8c00; font-weight: bold;',
         'color:rgb(192, 4, 4); font-weight: bold;',
-        'color: #ffffff;'
+        ...args
     )
 }
 
@@ -420,7 +418,8 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         consoleLog(
             '❌ Retry failed, keeping in queue:',
             tvAppId,
-            time.join(', ')
+            time.join(', '),
+            parsedResponse
         )
         return req
     }
@@ -429,7 +428,8 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         consoleLog(
             '✅ The request was executed in another task:',
             tvAppId,
-            time.join(', ')
+            time.join(', '),
+            parsedResponse
         )
         return {
             ...req,
@@ -443,6 +443,7 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         ...req,
         status: 'error',
         status_message: JSON.parse(parsedResponse).error || 'Nieznany błąd',
+        parsedResponse
     }
 }
 
@@ -463,27 +464,17 @@ function cleanupCache(data) {
     })
 }
 
-/**
- * Sets the status and message for the retry object based on the action
- *
- * @param {Object} retryObject - The object to set the status for
- * @param {string} action - The action determining the status
- */
-function setStatus(retryObject, action) {
-    switch (action) {
-        case 'showError':
-            retryObject.status = 'in-progress'
-            retryObject.status_message = 'Zadanie jest w trakcie realizacji'
-            break
-        case 'succeedBooking':
-            retryObject.status = 'success'
-            retryObject.status_message = 'Zadanie zakończone sukcesem'
-            break
-        default:
-            retryObject.status = 'error'
-            retryObject.status_message = 'Nieznane działanie'
-            break
+async function getDriverName(tvAppId, retryQueue) {
+    const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
+    const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
+    if (sameItem) {
+        return sameItem.driverName
+    } else {
+        const driverNameObject = (await (await getEditForm(tvAppId)).text()).match(regex)[1]
+        const driverNameItems = driverNameObject.split(' ')
+        return `${driverNameItems[0]} ${driverNameItems[1]}`
     }
+
 }
 
 // Cache logic
@@ -545,6 +536,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const queueManager = QueueManager.getInstance()
+
     if (message.action === 'showError' || message.action === 'succeedBooking') {
         consoleLog('Getting request from Cache...')
 
@@ -552,6 +544,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             {
                 requestCacheBody: {},
                 requestCacheHeaders: {},
+                retryQueue: [],
                 testEnv: false,
                 tableData: [],
             },
@@ -567,11 +560,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const requestBody = normalizeFormData(requestCacheBody.body)
                     const tvAppId = requestBody.formData.TvAppId[0]
 
+
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.tvAppId = tvAppId
                     retryObject.startSlot = requestBody.formData.SlotStart[0]
+                    retryObject.driverName = await getDriverName(tvAppId, data.retryQueue)
 
-                    setStatus(retryObject, message.action)
+                    switch (message.action) {
+                        case 'showError':
+                            retryObject.status = 'in-progress'
+                            retryObject.status_message = 'Zadanie jest w trakcie realizacji'
+                            break
+                        case 'succeedBooking':
+                            retryObject.status = 'success'
+                            retryObject.status_message = 'Zadanie zakończone sukcesem'
+                            break
+                        default:
+                            retryObject.status = 'error'
+                            retryObject.status_message = 'Nieznane działanie'
+                            break
+                    }
 
                     if (tableData) {
                         const row = (retryObject.containerNumber =
@@ -598,11 +606,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             consoleLog('Table saved in the storage', message.message)
         })
         sendResponse({ success: true })
-    }
-    if (message.action === 'testGetEditForm') {
-        const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
-       getEditForm().then(body => body.text()).then(text => consoleLog(text.match(regex)[1])).catch(error => consoleLog(error));
-       sendResponse({ success: true })
     }
     if (message.target === 'background') {
         switch (message.action) {
