@@ -209,10 +209,10 @@ async function clearStateGroups() {
     // Get current groupStates from storage
     const { groupStates = {} } = await chrome.storage.local.get('groupStates')
 
-    if(!!Object.entries(groupStates).length) {
+    if (!!Object.entries(groupStates).length) {
         await chrome.storage.local.set({ groupStates: {} })
         console.log(`Group state was cleared`)
-    
+
     }
 
     return groupStates
@@ -229,8 +229,8 @@ function getStatusIcon(status) {
 }
 
 function isDisabled(status) {
-    if (status === 'another-task') return 'disabled'
-    if (status === 'success') return 'disabled'
+    // if (status === 'another-task') return 'disabled'
+    // if (status === 'success') return 'disabled'
     return ''
 }
 
@@ -302,7 +302,7 @@ async function updateQueueDisplay() {
                         ${getStatusIcon(req.status)}
                     </span>
                 </td>
-                <td></td>
+                <td>${containerInfo.SlotStart[0].split(' ')[0]}</td>
                 <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="actions">
                     <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
