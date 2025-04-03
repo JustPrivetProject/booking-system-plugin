@@ -497,18 +497,21 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     }
 }
 
-function cleanupCache(data) {
+async function cleanupCache(data) {
     if (data.testEnv) {
         return
     }
 
-    const lastKeyBody = Object.keys(data.requestCacheBody).pop()
-    const lastKeyHeaders = Object.keys(data.requestCacheHeaders).pop()
+    if (!!Object.keys(data.requestCacheBody).length) {
+        const lastKeyBody = Object.keys(data.requestCacheBody).pop()
+        delete data.requestCacheBody[lastKeyBody]
+    }
+    if (!!Object.keys(data.requestCacheHeaders).length) {
+        const lastKeyHeaders = Object.keys(data.requestCacheHeaders).pop()
+        delete data.requestCacheHeaders[lastKeyHeaders]
+    }
 
-    delete data.requestCacheBody[lastKeyBody]
-    delete data.requestCacheHeaders[lastKeyHeaders]
-
-    chrome.storage.local.set({
+    return chrome.storage.local.set({
         requestCacheBody: data.requestCacheBody,
         requestCacheHeaders: data.requestCacheHeaders,
     })
@@ -523,12 +526,11 @@ function cleanupCache(data) {
  * @function getDriverNameAndContainer
  * @param {string} tvAppId - The ID of the TV application to retrieve data for.
  * @param {Array<Object>} retryQueue - An array of retry queue objects, each containing `tvAppId`, `driverName`, and `containerNumber`.
- * @returns {Promise<{driverName: string, containerId: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
+ * @returns {Promise<{driverName: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
  * @throws Will log an error message to the console if an exception is encountered during processing.
  */
 async function getDriverNameAndContainer(tvAppId, retryQueue) {
     const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
-    const containerID = /"ContainerId"\s*:\s*"([^"]+)"/;
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
     try {
         if (sameItem) {
@@ -537,12 +539,10 @@ async function getDriverNameAndContainer(tvAppId, retryQueue) {
             const request = await (await getEditForm(tvAppId)).text()
             const driverNameObject = request.match(regex)[1]
             const driverNameItems = driverNameObject.split(' ')
-            const containerId = request.match(containerID)[1]
-            return { driverName: `${driverNameItems[0]} ${driverNameItems[1]}`, containerId }
+            return { driverName: `${driverNameItems[0]} ${driverNameItems[1]}` }
         }
-    } catch (error) {
-        consoleError('Error getting driver name:', error)
-        return null
+    } catch (err) {
+        console.log('Error getting driver name:', err)
     }
 
 }
@@ -551,34 +551,8 @@ async function getDriverNameAndContainer(tvAppId, retryQueue) {
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
         if (details.method === 'POST' && details.requestBody) {
-
-            chrome.storage.local.get({ requestCacheBody: {}, requestCacheHeaders: {} }, (data) => {
+            chrome.storage.local.get({ requestCacheBody: {} }, (data) => {
                 let cacheBody = data.requestCacheBody
-                let cacheHeaders = data.requestCacheHeaders
-
-                // Check if the request is from the extension
-                if (
-                    !cacheHeaders[details.requestId].headers.find(
-                        (h) => {
-                            return (
-                                h.name.toLowerCase() === 'x-extension-request'
-                            )
-                        }
-                    )
-                ) {
-                    const lastKeyHeaders = Object.keys(cacheHeaders).pop()
-                    delete cacheHeaders[lastKeyHeaders]
-                    chrome.storage.local.set(
-                        { requestCacheHeaders: cacheHeaders },
-                        () => {
-                            consoleLog(
-                                'Clear last Cached header:',
-                                details.requestId,
-                                lastKeyHeaders
-                            )
-                        }
-                    )
-                }
 
                 cacheBody[details.requestId] = {
                     url: details.url,
@@ -592,10 +566,11 @@ chrome.webRequest.onBeforeRequest.addListener(
                         consoleLog(
                             '✅ Cached Request Body:',
                             details.requestId,
-                            details.url
+                            cacheBody
                         )
                     }
                 )
+
             })
         }
     },
@@ -620,7 +595,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
                     consoleLog(
                         '✅ Cached Request Headers:',
                         details.requestId,
-                        details.url
+                        cacheHeaders
                     )
                 }
             )
@@ -642,6 +617,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 requestCacheHeaders: {},
                 retryQueue: [],
                 testEnv: false,
+                tableData: [],
             },
             async (data) => {
                 let requestCacheBody = getLastProperty(data.requestCacheBody)
@@ -650,6 +626,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 )
 
                 if (requestCacheBody) {
+                    const tableData = data.tableData
                     const retryObject = { ...requestCacheBody }
                     const requestBody = normalizeFormData(requestCacheBody.body)
                     const tvAppId = requestBody.formData.TvAppId[0]
@@ -659,7 +636,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     retryObject.tvAppId = tvAppId
                     retryObject.startSlot = requestBody.formData.SlotStart[0]
                     retryObject.driverName = driverAndContainer.driverName
-                    retryObject.containerNumber = driverAndContainer.containerId
+
+                    if (tableData) {
+                        const row = (retryObject.containerNumber =
+                            tableData.find((row) => row.includes(tvAppId)))
+
+                        if (row) {
+                            retryObject.containerNumber =
+                                row[tableData[0].indexOf('Nr kontenera')]
+                        }
+                    }
 
                     switch (message.action) {
                         case 'showError':
@@ -678,12 +664,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     // Add request to the retry queue
                     await queueManager.addToQueue(retryObject)
                     // Remove the last request from the cache
-                    cleanupCache(data)
+                    await cleanupCache(data)
                 } else {
                     consoleLog('No data in cache object')
                 }
             }
         )
+        sendResponse({ success: true })
+    }
+    if (message.action === 'parsedTable') {
+        chrome.storage.local.set({ tableData: message.message }, () => {
+            consoleLog('Table saved in the storage', message.message)
+        })
         sendResponse({ success: true })
     }
     if (message.target === 'background') {

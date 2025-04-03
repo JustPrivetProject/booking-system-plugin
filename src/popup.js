@@ -229,8 +229,8 @@ function getStatusIcon(status) {
 }
 
 function isDisabled(status) {
-    // if (status === 'another-task') return 'disabled'
-    // if (status === 'success') return 'disabled'
+    if (status === 'another-task') return 'disabled'
+    if (status === 'success') return 'disabled'
     return ''
 }
 

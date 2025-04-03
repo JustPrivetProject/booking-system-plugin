@@ -45,12 +45,31 @@ function waitElementAndSendChromeMessage(selector, action, actionFunction) {
     });
 }
 
+function parseTable() {
+    const table = document.querySelector("#Grid table");
+    if (!table) return [];
+
+    const data = [];
+    table.querySelectorAll("tr").forEach((row, rowIndex) => {
+        const cells = row.querySelectorAll("td, th");
+        const rowData = [];
+        cells.forEach(cell => rowData.push(cell.innerText.trim()));
+        data.push(rowData);
+    });
+
+    return data;
+}
+
 waitElementAndSendChromeMessage('#toast-container', "showError", () => {
     return "An error occurred!";
 });
 
 waitElementAndSendChromeMessage('.swal2-icon-success[role="dialog"]', "succeedBooking", () => {
     return "Successful booking found!";
+});
+
+waitElementAndSendChromeMessage('#Grid table', "parsedTable", () => {
+    return parseTable();
 });
 
 waitForElement('#slotsDisplay', (targetNode) => {
