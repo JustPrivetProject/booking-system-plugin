@@ -1,7 +1,7 @@
 const waitForElement = (selector, callback) => {
     const observer = new MutationObserver(() => {
         const element = document.querySelector(selector);
-        
+
         if (element) {
             callback(element);
 
@@ -21,29 +21,6 @@ const waitForElement = (selector, callback) => {
     observer.observe(document.body, { childList: true, subtree: true });
 };
 
-function parseTable() {
-    const table = document.querySelector("#Grid table");
-    if (!table) return [];
-
-    const data = [];
-    table.querySelectorAll("tr").forEach((row, rowIndex) => {
-        const cells = row.querySelectorAll("td, th");
-        const rowData = [];
-        cells.forEach(cell => rowData.push(cell.innerText.trim()));
-        data.push(rowData);
-    });
-
-    return data;
-}
-
-function parseForm() {
-    const data = [];
-    data.push(form.querySelector("#select2-SelectedDriver-container").innerText.trim());
-      
-
-    return data;
-}
-
 function waitElementAndSendChromeMessage(selector, action, actionFunction) {
     waitForElement(selector, () => {
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
@@ -55,7 +32,7 @@ function waitElementAndSendChromeMessage(selector, action, actionFunction) {
             const parsedData = actionFunction();
 
             chrome.runtime.sendMessage(
-                { action: action, message: parsedData }, 
+                { action: action, message: parsedData },
                 (response) => {
                     if (chrome.runtime.lastError) {
                         console.error(`Error sending ${action} message:`, chrome.runtime.lastError);
@@ -74,10 +51,6 @@ waitElementAndSendChromeMessage('#toast-container', "showError", () => {
 
 waitElementAndSendChromeMessage('.swal2-icon-success[role="dialog"]', "succeedBooking", () => {
     return "Successful booking found!";
-});
-
-waitElementAndSendChromeMessage('#Grid table', "parsedTable", () => {
-    return parseTable();
 });
 
 waitForElement('#slotsDisplay', (targetNode) => {

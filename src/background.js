@@ -145,7 +145,6 @@ class QueueManager {
     async startProcessing(processRequest, options = {}) {
         const {
             interval = 5000,
-            maxConcurrentRequests = 1,
             retryEnabled = true,
         } = options
 
@@ -166,9 +165,7 @@ class QueueManager {
                 const queue = await this.getQueue()
 
                 // Filter requests in progress
-                const inProgressRequests = queue
-                    .filter((req) => req.status === 'in-progress')
-                    .slice(0, maxConcurrentRequests)
+                const inProgressRequests = queue.filter((req) => req.status === 'in-progress');
 
                 // Sequential processing
                 for (const req of inProgressRequests) {
@@ -176,10 +173,10 @@ class QueueManager {
                         consoleLog(`Processing request: ${req.id}`)
 
                         const updatedReq = await processRequest(req, queue)
-
-                        await this.updateQueueItem(req.id, updatedReq)
-
-                        consoleLog(`Request ${req.id} processed successfully`, updatedReq) // TODO: update log way
+                        if (updatedReq.status !== 'in-progress') {
+                            await this.updateQueueItem(req.id, updatedReq)
+                            consoleLog(`Request ${req.id} processed successfully`, updatedReq)
+                        }
                     } catch (error) {
                         consoleError(
                             `Error processing request ${req.id}:`,
@@ -211,9 +208,8 @@ const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
 async function getSlots(date) {
     const [day, month, year] = date.split('.').map(Number)
-    const newDate = new Date(Date.UTC(year, month - 1, day, 23, 0, 0, 0))
+    const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
     const dateAfterTransfer = newDate.toISOString()
-
     return fetch('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
         headers: {
@@ -321,6 +317,29 @@ function createFormData(formDataObj) {
     return formData
 }
 
+/**
+ * Processes a request by normalizing its form data, checking task completion,
+ * verifying authorization, checking slot availability, and executing the request if applicable.
+ *
+ * @async
+ * @function
+ * @param {Object} req - The request object containing the body and other details.
+ * @param {Array} queue - The queue of tasks to check for task completion.
+ * @returns {Promise<Object>} A promise that resolves to the updated request object with status and status_message.
+ *
+ * @throws {Error} Throws an error if there is an issue during slot retrieval or execution.
+ *
+ * @example
+ * const req = {
+ *   body: {
+ *     TvAppId: ['12345'],
+ *     SlotStart: ['2023-10-01 10:00']
+ *   }
+ * };
+ * const queue = [];
+ * const result = await processRequest(req, queue);
+ * console.log(result);
+ */
 async function processRequest(req, queue) {
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
@@ -354,8 +373,8 @@ async function processRequest(req, queue) {
         consoleLog('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
         return req
     }
-
-    return await executeRequest(req, tvAppId, time)
+    const objectToReturn = await executeRequest(req, tvAppId, time)
+    return objectToReturn;
 }
 
 function isTaskCompletedInAnotherQueue(req, queue) {
@@ -369,10 +388,26 @@ async function checkSlotAvailability(htmlText, time) {
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
     )
-
+    consoleLog('Slot button:', slotButton)
     return !slotButton.disabled
 }
 
+/**
+ * Executes an HTTP POST request with the provided data and handles the response.
+ *
+ * @async
+ * @function
+ * @param {Object} req - The request object containing the URL, headers, and body data.
+ * @param {string} req.url - The URL to send the request to.
+ * @param {Object} req.headersCache - Cached headers for the request.
+ * @param {Object} req.headersCache.headers - Headers to include in the request.
+ * @param {Object} req.body - The body of the request.
+ * @param {Object} req.body.formData - The form data to be sent in the request body.
+ * @param {string} tvAppId - The identifier for the TV application.
+ * @param {Array<string>} time - An array containing time-related data.
+ * @returns {Promise<Object>} A promise that resolves to an object containing the updated request status and message.
+ * @throws {Error} If there is an issue with sending the notification or handling the response.
+ */
 async function executeRequest(req, tvAppId, time) {
     const formData = createFormData(req.body.formData)
 
@@ -413,6 +448,21 @@ async function executeRequest(req, tvAppId, time) {
     // TODO: add action to update grid
 }
 
+/**
+ * Handles error responses by analyzing the parsed response and returning an appropriate object.
+ *
+ * @param {Object} req - The original request object.
+ * @param {string} parsedResponse - The parsed response string from the server.
+ * @param {string} tvAppId - The ID of the TV application associated with the request.
+ * @param {Array<string>} time - An array of time-related strings associated with the request.
+ * @returns {Object} - The modified request object or an object containing error details.
+ *
+ * @description
+ * This function processes error responses and determines the appropriate action based on the error type:
+ * - If the error is "CannotCreateTvaInSelectedSlot", it logs the error and returns the original request.
+ * - If the error is "TaskWasUsedInAnotherTva", it logs the success message and returns a modified request object with a status of "another-task".
+ * - For unknown errors, it logs the error and returns a modified request object with a status of "error" and an error message.
+ */
 function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
         consoleLog(
@@ -464,15 +514,35 @@ function cleanupCache(data) {
     })
 }
 
-async function getDriverName(tvAppId, retryQueue) {
+/**
+ * Retrieves the driver name and container ID associated with a given tvAppId.
+ * If the tvAppId exists in the retryQueue, it returns the cached driver name and container number.
+ * Otherwise, it fetches the edit form, extracts the driver name and container ID from the response, and returns them.
+ *
+ * @async
+ * @function getDriverNameAndContainer
+ * @param {string} tvAppId - The ID of the TV application to retrieve data for.
+ * @param {Array<Object>} retryQueue - An array of retry queue objects, each containing `tvAppId`, `driverName`, and `containerNumber`.
+ * @returns {Promise<{driverName: string, containerId: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
+ * @throws Will log an error message to the console if an exception is encountered during processing.
+ */
+async function getDriverNameAndContainer(tvAppId, retryQueue) {
     const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
+    const containerID = /"ContainerId"\s*:\s*"([^"]+)"/;
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
-    if (sameItem) {
-        return sameItem.driverName
-    } else {
-        const driverNameObject = (await (await getEditForm(tvAppId)).text()).match(regex)[1]
-        const driverNameItems = driverNameObject.split(' ')
-        return `${driverNameItems[0]} ${driverNameItems[1]}`
+    try {
+        if (sameItem) {
+            return { driverName: sameItem.driverName, containerNumber: sameItem.containerNumber }
+        } else {
+            const request = await (await getEditForm(tvAppId)).text()
+            const driverNameObject = request.match(regex)[1]
+            const driverNameItems = driverNameObject.split(' ')
+            const containerId = request.match(containerID)[1]
+            return { driverName: `${driverNameItems[0]} ${driverNameItems[1]}`, containerId }
+        }
+    } catch (error) {
+        consoleError('Error getting driver name:', error)
+        return null
     }
 
 }
@@ -481,8 +551,34 @@ async function getDriverName(tvAppId, retryQueue) {
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
         if (details.method === 'POST' && details.requestBody) {
-            chrome.storage.local.get({ requestCacheBody: {} }, (data) => {
+
+            chrome.storage.local.get({ requestCacheBody: {}, requestCacheHeaders: {} }, (data) => {
                 let cacheBody = data.requestCacheBody
+                let cacheHeaders = data.requestCacheHeaders
+
+                // Check if the request is from the extension
+                if (
+                    !cacheHeaders[details.requestId].headers.find(
+                        (h) => {
+                            return (
+                                h.name.toLowerCase() === 'x-extension-request'
+                            )
+                        }
+                    )
+                ) {
+                    const lastKeyHeaders = Object.keys(cacheHeaders).pop()
+                    delete cacheHeaders[lastKeyHeaders]
+                    chrome.storage.local.set(
+                        { requestCacheHeaders: cacheHeaders },
+                        () => {
+                            consoleLog(
+                                'Clear last Cached header:',
+                                details.requestId,
+                                lastKeyHeaders
+                            )
+                        }
+                    )
+                }
 
                 cacheBody[details.requestId] = {
                     url: details.url,
@@ -546,7 +642,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 requestCacheHeaders: {},
                 retryQueue: [],
                 testEnv: false,
-                tableData: [],
             },
             async (data) => {
                 let requestCacheBody = getLastProperty(data.requestCacheBody)
@@ -555,16 +650,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 )
 
                 if (requestCacheBody) {
-                    const tableData = data.tableData
                     const retryObject = { ...requestCacheBody }
                     const requestBody = normalizeFormData(requestCacheBody.body)
                     const tvAppId = requestBody.formData.TvAppId[0]
-
+                    const driverAndContainer = await getDriverNameAndContainer(tvAppId, data.retryQueue)
 
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.tvAppId = tvAppId
                     retryObject.startSlot = requestBody.formData.SlotStart[0]
-                    retryObject.driverName = await getDriverName(tvAppId, data.retryQueue)
+                    retryObject.driverName = driverAndContainer.driverName
+                    retryObject.containerNumber = driverAndContainer.containerId
 
                     switch (message.action) {
                         case 'showError':
@@ -580,16 +675,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                             retryObject.status_message = 'Nieznane działanie'
                             break
                     }
-
-                    if (tableData) {
-                        const row = (retryObject.containerNumber =
-                            tableData.find((row) => row.includes(tvAppId)))
-
-                        if (row) {
-                            retryObject.containerNumber =
-                                row[tableData[0].indexOf('Nr kontenera')]
-                        }
-                    }
                     // Add request to the retry queue
                     await queueManager.addToQueue(retryObject)
                     // Remove the last request from the cache
@@ -599,12 +684,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
             }
         )
-        sendResponse({ success: true })
-    }
-    if (message.action === 'parsedTable') {
-        chrome.storage.local.set({ tableData: message.message }, () => {
-            consoleLog('Table saved in the storage', message.message)
-        })
         sendResponse({ success: true })
     }
     if (message.target === 'background') {
@@ -649,6 +728,5 @@ const RETRY_INTERVAL = 15 * 1000
 // Start retry attempts every 60 seconds
 queueManager.startProcessing(processRequest, {
     interval: RETRY_INTERVAL, // Interval between processing cycles
-    maxConcurrentRequests: 2, // Maximum number of concurrent requests
     retryEnabled: true, // Can be controlled via storage
 })
