@@ -144,7 +144,8 @@ class QueueManager {
 
     async startProcessing(processRequest, options = {}) {
         const {
-            interval = 5000,
+            intervalMin = 2000, // Minimum interval in milliseconds (2 seconds)
+            intervalMax = 10000, // Maximum interval in milliseconds (10 seconds)
             retryEnabled = true,
         } = options
 
@@ -195,8 +196,14 @@ class QueueManager {
                 consoleError('Error in queue processing:', error)
             }
 
-            // Start the next processing cycle
-            setTimeout(processNextRequests, interval)
+            // Calculate a random interval between intervalMin and intervalMax
+            const randomInterval = Math.floor(
+                Math.random() * (intervalMax - intervalMin + 1) + intervalMin
+            )
+            consoleLog(`Next processing cycle in ${randomInterval / 1000} seconds`)
+
+            // Start the next processing cycle with random interval
+            setTimeout(processNextRequests, randomInterval)
         }
 
         // Initial start
@@ -210,33 +217,45 @@ async function getSlots(date) {
     const [day, month, year] = date.split('.').map(Number)
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
     const dateAfterTransfer = newDate.toISOString()
-    return fetch('https://ebrama.baltichub.com/Home/GetSlots', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/vbs-slots',
-            Accept: '*/*',
-            'X-Extension-Request': 'JustPrivetProject',
-        },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
-        credentials: 'include',
-    })
+    try {
+        const response = await fetch('https://ebrama.baltichub.com/Home/GetSlots', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=UTF-8',
+                'X-requested-with': 'XMLHttpRequest',
+                Referer: 'https://ebrama.baltichub.com/vbs-slots',
+                Accept: '*/*',
+                'X-Extension-Request': 'JustPrivetProject',
+            },
+            body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
+            credentials: 'include',
+        })
+        return response;
+    } catch (error) {
+        consoleError('Error fetching slots:', error)
+        return { ok: false, text: () => Promise.resolve('') }
+    }
 }
 
 async function getEditForm(tvAppId) {
-    return fetch(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-            'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/vbs-slots',
-            Accept: '*/*',
-            'X-Extension-Request': 'JustPrivetProject',
-        },
-        credentials: 'include',
-    })
+    try {
+        const response = await fetch(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=UTF-8',
+                'X-requested-with': 'XMLHttpRequest',
+                Referer: 'https://ebrama.baltichub.com/vbs-slots',
+                Accept: '*/*',
+                'X-Extension-Request': 'JustPrivetProject',
+            },
+            credentials: 'include',
+        })
+    } catch (error) {
+        consoleError('Error fetching edit form:', error)
+        return { ok: false, text: () => Promise.resolve('') }
+    }
 }
+
 function consoleLog(...args) {
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
@@ -254,7 +273,7 @@ function consoleError(...args) {
         timeZone: 'Europe/Warsaw',
     })
     console.error(
-        `%c[${date}] %c[JustPrivetProject] %c${error}: `,
+        `%c[${date}] %c[JustPrivetProject] %c:`,
         'color: #00bfff; font-weight: bold;',
         'color: #ff8c00; font-weight: bold;',
         'color:rgb(192, 4, 4); font-weight: bold;',
@@ -463,6 +482,7 @@ async function executeRequest(req, tvAppId, time) {
  * - If the error is "TaskWasUsedInAnotherTva", it logs the success message and returns a modified request object with a status of "another-task".
  * - For unknown errors, it logs the error and returns a modified request object with a status of "error" and an error message.
  */
+
 function handleErrorResponse(req, parsedResponse, tvAppId, time) {
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
         consoleLog(
@@ -488,12 +508,48 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         }
     }
 
-    consoleError('❌ Unknown error occurred:', parsedResponse)
-    return {
-        ...req,
-        status: 'error',
-        status_message: JSON.parse(parsedResponse).error || 'Nieznany błąd',
-        parsedResponse
+    let responseObj;
+    try {
+        responseObj = JSON.parse(parsedResponse);
+
+        // Handle specific error codes
+        if (responseObj.messageCode && responseObj.messageCode.includes('ToMuchTransactionInSector')) {
+            consoleLog(
+                '⚠️ Too many transactions in sector, keeping in queue:',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return req;
+        }
+
+        if (responseObj.messageCode === 'NoSlotsAvailable') {
+            consoleLog(
+                '⚠️ No slots available, keeping in queue:',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return req;
+        }
+
+        // Handle unknown JSON error
+        consoleError('❌ Unknown error occurred:', parsedResponse)
+        return {
+            ...req,
+            status: 'error',
+            status_message: responseObj.error || 'Nieznany błąd',
+            parsedResponse
+        }
+    } catch (e) {
+        // Handle non-JSON responses
+        consoleError('❌ Unknown error (not JSON):', parsedResponse)
+        return {
+            ...req,
+            status: 'error',
+            status_message: 'Nieznany błąd (niepoprawny format)',
+            parsedResponse
+        }
     }
 }
 
@@ -529,20 +585,22 @@ async function cleanupCache(data) {
  * @returns {Promise<{driverName: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
  * @throws Will log an error message to the console if an exception is encountered during processing.
  */
+
 async function getDriverNameAndContainer(tvAppId, retryQueue) {
     const regex = /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
     try {
         if (sameItem) {
-            return { driverName: sameItem.driverName, containerNumber: sameItem.containerNumber }
+            return { driverName: sameItem.driverName || '', containerNumber: sameItem.containerNumber || '' }
         } else {
             const request = await (await getEditForm(tvAppId)).text()
-            const driverNameObject = request.match(regex)[1]
+            const driverNameObject = request.match(regex)?.[1] || ''
             const driverNameItems = driverNameObject.split(' ')
-            return { driverName: `${driverNameItems[0]} ${driverNameItems[1]}` }
+            return { driverName: `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim() }
         }
     } catch (err) {
         console.log('Error getting driver name:', err)
+        return { driverName: '', containerNumber: '' }
     }
 
 }
@@ -630,12 +688,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const retryObject = { ...requestCacheBody }
                     const requestBody = normalizeFormData(requestCacheBody.body)
                     const tvAppId = requestBody.formData.TvAppId[0]
-                    const driverAndContainer = await getDriverNameAndContainer(tvAppId, data.retryQueue)
+                    const driverAndContainer = await getDriverNameAndContainer(tvAppId, data.retryQueue) || { driverName: '', containerNumber: '' }
 
                     retryObject.headersCache = requestCacheHeaders
                     retryObject.tvAppId = tvAppId
                     retryObject.startSlot = requestBody.formData.SlotStart[0]
-                    retryObject.driverName = driverAndContainer.driverName
+                    retryObject.driverName = driverAndContainer.driverName || ''
 
                     if (tableData) {
                         const row = (retryObject.containerNumber =
@@ -716,9 +774,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.storage.local.set({ retryEnabled: true })
 chrome.storage.local.set({ testEnv: false })
 const queueManager = QueueManager.getInstance()
-const RETRY_INTERVAL = 15 * 1000
-// Start retry attempts every 60 seconds
+// Start retry attempts with random intervals between 2 and 5 seconds
 queueManager.startProcessing(processRequest, {
-    interval: RETRY_INTERVAL, // Interval between processing cycles
+    intervalMin: 2000, // Minimum interval (2 seconds)
+    intervalMax: 5000, // Maximum interval (5 seconds)
     retryEnabled: true, // Can be controlled via storage
 })

@@ -437,6 +437,14 @@ async function updateQueueDisplay() {
     }
 }
 
+// Listen for storage changes and update UI when retryQueue changes
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.retryQueue) {
+        console.log('Queue data changed, updating UI');
+        updateQueueDisplay();
+    }
+});
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates()
