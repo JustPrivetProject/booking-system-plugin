@@ -231,6 +231,7 @@ function getStatusIcon(status) {
 function isDisabled(status) {
     if (status === 'another-task') return 'disabled'
     if (status === 'success') return 'disabled'
+    if (status === 'error') return 'disabled'
     return ''
 }
 
@@ -283,7 +284,7 @@ async function updateQueueDisplay() {
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${statusIconForGroup}
                     </span></td>
-        <td class="group-header">${items[0].driverName ? items[0].driverName : 'No driver'}</td>
+        <td class="group-header">${items[0].driverName ? items[0].driverName : 'Brak nazwy kierowcy'}</td>
         <td class="group-header" title="Nr kontenera">${items[0].containerNumber ? items[0].containerNumber : '-'}</td>
         <td class="group-header actions">
             <button class="group-remove-button remove-button" title="Usuń grupę">
