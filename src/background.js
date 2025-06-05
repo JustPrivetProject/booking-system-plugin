@@ -213,47 +213,57 @@ class QueueManager {
 
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
-async function getSlots(date) {
-    const [day, month, year] = date.split('.').map(Number)
-    const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
-    const dateAfterTransfer = newDate.toISOString()
+async function fetchRequest(url, options = {}) {
     try {
-        const response = await fetch('https://ebrama.baltichub.com/Home/GetSlots', {
-            method: 'POST',
+        const response = await fetch(url, {
+            ...options,
             headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-requested-with': 'XMLHttpRequest',
-                Referer: 'https://ebrama.baltichub.com/vbs-slots',
-                Accept: '*/*',
-                'X-Extension-Request': 'JustPrivetProject',
+                ...options.headers
             },
-            body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
             credentials: 'include',
         })
-        return response;
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        return response
     } catch (error) {
-        consoleError('Error fetching slots:', error)
+        consoleError('Error fetching request:', error)
         return { ok: false, text: () => Promise.resolve('') }
     }
 }
 
+async function getSlots(date) {
+    const [day, month, year] = date.split('.').map(Number)
+    const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+    const dateAfterTransfer = newDate.toISOString()
+    return fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-requested-with': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            Accept: '*/*',
+            'X-Extension-Request': 'JustPrivetProject',
+        },
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
+        credentials: 'include',
+    })
+}
+
 async function getEditForm(tvAppId) {
-    try {
-        const response = await fetch(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-requested-with': 'XMLHttpRequest',
-                Referer: 'https://ebrama.baltichub.com/vbs-slots',
-                Accept: '*/*',
-                'X-Extension-Request': 'JustPrivetProject',
-            },
-            credentials: 'include',
-        })
-    } catch (error) {
-        consoleError('Error fetching edit form:', error)
-        return { ok: false, text: () => Promise.resolve('') }
-    }
+    return fetchRequest(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-requested-with': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            Accept: '*/*',
+            'X-Extension-Request': 'JustPrivetProject',
+        },
+        credentials: 'include',
+    })
 }
 
 function consoleLog(...args) {
@@ -430,7 +440,7 @@ async function checkSlotAvailability(htmlText, time) {
 async function executeRequest(req, tvAppId, time) {
     const formData = createFormData(req.body.formData)
 
-    const response = await fetch(req.url, {
+    const response = await fetchRequest(req.url, {
         method: 'POST',
         headers: {
             ...req.headersCache.headers,
@@ -533,13 +543,26 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
             return req;
         }
 
+        if (responseObj.messageCode && responseObj.messageCode.includes('FE_0091')) {
+            consoleLog(
+                '⚠️ Too many transactions in sector, keeping in queue:',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return {
+                ...req,
+                status: 'another-task',
+                status_message: 'Awizacja edytowana przez innego użytkownika. Otwórz okno ponownie w celu aktualizacji awizacji',
+            }
+        }
+
         // Handle unknown JSON error
         consoleError('❌ Unknown error occurred:', parsedResponse)
         return {
             ...req,
             status: 'error',
             status_message: responseObj.error || 'Nieznany błąd',
-            parsedResponse
         }
     } catch (e) {
         // Handle non-JSON responses
@@ -548,7 +571,6 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
             ...req,
             status: 'error',
             status_message: 'Nieznany błąd (niepoprawny format)',
-            parsedResponse
         }
     }
 }
