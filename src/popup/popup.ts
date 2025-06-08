@@ -1,98 +1,18 @@
-function normalizeFormData(formData) {
-    const result = {}
-
-    for (const key in formData) {
-        // If it's an array with only one item, use that item directly
-        if (Array.isArray(formData[key]) && formData[key].length === 1) {
-            result[key] = formData[key][0]
-        } else {
-            result[key] = formData[key]
-        }
-    }
-
-    return result
-}
-
-function createConfirmationModal(message) {
-    return new Promise((resolve) => {
-        const initialBodyHeight = document.querySelector('body').style.height
-        document.body.style.height = '100px'
-        const overlay = document.createElement('div')
-        overlay.style.position = 'fixed'
-        overlay.style.top = '0'
-        overlay.style.left = '0'
-        overlay.style.width = '100%'
-        overlay.style.height = '100%'
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
-        overlay.style.display = 'flex'
-        overlay.style.justifyContent = 'center'
-        overlay.style.alignItems = 'center'
-        overlay.style.zIndex = '1000'
-
-        const modal = document.createElement('div')
-        modal.style.backgroundColor = 'white'
-        modal.style.padding = '20px'
-        modal.style.borderRadius = '8px'
-        modal.style.textAlign = 'center'
-        modal.style.maxWidth = '400px'
-        modal.style.width = '90%'
-
-        const messageEl = document.createElement('p')
-        messageEl.textContent = message
-        messageEl.style.marginBottom = '20px'
-
-        const buttonsContainer = document.createElement('div')
-        buttonsContainer.style.display = 'flex'
-        buttonsContainer.style.justifyContent = 'center'
-        buttonsContainer.style.gap = '10px'
-
-        const cancelButton = document.createElement('button')
-        cancelButton.textContent = 'Anuluj'
-        cancelButton.style.padding = '10px 20px'
-        cancelButton.style.backgroundColor = '#f0f0f0'
-        cancelButton.style.border = 'none'
-        cancelButton.style.borderRadius = '4px'
-
-        const confirmButton = document.createElement('button')
-        confirmButton.textContent = 'Potwierdź'
-        confirmButton.style.padding = '10px 20px'
-        confirmButton.style.backgroundColor = '#ff4d4d'
-        confirmButton.style.color = 'white'
-        confirmButton.style.border = 'none'
-        confirmButton.style.borderRadius = '4px'
-
-        cancelButton.addEventListener('click', () => {
-            document.body.removeChild(overlay)
-            document.body.style.height = initialBodyHeight
-            resolve(false)
-        })
-
-        confirmButton.addEventListener('click', () => {
-            document.body.removeChild(overlay)
-            document.body.style.height = initialBodyHeight
-            resolve(true)
-        })
-
-        buttonsContainer.appendChild(cancelButton)
-        buttonsContainer.appendChild(confirmButton)
-
-        modal.appendChild(messageEl)
-        modal.appendChild(buttonsContainer)
-
-        overlay.appendChild(modal)
-        document.body.appendChild(overlay)
-    })
-}
+import './popup.css'
+import { normalizeFormData } from '../utils/utils-function'
+import { createConfirmationModal } from './modals/confirmation.modal'
+import { Statuses, Actions } from '../data'
+import { RetryObjectArray } from '../types/baltichub'
 
 function sortStatusesByPriority(statuses) {
     // Define the priority of statuses from the most critical to the least critical
     const priorityOrder = [
-        'success', // Highest priority
-        'error', // High priority
-        'authorization-error', // Medium priority
-        'another-task', // Low priority
-        'in-progress',
-        'paused', // Lowest priority
+        Statuses.SUCCESS, // Highest priority
+        Statuses.ERROR, // High priority
+        Statuses.AUTHORIZATION_ERROR, // Medium priority
+        Statuses.ANOTHER_TASK, // Low priority
+        Statuses.IN_PROGRESS, // In progress
+        Statuses.PAUSED, // Lowest priority
     ]
 
     // Sort statuses according to the defined priority order
@@ -133,11 +53,11 @@ function sendMessageToBackground(action, data) {
 }
 
 async function removeRequestFromRetryQueue(id) {
-    return sendMessageToBackground('removeRequest', { id: id })
+    return sendMessageToBackground(Actions.REMOVE_REQUEST, { id: id })
 }
 
 async function setStatusRequest(id, status, status_message) {
-    return sendMessageToBackground('updateRequestStatus', {
+    return sendMessageToBackground(Actions.UPDATE_REQUEST_STATUS, {
         id: id,
         status: status,
         status_message: status_message,
@@ -150,12 +70,12 @@ async function restoreGroupStates() {
             await chrome.storage.local.get('groupStates')
 
         document
-            .querySelectorAll('.group-header.toggle-cell')
+            .querySelectorAll<HTMLElement>('.group-header.toggle-cell')
             .forEach((header) => {
-                const groupRow = header.closest('.group-row')
+                const groupRow: HTMLElement = header.closest('.group-row')!
                 if (!groupRow) return
 
-                const groupId = groupRow.dataset.groupId
+                const groupId = groupRow.dataset.groupId!
                 const isOpen = groupStates[groupId] || false
                 groupRow.dataset.isOpen = isOpen
                 // Update header state
@@ -173,7 +93,9 @@ async function restoreGroupStates() {
                     nextRow &&
                     !nextRow.querySelector('.group-header.toggle-cell')
                 ) {
-                    nextRow.style.display = isOpen ? 'table-row' : 'none'
+                    ;(nextRow as HTMLElement).style.display = isOpen
+                        ? 'table-row'
+                        : 'none'
                     nextRow = nextRow.nextElementSibling
                 }
             })
@@ -212,7 +134,6 @@ async function clearStateGroups() {
     if (!!Object.entries(groupStates).length) {
         await chrome.storage.local.set({ groupStates: {} })
         console.log(`Group state was cleared`)
-
     }
 
     return groupStates
@@ -220,51 +141,57 @@ async function clearStateGroups() {
 
 // set up google icons
 function getStatusIcon(status) {
-    if (status === 'in-progress') return 'loop'
-    if (status === 'success') return 'check_circle'
-    if (status === 'another-task') return 'check_circle'
-    if (status === 'paused') return 'pause_circle'
-    if (status === 'authorization-error') return 'report'
+    if (status === Statuses.IN_PROGRESS) return 'loop'
+    if (status === Statuses.SUCCESS) return 'check_circle'
+    if (status === Statuses.ANOTHER_TASK) return 'check_circle'
+    if (status === Statuses.PAUSED) return 'pause_circle'
+    if (status === Statuses.AUTHORIZATION_ERROR) return 'report'
     return 'report'
 }
 
 function isDisabled(status) {
-    if (status === 'another-task') return 'disabled'
-    if (status === 'success') return 'disabled'
-    if (status === 'error') return 'disabled'
+    if (
+        status === Statuses.ANOTHER_TASK ||
+        status === Statuses.SUCCESS ||
+        status === Statuses.ERROR
+    )
+        return 'disabled'
     return ''
 }
 
 function isPlayDisabled(status) {
-    if (status === 'in-progress') return 'disabled'
+    if (status === Statuses.IN_PROGRESS) return 'disabled'
     return isDisabled(status)
 }
 
 function isPauseDisabled(status) {
-    if (status === 'paused') return 'disabled'
-    if (status === 'authorization-error') return 'disabled'
+    if (status === Statuses.PAUSED || status === Statuses.AUTHORIZATION_ERROR)
+        return 'disabled'
     return isDisabled(status)
 }
 
 async function updateQueueDisplay() {
     try {
         // Get the queue from storage
-        const { retryQueue } = await new Promise((resolve) =>
-            chrome.storage.local.get({ retryQueue: [] }, resolve)
-        )
+        const { retryQueue } = await new Promise<{
+            retryQueue: RetryObjectArray
+        }>((resolve) => chrome.storage.local.get({ retryQueue: [] }, resolve))
 
         // Grouping by TvAppId
-        const groupedData = retryQueue.reduce((acc, req) => {
-            const tvAppId = req.tvAppId
-            if (!acc[tvAppId]) acc[tvAppId] = []
-            acc[tvAppId].push(req)
-            return acc
-        }, {})
+        const groupedData = retryQueue.reduce(
+            (acc: Record<string, RetryObjectArray>, req) => {
+                const tvAppId = req.tvAppId
+                if (!acc[tvAppId]) acc[tvAppId] = []
+                acc[tvAppId].push(req)
+                return acc
+            },
+            {}
+        )
 
-        let tableBody = document.getElementById('queueTableBody')
+        let tableBody = document.getElementById('queueTableBody')!
         tableBody.innerHTML = '' // Clear the table
 
-        const data = Object.entries(groupedData)
+        const data = Object.entries(groupedData) as [string, RetryObjectArray][]
         // clear states on empty grid
         if (!data.length) {
             clearStateGroups()
@@ -272,7 +199,7 @@ async function updateQueueDisplay() {
         // Populate the table with data from the queue
         data.forEach(([tvAppId, items]) => {
             const statusForGroup = sortStatusesByPriority(
-                items.map((item) => item.status)
+                items.map((item: RetryObjectArray[0]) => item.status)
             )[0]
             const statusIconForGroup = getStatusIcon(statusForGroup)
             const groupRow = document.createElement('tr')
@@ -293,7 +220,7 @@ async function updateQueueDisplay() {
         </td>`
             tableBody.appendChild(groupRow)
 
-            items.forEach((req, index) => {
+            items.forEach((req: RetryObjectArray[0]) => {
                 let containerInfo = normalizeFormData(req.body).formData
                 const row = document.createElement('tr')
                 row.innerHTML = `
@@ -320,43 +247,51 @@ async function updateQueueDisplay() {
                 tableBody.appendChild(row)
             })
         })
+        // Spellcheck suppression for Polish words
+        // kontenera, Brak, nazwy, kierowcy, Usuń, grupę, Wznów, Wstrzymaj
 
         restoreGroupStates()
 
         // Add button handlers
         document
-            .querySelectorAll('.remove-button:not(.group-remove-button)')
+            .querySelectorAll<HTMLElement>(
+                '.remove-button:not(.group-remove-button)'
+            )
             .forEach((btn) => {
                 btn.addEventListener('click', () =>
                     removeRequestFromRetryQueue(btn.dataset.id)
                 )
             })
-        document.querySelectorAll('.pause-button').forEach((btn) => {
-            btn.addEventListener('click', () =>
-                setStatusRequest(
-                    btn.dataset.id,
-                    'paused',
-                    'Zadanie jest wstrzymane'
-                )
-            )
-        })
-        document.querySelectorAll('.resume-button').forEach((btn) => {
-            btn.addEventListener('click', () =>
-                setStatusRequest(
-                    btn.dataset.id,
-                    'in-progress',
-                    'Zadanie jest w trakcie realizacji'
-                )
-            )
-        })
         document
-            .querySelectorAll('.group-header.toggle-cell')
+            .querySelectorAll<HTMLElement>('.pause-button')
+            .forEach((btn) => {
+                btn.addEventListener('click', () =>
+                    setStatusRequest(
+                        btn.dataset.id,
+                        'paused',
+                        'Zadanie jest wstrzymane'
+                    )
+                )
+            })
+        document
+            .querySelectorAll<HTMLElement>('.resume-button')
+            .forEach((btn) => {
+                btn.addEventListener('click', () =>
+                    setStatusRequest(
+                        btn.dataset.id,
+                        'in-progress',
+                        'Zadanie jest w trakcie realizacji'
+                    )
+                )
+            })
+        document
+            .querySelectorAll<HTMLElement>('.group-header.toggle-cell')
             .forEach((header) => {
                 header.addEventListener('click', async function () {
-                    const groupRow = this.closest('.group-row')
+                    const groupRow = this.closest<HTMLElement>('.group-row')
                     if (!groupRow) return
 
-                    const groupId = groupRow.dataset.groupId
+                    const groupId = groupRow.dataset.groupId!
                     const toggleIcon = this.querySelector('.toggle-icon')
 
                     // Toggle open state
@@ -370,14 +305,17 @@ async function updateQueueDisplay() {
                     }
 
                     // Toggle child rows visibility
-                    let nextRow = groupRow.nextElementSibling
-                    while (nextRow && !nextRow.querySelector('.group-header')) {
+                    let nextRow = groupRow.nextElementSibling as HTMLElement
+                    while (
+                        nextRow &&
+                        !nextRow.querySelector<HTMLElement>('.group-header')
+                    ) {
                         nextRow.style.display = isCurrentlyOpen
                             ? 'none'
                             : 'table-row'
-                        nextRow = nextRow.nextElementSibling
+                        nextRow = nextRow.nextElementSibling as HTMLElement
                     }
-                    groupRow.dataset.isOpen = !isCurrentlyOpen
+                    groupRow.dataset.isOpen = (!isCurrentlyOpen).toString()
                     // Save group state
                     try {
                         const { groupStates = {} } =
@@ -390,7 +328,7 @@ async function updateQueueDisplay() {
                 })
             })
         document
-            .querySelectorAll('.group-row .group-remove-button')
+            .querySelectorAll<HTMLElement>('.group-row .group-remove-button')
             .forEach((removeButton) => {
                 removeButton.addEventListener('click', async function (event) {
                     event.stopPropagation()
@@ -401,9 +339,10 @@ async function updateQueueDisplay() {
 
                     if (!confirmed) return
 
-                    const groupHeaderRow = this.closest('.group-row')
+                    const groupHeaderRow =
+                        this.closest<HTMLElement>('.group-row')
                     if (!groupHeaderRow) return
-                    const idsToDelete = []
+                    const idsToDelete: string[] = []
 
                     let nextRow = groupHeaderRow.nextElementSibling
                     while (
@@ -411,7 +350,7 @@ async function updateQueueDisplay() {
                         !nextRow.classList.contains('group-row')
                     ) {
                         const removeBtn =
-                            nextRow.querySelector('.remove-button')
+                            nextRow.querySelector<HTMLElement>('.remove-button')
                         if (removeBtn?.dataset?.id) {
                             idsToDelete.push(removeBtn.dataset.id)
                         }
@@ -441,10 +380,10 @@ async function updateQueueDisplay() {
 // Listen for storage changes and update UI when retryQueue changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.retryQueue) {
-        console.log('Queue data changed, updating UI');
-        updateQueueDisplay();
+        console.log('Queue data changed, updating UI')
+        updateQueueDisplay()
     }
-});
+})
 
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {

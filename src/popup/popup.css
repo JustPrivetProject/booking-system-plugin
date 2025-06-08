@@ -6,19 +6,19 @@
     --color-background-light: #f9f9f9ec;
     --color-text-light: #888;
     --color-border-light: #ccc;
-    
+
     /* Status colors */
     --color-in-progress: black;
     --color-success: green;
     --color-another-task: #0096b4;
     --color-error: red;
     --color-paused: orange;
-    
+
     /* Spacing and sizes */
     --spacing-tiny: 2px;
     --spacing-small: 4px;
     --spacing-medium: 12px;
-    
+
     /* Shadows and effects */
     --shadow-light: 0px 4px 10px rgba(0, 0, 0, 0.1);
     --shadow-button: 0 0 2px rgba(0, 0, 0, 0.2);
@@ -52,7 +52,8 @@ table {
 }
 
 /* Добавляем базовые стили для всех ячеек и строк таблицы */
-th, td {
+th,
+td {
     border-bottom: 1px solid var(--color-border-light);
 }
 
@@ -62,7 +63,7 @@ tr:last-child td {
 
 /* Empty table */
 #queueTableBody:empty::after {
-    content: "Proszę dodać zadania do realizacji";
+    content: 'Proszę dodać zadania do realizacji';
     display: block;
     font-size: 14px;
     text-align: center;
@@ -191,7 +192,7 @@ td.group-header {
     cursor: pointer;
 }
 
-td.group-header.actions{
+td.group-header.actions {
     width: 130px !important;
 }
 
@@ -229,12 +230,12 @@ tr.group-row td:first-child {
 }
 
 /* Status visibility */
-tr[data-is-open="true"] .status-icon {
+tr[data-is-open='true'] .status-icon {
     opacity: 0;
     visibility: hidden;
 }
 
-tr[data-is-open="false"] .status-icon {
+tr[data-is-open='false'] .status-icon {
     opacity: 1;
     visibility: visible;
 }
@@ -245,13 +246,25 @@ tr[data-is-open="false"] .status-icon {
     color: var(--color-in-progress);
 }
 
-.success .status-icon { color: var(--color-success); }
-.another-task .status-icon { color: var(--color-another-task); }
-.error .status-icon { color: var(--color-error); }
-.paused .status-icon { color: var(--color-paused); }
+.success .status-icon {
+    color: var(--color-success);
+}
+.another-task .status-icon {
+    color: var(--color-another-task);
+}
+.error .status-icon {
+    color: var(--color-error);
+}
+.paused .status-icon {
+    color: var(--color-paused);
+}
 
 /* ===== ANIMATIONS ===== */
 @keyframes spin-reverse {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(-360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(-360deg);
+    }
 }
