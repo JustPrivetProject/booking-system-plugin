@@ -1,8 +1,19 @@
 import './popup.css'
-import { normalizeFormData } from '../utils/utils-function'
+import {
+    normalizeFormData,
+    consoleLog,
+    consoleError,
+} from '../utils/utils-function'
 import { createConfirmationModal } from './modals/confirmation.modal'
 import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
+import { authService } from '../services/authService'
+
+// Prevent double initialization of popup
+if ((window as any)._popupInited) {
+    consoleLog('Popup already initialized')
+}
+;(window as any)._popupInited = true
 
 function sortStatusesByPriority(statuses) {
     // Define the priority of statuses from the most critical to the least critical
@@ -34,19 +45,16 @@ function sendMessageToBackground(action, data) {
         },
         (response) => {
             if (chrome.runtime.lastError) {
-                console.error(
-                    'Error sending message:',
-                    chrome.runtime.lastError
-                )
+                consoleError('Error sending message:', chrome.runtime.lastError)
                 return
             }
 
             // Обработка ответа от background.js
             if (response && response.success) {
-                console.log(`Action ${action} completed successfully`)
+                consoleLog(`Action ${action} completed successfully`)
                 updateQueueDisplay() // Обновление отображения очереди
             } else {
-                console.error(`Action ${action} failed`)
+                consoleError(`Action ${action} failed`)
             }
         }
     )
@@ -100,7 +108,7 @@ async function restoreGroupStates() {
                 }
             })
     } catch (error) {
-        console.error('Error restoring group states:', error)
+        consoleError('Error restoring group states:', error)
     }
 }
 
@@ -119,9 +127,9 @@ async function deleteGroupStateById(groupId) {
 
         // Save the updated groupStates back to storage
         await chrome.storage.local.set({ groupStates })
-        console.log(`Group state with ID ${groupId} was deleted`)
+        consoleLog(`Group state with ID ${groupId} was deleted`)
     } else {
-        console.log(`Group state with ID ${groupId} does not exist`)
+        consoleLog(`Group state with ID ${groupId} does not exist`)
     }
 
     return groupStates
@@ -133,7 +141,7 @@ async function clearStateGroups() {
 
     if (!!Object.entries(groupStates).length) {
         await chrome.storage.local.set({ groupStates: {} })
-        console.log(`Group state was cleared`)
+        consoleLog(`Group state was cleared`)
     }
 
     return groupStates
@@ -171,6 +179,12 @@ function isPauseDisabled(status) {
 }
 
 async function updateQueueDisplay() {
+    consoleLog('updateQueueDisplay')
+    const isAuthenticated = await authService.isAuthenticated()
+    if (!isAuthenticated) {
+        return // Don't update the queue if user is not authenticated
+    }
+
     try {
         // Get the queue from storage
         const { retryQueue } = await new Promise<{
@@ -323,7 +337,7 @@ async function updateQueueDisplay() {
                         groupStates[groupId] = !isCurrentlyOpen
                         await chrome.storage.local.set({ groupStates })
                     } catch (error) {
-                        console.error('Error saving group state:', error)
+                        consoleError('Error saving group state:', error)
                     }
                 })
             })
@@ -373,14 +387,14 @@ async function updateQueueDisplay() {
                 })
             })
     } catch (error) {
-        console.error('Error updating queue display:', error)
+        consoleError('Error updating queue display:', error)
     }
 }
 
 // Listen for storage changes and update UI when retryQueue changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.retryQueue) {
-        console.log('Queue data changed, updating UI')
+        consoleLog('Queue data changed, updating UI')
         updateQueueDisplay()
     }
 })
@@ -390,3 +404,296 @@ document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates()
     updateQueueDisplay()
 })
+
+// DOM Elements
+const authContainer = document.getElementById('authContainer')!
+const mainContent = document.getElementById('mainContent')!
+const loginForm = document.getElementById('loginForm')!
+const registerForm = document.getElementById('registerForm')!
+const userEmail = document.getElementById('userEmail')!
+
+// Login form elements
+const loginEmail = document.getElementById('loginEmail') as HTMLInputElement
+const loginPassword = document.getElementById(
+    'loginPassword'
+) as HTMLInputElement
+const loginButton = document.getElementById('loginButton')!
+const showRegister = document.getElementById('showRegister')!
+
+// Register form elements
+const registerEmail = document.getElementById(
+    'registerEmail'
+) as HTMLInputElement
+const registerPassword = document.getElementById(
+    'registerPassword'
+) as HTMLInputElement
+const registerButton = document.getElementById('registerButton')!
+const showLogin = document.getElementById('showLogin')!
+
+// Logout button
+const logoutButton = document.getElementById('logoutButton')!
+
+// Error handling elements
+const loginError = document.getElementById('loginError')!
+const registerError = document.getElementById('registerError')!
+
+function showError(element: HTMLElement, message: string) {
+    element.textContent = message
+    element.classList.add('show')
+
+    // Hide error after 5 seconds
+    setTimeout(() => {
+        element.classList.remove('show')
+    }, 5000)
+}
+
+function clearErrors() {
+    loginError.classList.remove('show')
+    registerError.classList.remove('show')
+    loginError.textContent = ''
+    registerError.textContent = ''
+}
+
+let manualRegisterMode = false
+let isRegistering = false
+let isLoggingIn = false
+
+// Event Listeners
+loginButton.addEventListener('click', (e) => {
+    e.preventDefault()
+    handleLogin()
+})
+registerButton.addEventListener('click', (e) => {
+    e.preventDefault()
+    handleRegister()
+})
+
+// Fix registration form toggle
+showRegister.addEventListener('click', (e) => {
+    e.preventDefault()
+    loginForm.classList.add('hidden')
+    registerForm.classList.remove('hidden')
+    clearErrors()
+    manualRegisterMode = true
+})
+
+showLogin.addEventListener('click', (e) => {
+    e.preventDefault()
+    registerForm.classList.add('hidden')
+    loginForm.classList.remove('hidden')
+    clearErrors()
+    manualRegisterMode = false
+})
+
+logoutButton.addEventListener('click', handleLogout)
+
+// Prevent form submit for login and register forms
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+})
+registerForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+})
+
+// Functions
+async function handleLogin() {
+    consoleLog('handleLogin called', Date.now(), Math.random())
+    if (isLoggingIn) return
+    isLoggingIn = true
+    try {
+        clearErrors()
+        if (!loginEmail.value || !loginPassword.value) {
+            showError(loginError, 'Please fill in all fields')
+            return
+        }
+        const user = await authService.login(
+            loginEmail.value,
+            loginPassword.value
+        )
+        if (user) {
+            showAuthenticatedUI(user)
+            manualRegisterMode = false
+        }
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : 'An error occurred'
+        const friendlyMessage = getFriendlyErrorMessage(errorMessage)
+        showError(loginError, friendlyMessage)
+    } finally {
+        isLoggingIn = false
+    }
+}
+
+async function handleRegister() {
+    if (isRegistering) return
+    isRegistering = true
+    try {
+        clearErrors()
+        if (!registerEmail.value || !registerPassword.value) {
+            showError(registerError, 'Please fill in all fields')
+            return
+        }
+        if (registerPassword.value.length < 6) {
+            showError(
+                registerError,
+                'Password must be at least 6 characters long'
+            )
+            return
+        }
+        const user = await authService.register(
+            registerEmail.value,
+            registerPassword.value
+        )
+        if (user) {
+            // Показываем сообщение о необходимости подтверждения email
+            registerForm.classList.add('hidden')
+            showEmailConfirmationMessage(registerEmail.value)
+            manualRegisterMode = false
+        }
+    } catch (error: any) {
+        const friendlyMessage = getFriendlyErrorMessage(
+            error?.code ? error : error?.message || error
+        )
+        showError(registerError, friendlyMessage)
+    } finally {
+        isRegistering = false
+    }
+}
+
+function showEmailConfirmationMessage(email: string) {
+    // Создаём или находим контейнер для сообщения
+    let confirmMsg = document.getElementById('emailConfirmMsg')
+    if (!confirmMsg) {
+        confirmMsg = document.createElement('div')
+        confirmMsg.id = 'emailConfirmMsg'
+        confirmMsg.className = 'email-confirm-message'
+        authContainer.appendChild(confirmMsg)
+    }
+    confirmMsg.innerHTML = `
+        Please confirm your email address (${email}) via the link sent to your inbox.
+        <br>
+        <button id="backToLoginBtn" style="margin-top:10px;">OK</button>
+    `
+    confirmMsg.classList.add('show')
+
+    // Функция возврата к форме входа и скрытия сообщения
+    function hideConfirmMsg() {
+        confirmMsg?.classList.remove('show')
+        registerForm.classList.add('hidden')
+        loginForm.classList.remove('hidden')
+    }
+
+    // Обработчик кнопки
+    const backBtn = document.getElementById('backToLoginBtn')
+    if (backBtn) {
+        backBtn.addEventListener('click', hideConfirmMsg)
+    }
+
+    // Автоматическое скрытие через 7 секунд
+    setTimeout(hideConfirmMsg, 7000)
+}
+
+async function handleLogout() {
+    try {
+        await authService.logout()
+        showUnauthenticatedUI()
+    } catch (error) {
+        alert('Logout failed: ' + (error as Error).message)
+    }
+}
+
+function getFriendlyErrorMessage(error: any): string {
+    const errorMap: { [key: string]: string } = {
+        over_email_send_rate_limit:
+            'Za dużo prób. Poczekaj minutę i spróbuj ponownie.',
+        email_exists: 'Użytkownik z tym adresem email już istnieje.',
+        user_already_exists: 'Użytkownik z tymi danymi już istnieje.',
+        email_address_invalid:
+            'Nieprawidłowy adres email. Użyj prawdziwego adresu.',
+        email_not_confirmed:
+            'Potwierdź swój adres email poprzez link w wiadomości.',
+        invalid_credentials: 'Nieprawidłowy email lub hasło.',
+        weak_password: 'Hasło jest zbyt proste. Użyj silniejszego hasła.',
+        signup_disabled: 'Rejestracja nowych użytkowników jest wyłączona.',
+        bad_jwt: 'Błąd autoryzacji. Spróbuj zalogować się ponownie.',
+        session_expired: 'Sesja wygasła. Zaloguj się ponownie.',
+        no_authorization: 'Wymagana autoryzacja. Zaloguj się.',
+        over_request_rate_limit: 'Za dużo zapytań. Spróbuj później.',
+        captcha_failed: 'Błąd weryfikacji CAPTCHA. Spróbuj ponownie.',
+        password_should_be_at_least_6_characters:
+            'Hasło musi mieć co najmniej 6 znaków.',
+        'rate limit exceeded': 'Za dużo prób. Spróbuj ponownie później.',
+        user_banned: 'Twoje konto jest zablokowane.',
+    }
+
+    // Jeśli error to объект с code/message
+    if (typeof error === 'object' && error !== null) {
+        if (error.code && errorMap[error.code]) {
+            return errorMap[error.code]
+        }
+        if (error.message) {
+            return error.message
+        }
+    }
+
+    // Если error to строка в формате JSON
+    if (typeof error === 'string') {
+        try {
+            const errObj = JSON.parse(error)
+            if (errObj.code && errorMap[errObj.code]) {
+                return errorMap[errObj.code]
+            }
+            if (errObj.message) {
+                return errObj.message
+            }
+        } catch {}
+        if (errorMap[error]) return errorMap[error]
+    }
+
+    return 'Coś poszło nie tak. Spróbuj ponownie.'
+}
+
+function showAuthenticatedUI(user: { email: string }) {
+    clearErrors()
+    authContainer.classList.add('hidden')
+    mainContent.classList.remove('hidden')
+    userEmail.textContent = user.email
+}
+
+function showUnauthenticatedUI() {
+    clearErrors()
+    authContainer.classList.remove('hidden')
+    mainContent.classList.add('hidden')
+    if (manualRegisterMode) {
+        loginForm.classList.add('hidden')
+        registerForm.classList.remove('hidden')
+    } else {
+        loginForm.classList.remove('hidden')
+        registerForm.classList.add('hidden')
+    }
+    loginEmail.value = ''
+    loginPassword.value = ''
+    registerEmail.value = ''
+    registerPassword.value = ''
+}
+
+// Check authentication status on load
+async function checkAuth() {
+    const isAuthenticated = await authService.isAuthenticated()
+    if (isAuthenticated) {
+        const user = await authService.getCurrentUser()
+        if (user) {
+            showAuthenticatedUI(user)
+        } else {
+            showUnauthenticatedUI()
+        }
+    } else {
+        showUnauthenticatedUI()
+    }
+}
+
+// Add session check interval
+setInterval(checkAuth, 60000) // Check every minute
+
+// Initialize
+checkAuth()

@@ -91,12 +91,17 @@ export function generateUniqueId() {
     return crypto.randomUUID()
 }
 
-export function getOrCreateDeviceId(): string {
-    const key = 'device_id'
-    let id = localStorage.getItem(key)
-    if (!id) {
-        id = generateUniqueId()
-        localStorage.setItem(key, id)
-    }
-    return id
+export async function getOrCreateDeviceId(): Promise<string> {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['deviceId'], (result) => {
+            if (result.deviceId) {
+                resolve(result.deviceId)
+            } else {
+                const newId = generateUniqueId()
+                chrome.storage.local.set({ deviceId: newId }, () => {
+                    resolve(newId)
+                })
+            }
+        })
+    })
 }

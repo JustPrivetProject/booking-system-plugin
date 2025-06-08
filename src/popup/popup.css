@@ -268,3 +268,180 @@ tr[data-is-open='false'] .status-icon {
         transform: rotate(-360deg);
     }
 }
+.hidden {
+    display: none !important;
+}
+
+/* Auth Container */
+.auth-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 16px auto 0 auto;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Auth Form */
+.auth-form {
+    width: 100%;
+    background: var(--color-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    padding: var(--spacing-small) 16px 16px 16px;
+    margin-bottom: var(--spacing-small);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+    opacity: 1;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.auth-form.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.auth-form h2 {
+    margin: 0 0 var(--spacing-medium) 0;
+    text-align: center;
+    color: var(--color-primary);
+    font-size: 20px;
+}
+
+.auth-form input {
+    padding: var(--spacing-medium);
+    border: 1px solid var(--color-border-light);
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.auth-form button {
+    padding: var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+}
+
+.auth-form button:hover {
+    background-color: #018fac;
+    box-shadow: var(--shadow-hover);
+}
+
+.auth-form p {
+    text-align: center;
+    margin: var(--spacing-small) 0;
+    color: var(--color-text-light);
+}
+
+.auth-form a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s ease-in-out;
+}
+
+.auth-form a:hover {
+    color: #018fac;
+    text-decoration: underline;
+}
+
+/* Error Message */
+.error-message {
+    display: none;
+    color: var(--color-error);
+    background-color: #ffebee;
+    border: 1px solid #ffcdd2;
+    border-radius: 4px;
+    padding: var(--spacing-medium);
+    margin-bottom: var(--spacing-medium);
+    font-size: 14px;
+    text-align: center;
+    box-shadow: var(--shadow-light);
+}
+
+.error-message.show {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Main Content */
+#mainContent {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* User Info */
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-small) 16px;
+    background-color: var(--color-background-light);
+    border-bottom: 1px solid var(--color-border-light);
+    margin-bottom: var(--spacing-small);
+    border-radius: 0;
+}
+
+#logoutButton {
+    padding: var(--spacing-small) var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+    margin-left: var(--spacing-medium);
+}
+
+#logoutButton:hover {
+    background-color: #018fac;
+    box-shadow: var(--shadow-hover);
+}
+
+/* Queue Container */
+.queue-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto var(--spacing-medium) auto;
+    padding: var(--spacing-medium);
+    overflow-x: auto;
+    background: var(--color-white);
+    border-radius: 0 0 12px 12px;
+    box-shadow: var(--shadow-light);
+}
+
+.email-confirm-message {
+    margin: var(--spacing-small) auto;
+    padding: var(--spacing-small);
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    color: var(--color-primary);
+    font-size: 14px;
+    text-align: center;
+    max-width: 320px;
+    box-shadow: var(--shadow-light);
+    display: none;
+}
+
+.email-confirm-message.show {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}

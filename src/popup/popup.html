@@ -3,7 +3,7 @@
     <head>
         <title>Popup</title>
         <meta charset="UTF-8" />
-        <link rel="stylesheet" />
+        <link rel="stylesheet"/>
         <!--// https://fonts.google.com/icons -->
         <link
             rel="stylesheet"
@@ -12,8 +12,37 @@
         <script src="popup.js" defer></script>
     </head>
     <body>
-        <table id="queueTable">
-            <tbody id="queueTableBody"></tbody>
-        </table>
+        <div id="authContainer" class="auth-container">
+            <div id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                <div class="error-message" id="loginError"></div>
+                <input type="email" id="loginEmail" placeholder="Email" />
+                <input type="password" id="loginPassword" placeholder="Password" />
+                <button id="loginButton" type="button">Login</button>
+                <p>Don't have an account? <a href="#" id="showRegister">Register</a></p>
+            </div>
+
+            <div id="registerForm" class="auth-form hidden">
+                <h2>Register</h2>
+                <div class="error-message" id="registerError"></div>
+                <input type="email" id="registerEmail" placeholder="Email" />
+                <input type="password" id="registerPassword" placeholder="Password" />
+                <button id="registerButton" type="button">Register</button>
+                <p>Already have an account? <a href="#" id="showLogin">Login</a></p>
+            </div>
+        </div>
+
+        <!-- Main Content (hidden when not authenticated) -->
+        <div id="mainContent" class="hidden">
+            <div class="user-info">
+                <span id="userEmail"></span>
+                <button id="logoutButton">Logout</button>
+            </div>
+            <div class="queue-container">
+                <table id="queueTable">
+                    <tbody id="queueTableBody"></tbody>
+                </table>
+            </div>
+        </div>
     </body>
 </html>
