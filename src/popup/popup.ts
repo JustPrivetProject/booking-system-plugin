@@ -495,7 +495,15 @@ showLogin.addEventListener('click', (e) => {
     manualRegisterMode = false
 })
 
-logoutButton.addEventListener('click', handleLogout)
+logoutButton.addEventListener('click', async (e) => {
+    e.preventDefault()
+    const confirmed = await createConfirmationModal(
+        'Na pewno chcesz się wylogować?'
+    )
+    if (confirmed) {
+        handleLogout()
+    }
+})
 
 // Add event listeners for unbind form
 unbindButton.addEventListener('click', (e) => {
@@ -514,6 +522,7 @@ unbindDeviceButton.addEventListener('click', (e) => {
     loginForm.classList.add('hidden')
     registerForm.classList.add('hidden')
     backToAppButton.classList.remove('hidden')
+    hideUnbind.classList.add('hidden') // Hide Back to Login button
     clearErrors()
 })
 
@@ -525,6 +534,7 @@ showUnbind.addEventListener('click', (e) => {
     registerForm.classList.add('hidden')
     unbindForm.classList.remove('hidden')
     backToAppButton.classList.add('hidden')
+    hideUnbind.classList.remove('hidden') // Show Back to Login button
     clearErrors()
 })
 
@@ -539,6 +549,7 @@ hideUnbind.addEventListener('click', (e) => {
         loginForm.classList.remove('hidden')
     }
     backToAppButton.classList.add('hidden')
+    hideUnbind.classList.remove('hidden') // Reset button visibility
     clearErrors()
 })
 
@@ -709,6 +720,7 @@ async function handleUnbind() {
         unbindForm.classList.add('hidden')
         loginForm.classList.remove('hidden')
         backToAppButton.classList.add('hidden')
+        hideUnbind.classList.remove('hidden') // Reset button visibility
         clearErrors()
         // Clear the form
         unbindEmail.value = ''
@@ -789,7 +801,9 @@ function showAuthenticatedUI(user: { email: string }) {
     clearErrors()
     authContainer.classList.add('hidden')
     mainContent.classList.remove('hidden')
+
     userEmail.textContent = user.email
+    updateQueueDisplay()
 }
 
 function showUnauthenticatedUI() {

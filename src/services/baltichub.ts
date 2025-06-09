@@ -201,7 +201,7 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         )
         return {
             ...req,
-            status: Statuses.ANOTHER_TASK,
+            status: Statuses.ERROR,
             status_message: 'Zadanie zakończone w innym wątku',
         }
     }

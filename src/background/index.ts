@@ -36,19 +36,11 @@ async function cleanupCache(data) {
     if (data.testEnv) {
         return
     }
-
-    if (!!Object.keys(data.requestCacheBody).length) {
-        const lastKeyBody = Object.keys(data.requestCacheBody).pop()!
-        delete data.requestCacheBody[lastKeyBody]
-    }
-    if (!!Object.keys(data.requestCacheHeaders).length) {
-        const lastKeyHeaders = Object.keys(data.requestCacheHeaders).pop()!
-        delete data.requestCacheHeaders[lastKeyHeaders]
-    }
-
+    consoleLog('Cleaning up cache...')
+    // Clear the cache for request bodies and headers
     return chrome.storage.local.set({
-        requestCacheBody: data.requestCacheBody,
-        requestCacheHeaders: data.requestCacheHeaders,
+        requestCacheBody: {},
+        requestCacheHeaders: {},
     })
 }
 

@@ -109,3 +109,16 @@ waitForElement('#slotsDisplay', (targetNode) => {
     const observer = new MutationObserver(enableButtons)
     observer.observe(targetNode, { childList: true, subtree: true })
 })
+
+// Reset session counter every 10 minutes
+setInterval(
+    () => {
+        const resetButton = document.querySelector(
+            '[data-ajax-success="resetSessionCounter"]'
+        )
+        if (resetButton instanceof HTMLElement) {
+            resetButton.click()
+        }
+    },
+    10 * 60 * 1000
+)
