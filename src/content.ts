@@ -1,5 +1,7 @@
 import { Actions } from './data'
 
+console.log('Content script is loaded')
+
 const waitForElement = (selector, callback) => {
     const observer = new MutationObserver(() => {
         const element = document.querySelector(selector)

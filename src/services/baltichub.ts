@@ -77,6 +77,7 @@ async function checkSlotAvailability(htmlText, time) {
  */
 
 export async function getDriverNameAndContainer(tvAppId, retryQueue) {
+    consoleLog('Getting driver name and container for TV App ID:', tvAppId)
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)

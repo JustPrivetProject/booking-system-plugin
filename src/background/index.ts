@@ -19,7 +19,6 @@ import {
 chrome.runtime.onInstalled.addListener(() => {
     consoleLog('Plugin installed!')
 })
-
 // Settings
 chrome.storage.local.set({ retryEnabled: true })
 chrome.storage.local.set({ testEnv: false })

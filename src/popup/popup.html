@@ -9,7 +9,6 @@
             rel="stylesheet"
             href="https://fonts.googleapis.com/icon?family=Material+Icons"
         />
-        <script src="popup.js" defer></script>
     </head>
     <body>
         <div id="authContainer" class="auth-container">
@@ -19,7 +18,10 @@
                 <input type="email" id="loginEmail" placeholder="Email" />
                 <input type="password" id="loginPassword" placeholder="Password" />
                 <button id="loginButton" type="button">Login</button>
-                <p>Don't have an account? <a href="#" id="showRegister">Register</a></p>
+                <div class="form-links">
+                    <a href="#" id="showRegister">Register</a>
+                    <a href="#" id="showUnbind">Unbind Device</a>
+                </div>
             </div>
 
             <div id="registerForm" class="auth-form hidden">
@@ -28,15 +30,39 @@
                 <input type="email" id="registerEmail" placeholder="Email" />
                 <input type="password" id="registerPassword" placeholder="Password" />
                 <button id="registerButton" type="button">Register</button>
-                <p>Already have an account? <a href="#" id="showLogin">Login</a></p>
+                <div class="form-links">
+                    <a href="#" id="showLogin">Back to Login</a>
+                    <a href="#" id="showUnbind">Unbind Device</a>
+                </div>
             </div>
+
+            <form id="unbindForm" class="hidden">
+                <h2>Unbind Device</h2>
+                <div class="form-group">
+                    <input type="email" id="unbindEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="unbindPassword" placeholder="Password" required>
+                </div>
+                <div class="error-message" id="unbindError"></div>
+                <button type="submit" id="unbindButton">Unbind Device</button>
+                <div class="form-links">
+                    <a href="#" id="hideUnbind">Back to Login</a>
+                    <a href="#" id="backToAppButton" class="hidden">Back to App</a>
+                </div>
+            </form>
         </div>
 
         <!-- Main Content (hidden when not authenticated) -->
         <div id="mainContent" class="hidden">
-            <div class="user-info">
-                <span id="userEmail"></span>
-                <button id="logoutButton">Logout</button>
+            <div class="header">
+                <div class="user-info">
+                    <span id="userEmail"></span>
+                </div>
+                <div class="user-actions">
+                    <button id="unbindDeviceButton" class="secondary-button">Unbind Device</button>
+                    <button id="logoutButton">Logout</button>
+                </div>
             </div>
             <div class="queue-container">
                 <table id="queueTable">

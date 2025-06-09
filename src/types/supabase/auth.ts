@@ -1,5 +1,3 @@
-// import { User } from '.'
-
 export interface LoginCredentials {
     email: string
     password: string

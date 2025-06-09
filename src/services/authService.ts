@@ -70,6 +70,13 @@ export const authService = {
             throw profileError
         }
 
+        // Проверяем, совпадает ли device_id с тем, что в профиле
+        if (profile?.device_id && profile.device_id !== deviceId) {
+            throw new Error(
+                'Device ID mismatch. Please use the same device you registered with.'
+            )
+        }
+
         const user = {
             id: data.user.id,
             email: data.user.email!,
@@ -125,5 +132,44 @@ export const authService = {
 
     async isAuthenticated(): Promise<boolean> {
         return await sessionService.isAuthenticated()
+    },
+
+    async unbindDevice(email: string, password: string): Promise<void> {
+        // First verify credentials
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        })
+
+        if (error) throw error
+        if (!data.user) throw new Error('Invalid credentials')
+
+        // Get current device ID
+        const deviceId = await getOrCreateDeviceId()
+
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('device_id')
+            .eq('id', data.user.id)
+            .single()
+
+        if (profileError) throw profileError
+
+        // Verify device ID matches
+        if (profile?.device_id !== deviceId) {
+            throw new Error('Device ID mismatch')
+        }
+
+        // Remove device ID from profile
+        const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ device_id: null })
+            .eq('id', data.user.id)
+
+        if (updateError) throw updateError
+
+        // Remove device ID from local storage
+        await chrome.storage.local.remove('deviceId')
     },
 }

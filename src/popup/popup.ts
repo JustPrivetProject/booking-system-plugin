@@ -9,12 +9,6 @@ import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
 
-// Prevent double initialization of popup
-if ((window as any)._popupInited) {
-    consoleLog('Popup already initialized')
-}
-;(window as any)._popupInited = true
-
 function sortStatusesByPriority(statuses) {
     // Define the priority of statuses from the most critical to the least critical
     const priorityOrder = [
@@ -430,12 +424,23 @@ const registerPassword = document.getElementById(
 const registerButton = document.getElementById('registerButton')!
 const showLogin = document.getElementById('showLogin')!
 
+// Device unbind form elements
+const unbindForm = document.getElementById('unbindForm')!
+const unbindEmail = document.getElementById('unbindEmail') as HTMLInputElement
+const unbindPassword = document.getElementById(
+    'unbindPassword'
+) as HTMLInputElement
+const unbindButton = document.getElementById('unbindButton')!
+const showUnbind = document.getElementById('showUnbind')!
+const hideUnbind = document.getElementById('hideUnbind')!
+
 // Logout button
 const logoutButton = document.getElementById('logoutButton')!
 
 // Error handling elements
 const loginError = document.getElementById('loginError')!
 const registerError = document.getElementById('registerError')!
+const unbindError = document.getElementById('unbindError')!
 
 function showError(element: HTMLElement, message: string) {
     element.textContent = message
@@ -450,22 +455,27 @@ function showError(element: HTMLElement, message: string) {
 function clearErrors() {
     loginError.classList.remove('show')
     registerError.classList.remove('show')
+    unbindError.classList.remove('show')
     loginError.textContent = ''
     registerError.textContent = ''
+    unbindError.textContent = ''
 }
 
 let manualRegisterMode = false
 let isRegistering = false
 let isLoggingIn = false
+let cameFromAuthenticated = false
 
 // Event Listeners
 loginButton.addEventListener('click', (e) => {
     e.preventDefault()
     handleLogin()
+    updateQueueDisplay()
 })
 registerButton.addEventListener('click', (e) => {
     e.preventDefault()
     handleRegister()
+    updateQueueDisplay()
 })
 
 // Fix registration form toggle
@@ -486,6 +496,62 @@ showLogin.addEventListener('click', (e) => {
 })
 
 logoutButton.addEventListener('click', handleLogout)
+
+// Add event listeners for unbind form
+unbindButton.addEventListener('click', (e) => {
+    e.preventDefault()
+    handleUnbind()
+})
+
+// Add unbind button to authenticated UI
+const unbindDeviceButton = document.getElementById('unbindDeviceButton')!
+unbindDeviceButton.addEventListener('click', (e) => {
+    e.preventDefault()
+    cameFromAuthenticated = true
+    mainContent.classList.add('hidden')
+    authContainer.classList.remove('hidden')
+    unbindForm.classList.remove('hidden')
+    loginForm.classList.add('hidden')
+    registerForm.classList.add('hidden')
+    backToAppButton.classList.remove('hidden')
+    clearErrors()
+})
+
+// Update showUnbind handler
+showUnbind.addEventListener('click', (e) => {
+    e.preventDefault()
+    cameFromAuthenticated = false
+    loginForm.classList.add('hidden')
+    registerForm.classList.add('hidden')
+    unbindForm.classList.remove('hidden')
+    backToAppButton.classList.add('hidden')
+    clearErrors()
+})
+
+// Update hideUnbind handler
+hideUnbind.addEventListener('click', (e) => {
+    e.preventDefault()
+    unbindForm.classList.add('hidden')
+    if (cameFromAuthenticated) {
+        mainContent.classList.remove('hidden')
+        authContainer.classList.add('hidden')
+    } else {
+        loginForm.classList.remove('hidden')
+    }
+    backToAppButton.classList.add('hidden')
+    clearErrors()
+})
+
+// Add back button handler
+const backToAppButton = document.getElementById('backToAppButton')!
+backToAppButton.addEventListener('click', (e) => {
+    e.preventDefault()
+    cameFromAuthenticated = false
+    authContainer.classList.add('hidden')
+    mainContent.classList.remove('hidden')
+    unbindForm.classList.add('hidden')
+    clearErrors()
+})
 
 // Prevent form submit for login and register forms
 loginForm.addEventListener('submit', (e) => {
@@ -595,6 +661,20 @@ function showEmailConfirmationMessage(email: string) {
 
 async function handleLogout() {
     try {
+        // Pause all in-progress tasks before logout
+        const { retryQueue } = await chrome.storage.local.get({
+            retryQueue: [],
+        })
+        for (const item of retryQueue) {
+            if (item.status === Statuses.IN_PROGRESS) {
+                await setStatusRequest(
+                    item.id,
+                    Statuses.PAUSED,
+                    'Task paused due to logout'
+                )
+            }
+        }
+
         await authService.logout()
         showUnauthenticatedUI()
     } catch (error) {
@@ -602,7 +682,57 @@ async function handleLogout() {
     }
 }
 
-function getFriendlyErrorMessage(error: any): string {
+async function handleUnbind() {
+    if (!unbindEmail.value || !unbindPassword.value) {
+        showError(unbindError, 'Please fill in all fields')
+        return
+    }
+
+    try {
+        // Pause all retry queue items before unbinding
+        const { retryQueue } = await chrome.storage.local.get({
+            retryQueue: [],
+        })
+        for (const item of retryQueue) {
+            await setStatusRequest(
+                item.id,
+                Statuses.PAUSED,
+                'Task paused due to device unbinding'
+            )
+        }
+
+        await authService.unbindDevice(unbindEmail.value, unbindPassword.value)
+
+        // After successful unbinding, logout and show login form
+        await authService.logout()
+        cameFromAuthenticated = false
+        unbindForm.classList.add('hidden')
+        loginForm.classList.remove('hidden')
+        backToAppButton.classList.add('hidden')
+        clearErrors()
+        // Clear the form
+        unbindEmail.value = ''
+        unbindPassword.value = ''
+        // Show unauthenticated UI
+        showUnauthenticatedUI()
+    } catch (error) {
+        const errorMessage =
+            error instanceof Error ? error.message : 'An error occurred'
+        const friendlyMessage = getFriendlyErrorMessage(errorMessage)
+        showError(unbindError, friendlyMessage)
+    }
+}
+
+function getFriendlyErrorMessage(
+    errorMessage: string | { code?: string; message?: string }
+): string {
+    if (
+        typeof errorMessage === 'string' &&
+        errorMessage.includes('Device ID mismatch')
+    ) {
+        return 'Próbujesz się zalogować z nowego urządzenia. Zaloguj się z tego samego urządzenia z którego się rejestrowałeś'
+    }
+
     const errorMap: { [key: string]: string } = {
         over_email_send_rate_limit:
             'Za dużo prób. Poczekaj minutę i spróbuj ponownie.',
@@ -626,20 +756,20 @@ function getFriendlyErrorMessage(error: any): string {
         user_banned: 'Twoje konto jest zablokowane.',
     }
 
-    // Jeśli error to объект с code/message
-    if (typeof error === 'object' && error !== null) {
-        if (error.code && errorMap[error.code]) {
-            return errorMap[error.code]
+    // Если error это объект с code/message
+    if (typeof errorMessage === 'object' && errorMessage !== null) {
+        if (errorMessage.code && errorMap[errorMessage.code]) {
+            return errorMap[errorMessage.code]
         }
-        if (error.message) {
-            return error.message
+        if (errorMessage.message) {
+            return errorMessage.message
         }
     }
 
-    // Если error to строка в формате JSON
-    if (typeof error === 'string') {
+    // Если error это строка в формате JSON
+    if (typeof errorMessage === 'string') {
         try {
-            const errObj = JSON.parse(error)
+            const errObj = JSON.parse(errorMessage)
             if (errObj.code && errorMap[errObj.code]) {
                 return errorMap[errObj.code]
             }
@@ -647,10 +777,12 @@ function getFriendlyErrorMessage(error: any): string {
                 return errObj.message
             }
         } catch {}
-        if (errorMap[error]) return errorMap[error]
+        if (errorMap[errorMessage]) return errorMap[errorMessage]
     }
 
-    return 'Coś poszło nie tak. Spróbuj ponownie.'
+    return typeof errorMessage === 'string'
+        ? errorMessage
+        : 'Inccorrect or unknown error occurred. Please try again later.'
 }
 
 function showAuthenticatedUI(user: { email: string }) {

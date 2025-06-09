@@ -179,12 +179,6 @@ class QueueManager {
             try {
                 const queue = await this.getQueue()
 
-                if (queue.length === 0) {
-                    consoleLog('No requests in the queue')
-                    this.isProcessing = false
-                    return
-                }
-
                 // Filter requests in progress
                 const inProgressRequests = queue.filter(
                     (req) => req.status === 'in-progress'
