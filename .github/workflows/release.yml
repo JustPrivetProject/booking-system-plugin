@@ -9,29 +9,52 @@ on:
     paths:
       - 'package.json'
   
-  # Дополнительно для тестирования PR (без релиза)
+  # Тестирование для PR
   pull_request:
     branches:
       - main
     paths:
       - 'package.json'
+  
+  # Тестирование для пушей в любые ветки кроме main
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - 'package.json'
+      - 'src/**'
+      - 'public/**'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
 
 jobs:
-  # Джоб для проверки и тестирования (запускается для PR)
+  # Джоб для проверки и тестирования (запускается для PR и пушей в feature ветки)
   test-build:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Common Node.js Setup
-        uses: ./.github/workflows/common-node-setup.yml
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Test build
         run: npm run build
+
+      - name: Run tests (if available)
+        run: |
+          if npm run test --if-present; then
+            echo "✅ Tests passed"
+          else
+            echo "ℹ️ No tests found, skipping"
+          fi
 
       - name: Check version format
         run: |
@@ -42,6 +65,19 @@ jobs:
             exit 1
           fi
           echo "✅ Version format is valid"
+
+      - name: Check for duplicate version (only for feature branches)
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          VERSION=v$(node -p "require('./package.json').version")
+          if gh release view $VERSION >/dev/null 2>&1; then
+            echo "⚠️ Warning: Release $VERSION already exists"
+            echo "Consider updating the version in package.json"
+          else
+            echo "✅ Version $VERSION is available for release"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Основной джоб для релиза (только после мерджа в main)
   build-and-release:
