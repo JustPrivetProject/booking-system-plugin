@@ -393,10 +393,80 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 })
 
+async function saveHeaderState(isHidden: boolean) {
+    await chrome.storage.local.set({ headerHidden: isHidden })
+}
+
+async function restoreHeaderState() {
+    const { headerHidden = false } =
+        await chrome.storage.local.get('headerHidden')
+    const header = document.querySelector('.header') as HTMLElement
+    const toggleHeaderIcon = document.getElementById(
+        'toggleHeaderIcon'
+    ) as HTMLElement
+    const mainContent = document.getElementById('mainContent') as HTMLElement
+    if (header && toggleHeaderIcon && mainContent) {
+        if (headerHidden) {
+            header.style.display = 'none'
+            toggleHeaderIcon.textContent = 'arrow_drop_down'
+            mainContent.classList.add('header-hidden')
+        } else {
+            header.style.display = ''
+            toggleHeaderIcon.textContent = 'arrow_drop_up'
+            mainContent.classList.remove('header-hidden')
+        }
+    }
+}
+
+function toggleHeaderVisibility() {
+    const header = document.querySelector('.header') as HTMLElement
+    const toggleHeaderBtn = document.getElementById(
+        'toggleHeaderBtn'
+    ) as HTMLButtonElement
+    const toggleHeaderIcon = document.getElementById(
+        'toggleHeaderIcon'
+    ) as HTMLElement
+    const mainContent = document.getElementById('mainContent') as HTMLElement
+    if (header && toggleHeaderBtn && toggleHeaderIcon && mainContent) {
+        // Инициализация состояния из storage
+        chrome.storage.local.get('headerHidden', (result) => {
+            let headerHidden = result.headerHidden || false
+            // Установить правильный title при инициализации
+            toggleHeaderBtn.title = headerHidden ? 'Pokaż nagłówek' : 'Ukryj'
+            toggleHeaderBtn.addEventListener('click', async () => {
+                headerHidden = !headerHidden
+                if (headerHidden) {
+                    header.style.display = 'none'
+                    toggleHeaderIcon.textContent = 'arrow_drop_down'
+                    mainContent.classList.add('header-hidden')
+                    toggleHeaderBtn.title = 'Pokaż'
+                } else {
+                    header.style.display = ''
+                    toggleHeaderIcon.textContent = 'arrow_drop_up'
+                    mainContent.classList.remove('header-hidden')
+                    toggleHeaderBtn.title = 'Ukryj'
+                }
+                await saveHeaderState(headerHidden)
+            })
+            // expose for UI control
+            ;(window as any)._toggleHeaderReset = async () => {
+                headerHidden = false
+                header.style.display = ''
+                toggleHeaderIcon.textContent = 'arrow_drop_up'
+                mainContent.classList.remove('header-hidden')
+                toggleHeaderBtn.title = 'Ukryj'
+                await saveHeaderState(false)
+            }
+        })
+    }
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates()
     updateQueueDisplay()
+    toggleHeaderVisibility()
+    restoreHeaderState()
 })
 
 // DOM Elements
@@ -801,8 +871,13 @@ function showAuthenticatedUI(user: { email: string }) {
     clearErrors()
     authContainer.classList.add('hidden')
     mainContent.classList.remove('hidden')
-
     userEmail.textContent = user.email
+    // Кнопка toggleHeaderBtn всегда видима для авторизованного пользователя
+    const toggleHeaderBtn = document.getElementById(
+        'toggleHeaderBtn'
+    ) as HTMLButtonElement
+    if (toggleHeaderBtn) toggleHeaderBtn.style.display = ''
+    restoreHeaderState()
     updateQueueDisplay()
 }
 
@@ -810,6 +885,12 @@ function showUnauthenticatedUI() {
     clearErrors()
     authContainer.classList.remove('hidden')
     mainContent.classList.add('hidden')
+    // Скрываем toggleHeaderBtn только для неавторизованного пользователя
+    const toggleHeaderBtn = document.getElementById(
+        'toggleHeaderBtn'
+    ) as HTMLButtonElement
+    if (toggleHeaderBtn) toggleHeaderBtn.style.display = 'none'
+    restoreHeaderState()
     if (manualRegisterMode) {
         loginForm.classList.add('hidden')
         registerForm.classList.remove('hidden')

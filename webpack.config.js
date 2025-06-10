@@ -19,13 +19,14 @@ module.exports = {
         clean: true, // очищает dist перед сборкой
         environment: {
             dynamicImport: false,
-            module: false
-        }
+            module: false,
+        },
     },
 
     optimization: {
         // Отключаем минификацию которая может использовать eval
-        minimize: false
+        minimize: false,
+        moduleIds: 'deterministic',
     },
     // Загрузчики
     module: {
@@ -72,7 +73,7 @@ module.exports = {
             stream: false,
             util: false,
             buffer: false,
-            process: false
+            process: false,
         },
     },
 }

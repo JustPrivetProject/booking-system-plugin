@@ -4,7 +4,10 @@
     "version": "2.0.2",
     "description": "Help to booking slot",
     "permissions": ["storage", "webRequest", "notifications"],
-    "host_permissions": ["https://ebrama.baltichub.com/*", "https://*.supabase.co/*"],
+    "host_permissions": [
+        "https://ebrama.baltichub.com/*",
+        "https://*.supabase.co/*"
+    ],
     "background": {
         "service_worker": "background.js"
     },
