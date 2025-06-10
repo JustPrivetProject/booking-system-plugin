@@ -1,23 +1,22 @@
 {
     "manifest_version": 3,
     "name": "Booking System Plugin",
-    "version": "1.1.1",
+    "version": "2.0.2",
     "description": "Help to booking slot",
-    "permissions": [
-        "storage",
-        "webRequest",
-        "notifications"
+    "permissions": ["storage", "webRequest", "notifications"],
+    "host_permissions": [
+        "https://ebrama.baltichub.com/*",
+        "https://*.supabase.co/*"
     ],
-    "host_permissions": ["https://ebrama.baltichub.com/*"],
     "background": {
         "service_worker": "background.js"
     },
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
-            "16": "icons/icon-144x144.png",
-            "48": "icons/icon-144x144.png",
-            "128": "icons/icon-144x144.png"
+            "16": "icon-144x144.png",
+            "48": "icon-144x144.png",
+            "128": "icon-144x144.png"
         }
     },
     "content_scripts": [
@@ -27,6 +26,6 @@
         }
     ],
     "content_security_policy": {
-        "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src *;"
     }
 }

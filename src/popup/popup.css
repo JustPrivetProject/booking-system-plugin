@@ -1,0 +1,616 @@
+/* ===== GLOBAL VARIABLES ===== */
+:root {
+    /* Colors */
+    --color-primary: #00aacc;
+    --color-white: white;
+    --color-background-light: #f9f9f9ec;
+    --color-text-light: #888;
+    --color-border-light: #ccc;
+
+    /* Status colors */
+    --color-in-progress: black;
+    --color-success: green;
+    --color-another-task: #0096b4;
+    --color-error: red;
+    --color-paused: orange;
+
+    /* Spacing and sizes */
+    --spacing-tiny: 2px;
+    --spacing-small: 4px;
+    --spacing-medium: 12px;
+    --spacing-large: 24px;
+
+    /* Shadows and effects */
+    --shadow-light: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    --shadow-button: 0 0 2px rgba(0, 0, 0, 0.2);
+    --shadow-hover: 0 4px 10px rgba(0, 0, 0, 0.2);
+    --shadow-card: 0 4px 10px rgba(0, 0, 0, 0.1);
+
+    /* Fonts */
+    --font-size-small: 12px;
+    --font-size-medium: 14px;
+    --font-size-large: 18px;
+
+    /* Borders */
+    --border-radius: 8px;
+
+    /* Darker colors */
+    --color-primary-dark: #0099cc;
+    --color-primary-light: #00bbee;
+}
+
+/* ===== GLOBAL STYLES ===== */
+body {
+    min-width: 440px;
+    height: 35px;
+    overflow: auto;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    margin-top: 0px;
+    margin-left: var(--spacing-tiny);
+    margin-right: var(--spacing-tiny);
+}
+
+/* ===== TABLE ===== */
+table {
+    width: 100%;
+    border-collapse: collapse; /* Изменено с separate для лучшего отображения границ */
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-white);
+    box-shadow: var(--shadow-light);
+}
+
+/* Добавляем базовые стили для всех ячеек и строк таблицы */
+th,
+td {
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+/* Empty table */
+#queueTableBody:empty::after {
+    content: 'Proszę dodać zadania do realizacji';
+    display: block;
+    font-size: 14px;
+    text-align: center;
+    color: var(--color-text-light);
+    padding: var(--spacing-medium);
+}
+
+#queueTableBody:empty + tr {
+    display: none;
+}
+
+/* ===== HEADERS ===== */
+th {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    font-weight: bold;
+    text-align: left;
+    padding: var(--spacing-medium);
+    border-bottom: none; /* Убираем границу у заголовков */
+}
+
+/* ===== CELLS ===== */
+td {
+    padding: var(--spacing-medium);
+}
+
+td.actions {
+    padding: var(--spacing-medium);
+    text-align: right; /* Выравнивание вместо flex */
+    white-space: nowrap;
+    min-width: 130px;
+    width: 130px;
+    box-sizing: border-box;
+}
+
+/* ===== BUTTONS ===== */
+button {
+    padding: var(--spacing-tiny) var(--spacing-small);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease-in-out;
+}
+
+button:last-child {
+    margin-right: 0;
+}
+
+td.actions button {
+    border: none;
+    box-shadow: var(--shadow-button);
+    background: var(--color-white);
+}
+
+td.actions button:disabled {
+    background-color: inherit;
+    cursor: not-allowed;
+}
+
+td.actions button:disabled span {
+    color: var(--color-border-light);
+}
+
+td.actions button:hover {
+    background: var(--color-background-light);
+    box-shadow: var(--shadow-hover);
+}
+
+/* Delete button */
+td.actions .remove-button {
+    background: var(--color-error);
+}
+
+td.actions .remove-button span {
+    color: var(--color-white);
+}
+
+td.actions .remove-button:hover {
+    background-color: #d90000;
+}
+
+/* ===== ROW HOVER AND ALTERNATION ===== */
+tr {
+    background: var(--color-white);
+}
+
+tr:nth-child(even) {
+    background-color: var(--color-background-light);
+}
+
+tr:hover {
+    background-color: #daf5ff;
+}
+
+/* Исправляем наследование фона */
+tr:hover td {
+    background-color: transparent; /* Убираем фон у ячеек при наведении */
+}
+
+td:first-child {
+    width: 35px;
+    padding-left: var(--spacing-small); /* 4px вместо 12px */
+    padding-right: var(--spacing-small);
+}
+
+td.status {
+    padding-left: var(--spacing-small);
+    padding-right: var(--spacing-small);
+    width: 30px;
+    text-align: center;
+}
+
+/* ===== GROUPING ===== */
+tr.group-row {
+    background-color: var(--color-primary);
+}
+
+td.group-header {
+    color: var(--color-white);
+    font-weight: bold;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    padding: var(--spacing-tiny) var(--spacing-medium);
+    border-top: 2px solid var(--color-white);
+    cursor: pointer;
+}
+
+td.group-header.actions {
+    width: 130px !important;
+}
+
+tr.group-row:hover {
+    background-color: #018fac;
+}
+
+tr.group-row:hover td {
+    background-color: transparent; /* Убираем фон у ячеек группы при наведении */
+}
+
+tr.group-row .remove-button {
+    float: right; /* Прижимаем кнопку вправо */
+    margin-right: 0; /* Убираем отступ справа */
+}
+
+tr.group-row td:first-child {
+    padding-left: var(--spacing-small);
+    padding-right: var(--spacing-small);
+    width: 35px;
+}
+
+.toggle-icon {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+}
+
+/* ===== GROUP ACTIONS ===== */
+
+/* ===== ICONS AND STATUSES ===== */
+.icon {
+    font-size: 24px;
+    color: #333;
+    cursor: pointer;
+}
+
+/* Status visibility */
+tr[data-is-open='true'] .status-icon {
+    opacity: 0;
+    visibility: hidden;
+}
+
+tr[data-is-open='false'] .status-icon {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Status colors */
+.in-progress .status-icon {
+    animation: spin-reverse 1s linear infinite;
+    color: var(--color-in-progress);
+}
+
+.success .status-icon {
+    color: var(--color-success);
+}
+.another-task .status-icon {
+    color: var(--color-another-task);
+}
+.error .status-icon {
+    color: var(--color-error);
+}
+.paused .status-icon {
+    color: var(--color-paused);
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes spin-reverse {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(-360deg);
+    }
+}
+.hidden {
+    display: none !important;
+}
+
+/* Auth Container */
+.auth-container {
+    width: 100%;
+    max-width: 400px;
+    margin: 16px auto 0 auto;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Auth Form */
+.auth-form {
+    width: 100%;
+    background: var(--color-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    padding: var(--spacing-small) 16px 16px 16px;
+    margin-bottom: var(--spacing-small);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+    opacity: 1;
+    transition: opacity 0.3s ease-in-out;
+}
+
+.auth-form.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.auth-form h2 {
+    margin: 0 0 var(--spacing-medium) 0;
+    text-align: center;
+    color: var(--color-primary);
+    font-size: 20px;
+}
+
+.auth-form input {
+    padding: var(--spacing-medium);
+    border: 1px solid var(--color-border-light);
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.auth-form button {
+    padding: var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+}
+
+.auth-form button:hover {
+    background-color: #018fac;
+    box-shadow: var(--shadow-hover);
+}
+
+.auth-form p {
+    text-align: center;
+    margin: var(--spacing-small) 0;
+    color: var(--color-text-light);
+}
+
+.auth-form a {
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: color 0.2s ease-in-out;
+}
+
+.auth-form a:hover {
+    color: #018fac;
+    text-decoration: underline;
+}
+
+/* Error Message */
+.error-message {
+    display: none;
+    color: var(--color-error);
+    background-color: #ffebee;
+    border: 1px solid #ffcdd2;
+    border-radius: 4px;
+    padding: var(--spacing-medium);
+    margin-bottom: var(--spacing-medium);
+    font-size: 14px;
+    text-align: center;
+    box-shadow: var(--shadow-light);
+}
+
+.error-message.show {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* User Info */
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-small) 16px;
+    background-color: var(--color-background-light);
+    border-bottom: 1px solid var(--color-border-light);
+    margin-bottom: var(--spacing-small);
+    border-radius: 0;
+}
+
+#logoutButton {
+    padding: var(--spacing-small) var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+    margin-left: var(--spacing-medium);
+}
+
+#logoutButton:hover {
+    background-color: #018fac;
+    box-shadow: var(--shadow-hover);
+}
+
+.email-confirm-message {
+    margin: var(--spacing-small) auto;
+    padding: var(--spacing-small);
+    background: var(--color-background-light);
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    color: var(--color-primary);
+    font-size: 14px;
+    text-align: center;
+    max-width: 320px;
+    box-shadow: var(--shadow-light);
+    display: none;
+}
+
+.email-confirm-message.show {
+    display: block;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.form-links {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.form-links a {
+    color: var(--color-primary);
+    text-decoration: none;
+    margin: 0 10px;
+    font-size: var(--font-size-small);
+    transition: color 0.2s ease-in-out;
+}
+
+.form-links a:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-medium);
+    background-color: var(--color-background-light);
+    border-bottom: 1px solid var(--color-border-light);
+    position: relative;
+}
+
+.user-actions {
+    display: flex;
+    gap: var(--spacing-small);
+    align-items: center;
+}
+
+.secondary-button {
+    padding: var(--spacing-small) var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+    margin-left: var(--spacing-medium);
+}
+
+.secondary-button:hover {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button-hover);
+}
+
+#unbindForm {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: var(--spacing-large);
+    background-color: var(--color-white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-card);
+}
+
+#unbindForm h2 {
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-large);
+    text-align: center;
+    font-size: var(--font-size-large);
+}
+
+#unbindForm .form-group {
+    margin-bottom: var(--spacing-medium);
+}
+
+#unbindForm input {
+    width: 100%;
+    padding: var(--spacing-medium);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-medium);
+    transition: border-color 0.2s ease-in-out;
+}
+
+#unbindForm input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+#unbindForm button {
+    width: 100%;
+    padding: var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-medium);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    margin-top: var(--spacing-medium);
+}
+
+#unbindForm button:hover {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button-hover);
+}
+
+#unbindForm .error-message {
+    color: var(--color-error);
+    font-size: var(--font-size-small);
+    margin-top: var(--spacing-small);
+    text-align: center;
+    min-height: 20px;
+}
+
+#unbindForm .form-links {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-medium);
+}
+
+#unbindForm .form-links a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--font-size-small);
+    transition: color 0.2s ease-in-out;
+}
+
+#unbindForm .form-links a:hover {
+    color: var(--color-primary-dark);
+    text-decoration: underline;
+}
+
+#unbindForm .form-links a.hidden {
+    display: none;
+}
+
+.toggle-header-btn {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background: var(--color-white);
+    border: 1px solid var(--color-border-light);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-light);
+    color: var(--color-primary);
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
+}
+.toggle-header-btn:hover {
+    background: #e0f7fa;
+    box-shadow: var(--shadow-hover);
+}
+#mainContent {
+    position: relative;
+}
+
+/* Полупрозрачная кнопка, если хедер скрыт */
+#mainContent.header-hidden .toggle-header-btn {
+    opacity: 0.01;
+    pointer-events: auto;
+}
+#mainContent.header-hidden .toggle-header-btn:hover {
+    opacity: 0.7;
+}

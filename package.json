@@ -5,11 +5,29 @@
     "main": "index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "types": "supabase gen types typescript --project-id your-project-id --schema public > src/types/database.ts",
+        "build": "webpack --mode=production",
+        "dev": "webpack --watch",
+        "dev:types": "npm run types && npm run dev",
+        "zip": "npm run build && powershell Compress-Archive -Path dist/* -DestinationPath extension.zip -Force"
     },
     "author": "Ilya Murashka",
     "license": "ISC",
     "devDependencies": {
-        "prettier": "3.5.3"
+        "@types/chrome": "^0.0.326",
+        "copy-webpack-plugin": "^13.0.0",
+        "css-loader": "^7.1.2",
+        "dotenv-webpack": "^8.1.0",
+        "html-webpack-plugin": "^5.6.3",
+        "prettier": "3.5.3",
+        "style-loader": "^4.0.0",
+        "ts-loader": "^9.5.2",
+        "typescript": "^5.8.3",
+        "webpack": "^5.99.9",
+        "webpack-cli": "^6.0.1"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.50.0"
     }
 }

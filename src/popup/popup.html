@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Popup</title>
+        <meta charset="UTF-8" />
+        <link rel="stylesheet" />
+        <!--// https://fonts.google.com/icons -->
+        <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+        />
+    </head>
+    <body>
+        <div id="authContainer" class="auth-container">
+            <div id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                <div class="error-message" id="loginError"></div>
+                <input type="email" id="loginEmail" placeholder="Email" />
+                <input
+                    type="password"
+                    id="loginPassword"
+                    placeholder="Password"
+                />
+                <button id="loginButton" type="button">Login</button>
+                <div class="form-links">
+                    <a href="#" id="showRegister">Register</a>
+                    <a href="#" id="showUnbind">Unbind Device</a>
+                </div>
+            </div>
+
+            <div id="registerForm" class="auth-form hidden">
+                <h2>Register</h2>
+                <div class="error-message" id="registerError"></div>
+                <input type="email" id="registerEmail" placeholder="Email" />
+                <input
+                    type="password"
+                    id="registerPassword"
+                    placeholder="Password"
+                />
+                <button id="registerButton" type="button">Register</button>
+                <div class="form-links">
+                    <a href="#" id="showLogin">Back to Login</a>
+                    <a href="#" id="showUnbind">Unbind Device</a>
+                </div>
+            </div>
+
+            <form id="unbindForm" class="hidden">
+                <h2>Unbind Device</h2>
+                <div class="form-group">
+                    <input
+                        type="email"
+                        id="unbindEmail"
+                        placeholder="Email"
+                        required
+                    />
+                </div>
+                <div class="form-group">
+                    <input
+                        type="password"
+                        id="unbindPassword"
+                        placeholder="Password"
+                        required
+                    />
+                </div>
+                <div class="error-message" id="unbindError"></div>
+                <button type="submit" id="unbindButton">Unbind Device</button>
+                <div class="form-links">
+                    <a href="#" id="hideUnbind">Back to Login</a>
+                    <a href="#" id="backToAppButton" class="hidden"
+                        >Back to App</a
+                    >
+                </div>
+            </form>
+        </div>
+
+        <!-- Main Content (hidden when not authenticated) -->
+        <div id="mainContent" class="hidden">
+            <button id="toggleHeaderBtn" class="toggle-header-btn" title="Скрыть/показать хедер">
+                <span class="material-icons" id="toggleHeaderIcon">arrow_drop_up</span>
+            </button>
+            <div class="header">
+                <div class="user-info">
+                    <span id="userEmail"></span>
+                </div>
+                <div class="user-actions">
+                    <button id="unbindDeviceButton" class="secondary-button">
+                        Unbind Device
+                    </button>
+                    <button id="logoutButton">Logout</button>
+                </div>
+            </div>
+            <div class="queue-container">
+                <table id="queueTable">
+                    <tbody id="queueTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </body>
+</html>
