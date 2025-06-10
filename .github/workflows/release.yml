@@ -44,11 +44,17 @@ jobs:
           name: extension
           path: extension.zip
 
-      - name: Create Release with GitHub CLI
+      - name: Create or Update Release
         run: |
-          gh release create ${{ github.ref_name }} \
-            extension.zip \
-            --title "${{ github.ref_name }}" \
-            --generate-notes
+          if gh release view ${{ github.ref_name }} >/dev/null 2>&1; then
+            echo "Release exists, uploading asset..."
+            gh release upload ${{ github.ref_name }} extension.zip --clobber
+          else
+            echo "Creating new release..."
+            gh release create ${{ github.ref_name }} \
+              extension.zip \
+              --title "${{ github.ref_name }}" \
+              --generate-notes
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
