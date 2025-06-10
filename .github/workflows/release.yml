@@ -4,21 +4,19 @@ on:
   push:
     branches:
       - main
+      - '**'  # Все остальные ветки
     tags:
       - 'v*'
     paths:
       - 'package.json'
+      - 'src/**'
+      - 'public/**'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
   
-  # Тестирование для PR
   pull_request:
     branches:
-      - main
-    paths:
-      - 'package.json'
-  
-  # Тестирование для пушей в любые ветки кроме main
-  push:
-    branches-ignore:
       - main
     paths:
       - 'package.json'
@@ -31,7 +29,9 @@ on:
 jobs:
   # Джоб для проверки и тестирования (запускается для PR и пушей в feature ветки)
   test-build:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
+    if: |
+      github.event_name == 'pull_request' || 
+      (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -79,9 +79,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Основной джоб для релиза (только после мерджа в main)
+  # Основной джоб для релиза (только для main ветки и тегов)
   build-and-release:
-    if: github.event_name != 'pull_request'
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     environment: prod
     permissions:
