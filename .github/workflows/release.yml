@@ -1,16 +1,53 @@
-name: Build and Release Extension
+name: Auto Release from package.json
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'package.json'  # Запускается только при изменении package.json
 
 jobs:
-  build:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version-changed: ${{ steps.version.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Нужно для сравнения с предыдущим коммитом
+
+      - name: Check version change
+        id: version
+        run: |
+          # Получаем текущую версию из package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "version=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Проверяем, изменилась ли версия
+          if git show HEAD~1:package.json 2>/dev/null | node -p "require('fs').readFileSync('/dev/stdin', 'utf8')" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')).version" 2>/dev/null; then
+            PREVIOUS_VERSION=$(git show HEAD~1:package.json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8')).version")
+            if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Version changed from $PREVIOUS_VERSION to $CURRENT_VERSION"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "Version not changed"
+            fi
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "First version or unable to compare"
+          fi
+
+  build-and-release:
+    needs: check-version
+    if: needs.check-version.outputs.version-changed == 'true'
     runs-on: ubuntu-latest
     environment: prod
     permissions:
-      contents: write  # Необходимо для создания релизов
+      contents: write
 
     steps:
       - name: Checkout code
@@ -38,23 +75,21 @@ jobs:
           cd dist
           zip -r ../extension.zip *
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: extension
-          path: extension.zip
-
-      - name: Create or Update Release
+      - name: Create and push tag
         run: |
-          if gh release view ${{ github.ref_name }} >/dev/null 2>&1; then
-            echo "Release exists, uploading asset..."
-            gh release upload ${{ github.ref_name }} extension.zip --clobber
-          else
-            echo "Creating new release..."
-            gh release create ${{ github.ref_name }} \
-              extension.zip \
-              --title "${{ github.ref_name }}" \
-              --generate-notes
-          fi
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git tag ${{ needs.check-version.outputs.version }}
+          git push origin ${{ needs.check-version.outputs.version }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.check-version.outputs.version }}
+          name: Release ${{ needs.check-version.outputs.version }}
+          files: extension.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
