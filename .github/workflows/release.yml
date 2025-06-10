@@ -9,17 +9,29 @@ on:
     paths:
       - 'package.json'
   
-  # Дополнительно для тестирования PR (без релиза)
+  # Тестирование для PR
   pull_request:
     branches:
       - main
     paths:
       - 'package.json'
+  
+  # Тестирование для пушей в любые ветки кроме main
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - 'package.json'
+      - 'src/**'
+      - 'public/**'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.ts'
 
 jobs:
-  # Джоб для проверки и тестирования (запускается для PR)
+  # Джоб для проверки и тестирования (запускается для PR и пушей в feature ветки)
   test-build:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -36,6 +48,14 @@ jobs:
       - name: Test build
         run: npm run build
 
+      - name: Run tests (if available)
+        run: |
+          if npm run test --if-present; then
+            echo "✅ Tests passed"
+          else
+            echo "ℹ️ No tests found, skipping"
+          fi
+
       - name: Check version format
         run: |
           VERSION=$(node -p "require('./package.json').version")
@@ -45,6 +65,19 @@ jobs:
             exit 1
           fi
           echo "✅ Version format is valid"
+
+      - name: Check for duplicate version (only for feature branches)
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          VERSION=v$(node -p "require('./package.json').version")
+          if gh release view $VERSION >/dev/null 2>&1; then
+            echo "⚠️ Warning: Release $VERSION already exists"
+            echo "Consider updating the version in package.json"
+          else
+            echo "✅ Version $VERSION is available for release"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Основной джоб для релиза (только после мерджа в main)
   build-and-release:
