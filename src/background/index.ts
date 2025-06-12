@@ -32,10 +32,7 @@ queueManager.startProcessing(processRequest, {
 
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
 
-async function cleanupCache(data) {
-    if (data.testEnv) {
-        return
-    }
+async function cleanupCache() {
     consoleLog('Cleaning up cache...')
     // Clear the cache for request bodies and headers
     return chrome.storage.local.set({
@@ -170,7 +167,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     // Add request to the retry queue
                     await queueManager.addToQueue(retryObject)
                     // Remove the last request from the cache
-                    await cleanupCache(data)
+                    await cleanupCache()
                 } else {
                     consoleLog('No data in cache object')
                 }
