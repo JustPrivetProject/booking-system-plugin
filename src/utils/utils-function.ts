@@ -1,3 +1,5 @@
+import { errorLogService } from '../services/errorLogService'
+
 export function consoleLog(...args) {
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
@@ -21,6 +23,12 @@ export function consoleError(...args) {
         'color:rgb(192, 4, 4); font-weight: bold;',
         ...args
     )
+
+    // Log to Supabase
+    const errorMessage = args
+        .map((arg) => (arg instanceof Error ? arg.message : String(arg)))
+        .join(' ')
+    errorLogService.logError(errorMessage, 'background', { args })
 }
 
 export function normalizeFormData(formData): Record<string, any> {
@@ -49,7 +57,9 @@ export async function fetchRequest(url, options: RequestInit) {
         })
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
+            throw new Error(
+                `Request Error! Message: ${await response.text()} Status: ${response.status}`
+            )
         }
 
         return response

@@ -118,6 +118,7 @@ setInterval(
         )
         if (resetButton instanceof HTMLElement) {
             resetButton.click()
+            console.log('Session counter reset')
         }
     },
     10 * 60 * 1000
