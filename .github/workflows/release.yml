@@ -158,7 +158,9 @@ jobs:
               run: npm run build
 
             - name: Create release package
-              run: npm run zip
+              run: |
+                  cd dist
+                  zip -r ../extension.zip *
 
             - name: Create tag for auto-release
               if: steps.version.outputs.should_create_tag == 'true'
@@ -211,7 +213,9 @@ jobs:
               run: npm run build:dev
 
             - name: Create development package
-              run: npm run zip:dev
+              run: |
+                  cd dist
+                  zip -r ../extension-dev.zip *
 
             - name: Create Development Release
               uses: softprops/action-gh-release@v1
