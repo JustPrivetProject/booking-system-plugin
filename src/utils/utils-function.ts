@@ -1,15 +1,18 @@
+import { StatusesPriority } from '../data'
 import { errorLogService } from '../services/errorLogService'
 
 export function consoleLog(...args) {
-    const date = new Date().toLocaleString('pl-PL', {
-        timeZone: 'Europe/Warsaw',
-    })
-    console.log(
-        `%c[${date}] %c[JustPrivetProject]:`,
-        'color: #00bfff; font-weight: bold;',
-        'color: #ff8c00; font-weight: bold;',
-        ...args
-    )
+    if (process.env.NODE_ENV === 'development') {
+        const date = new Date().toLocaleString('pl-PL', {
+            timeZone: 'Europe/Warsaw',
+        })
+        console.log(
+            `%c[${date}] %c[JustPrivetProject]:`,
+            'color: #00bfff; font-weight: bold;',
+            'color: #ff8c00; font-weight: bold;',
+            ...args
+        )
+    }
 }
 
 export function consoleError(...args) {
@@ -24,11 +27,13 @@ export function consoleError(...args) {
         ...args
     )
 
-    // Log to Supabase
-    const errorMessage = args
-        .map((arg) => (arg instanceof Error ? arg.message : String(arg)))
-        .join(' ')
-    errorLogService.logError(errorMessage, 'background', { args })
+    // Log to Supabase only in development
+    if (process.env.NODE_ENV === 'development') {
+        const errorMessage = args
+            .map((arg) => (arg instanceof Error ? arg.message : String(arg)))
+            .join(' ')
+        errorLogService.logError(errorMessage, 'background', { args })
+    }
 }
 
 export function normalizeFormData(formData): Record<string, any> {
@@ -113,5 +118,18 @@ export async function getOrCreateDeviceId(): Promise<string> {
                 })
             }
         })
+    })
+}
+
+export function sortStatusesByPriority(statuses) {
+    // Define the priority of statuses from the most critical to the least critical
+
+    // Sort statuses according to the defined priority order
+    return statuses.sort((a, b) => {
+        const priorityA = StatusesPriority.indexOf(a)
+        const priorityB = StatusesPriority.indexOf(b)
+
+        // If the status is not found in the priority list, place it at the end
+        return priorityA - priorityB
     })
 }

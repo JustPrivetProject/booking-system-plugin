@@ -2,230 +2,225 @@ name: Build and Release Extension
 
 # Workflow triggers
 on:
-  push:
-    branches:
-      - main    # Production branch
-      - dev     # Development branch
-      - '**'    # All other branches
-    tags:
-      - 'v*'    # Manual releases by tags
-    paths:
-      - 'package.json'
-      - 'src/**'
-      - 'public/**'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-  
-  pull_request:
-    branches:
-      - main
-      - dev
-    paths:
-      - 'package.json'
-      - 'src/**'
-      - 'public/**'
-      - 'package-lock.json'
-      - 'tsconfig.json'
+    push:
+        branches:
+            - main # Production branch
+            - dev # Development branch
+            - '**' # All other branches
+        tags:
+            - 'v*' # Manual releases by tags
+        paths:
+            - 'package.json'
+            - 'src/**'
+            - 'public/**'
+            - 'package-lock.json'
+            - 'tsconfig.json'
+
+    pull_request:
+        branches:
+            - main
+            - dev
+        paths:
+            - 'package.json'
+            - 'src/**'
+            - 'public/**'
+            - 'package-lock.json'
+            - 'tsconfig.json'
 
 # Common settings for all jobs
 env:
-  NODE_VERSION: '20'
+    NODE_VERSION: '20'
 
 jobs:
-  # Testing and validation for PRs and feature branches
-  test-build:
-    name: Test and Build
-    if: |
-      github.event_name == 'pull_request' || 
-      (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Test build
-        run: npm run build
-
-      - name: Run tests (if available)
-        run: |
-          if npm run test --if-present; then
-            echo "✅ Tests passed"
-          else
-            echo "ℹ️ No tests found, skipping"
-          fi
-
-      - name: Validate version format
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "Version in package.json: $VERSION"
-          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ Invalid version format: $VERSION"
-            exit 1
-          fi
-          echo "✅ Version format is valid"
-
-      - name: Check for duplicate version
-        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-        run: |
-          VERSION=v$(node -p "require('./package.json').version")
-          if gh release view $VERSION >/dev/null 2>&1; then
-            echo "⚠️ Warning: Release $VERSION already exists"
-            echo "Consider updating the version in package.json"
-          else
-            echo "✅ Version $VERSION is available for release"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Production release (main branch and tags)
-  build-and-release:
-    name: Production Release
-    if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
-    runs-on: ubuntu-latest
-    environment: prod
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Determine version and release type
-        id: version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            # Manual release by tag
-            VERSION=${GITHUB_REF#refs/tags/}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "release_type=manual" >> $GITHUB_OUTPUT
-            echo "should_create_tag=false" >> $GITHUB_OUTPUT
-            echo "Manual release triggered by tag: $VERSION"
-          else
-            # Automatic release on main branch push
-            VERSION=v$(node -p "require('./package.json').version")
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "release_type=auto" >> $GITHUB_OUTPUT
-            echo "should_create_tag=true" >> $GITHUB_OUTPUT
-            echo "Auto release for version: $VERSION"
-          fi
-
-      - name: Check if auto-release should proceed
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        id: check_auto_release
-        run: |
-          if gh release view ${{ steps.version.outputs.version }} >/dev/null 2>&1; then
-            echo "should_proceed=false" >> $GITHUB_OUTPUT
-            echo "Release ${{ steps.version.outputs.version }} already exists, skipping auto-release"
-          else
-            echo "should_proceed=true" >> $GITHUB_OUTPUT
-            echo "Proceeding with auto-release"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Stop if auto-release not needed
+    # Testing and validation for PRs and feature branches
+    test-build:
+        name: Test and Build
         if: |
-          github.event_name == 'push' && 
-          github.ref == 'refs/heads/main' && 
-          steps.check_auto_release.outputs.should_proceed == 'false'
-        run: exit 0
+            github.event_name == 'pull_request' || 
+            (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup environment variables
-        run: |
-          echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Build extension
-        run: npm run build
+            - name: Test build
+              run: npm run build
 
-      - name: Create release package
-        run: |
-          cd dist
-          zip -r ../extension.zip *
+            - name: Run tests (if available)
+              run: |
+                  if npm run test --if-present; then
+                    echo "✅ Tests passed"
+                  else
+                    echo "ℹ️ No tests found, skipping"
+                  fi
 
-      - name: Create tag for auto-release
-        if: steps.version.outputs.should_create_tag == 'true'
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag ${{ steps.version.outputs.version }}
-          git push origin ${{ steps.version.outputs.version }}
+            - name: Validate version format
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "Version in package.json: $VERSION"
+                  if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "❌ Invalid version format: $VERSION"
+                    exit 1
+                  fi
+                  echo "✅ Version format is valid"
 
-      - name: Create Production Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          files: extension.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Check for duplicate version
+              if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+              run: |
+                  VERSION=v$(node -p "require('./package.json').version")
+                  if gh release view $VERSION >/dev/null 2>&1; then
+                    echo "⚠️ Warning: Release $VERSION already exists"
+                    echo "Consider updating the version in package.json"
+                  else
+                    echo "✅ Version $VERSION is available for release"
+                  fi
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Development environment (dev branch)
-  build-and-release-dev:
-    name: Development Release
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    runs-on: ubuntu-latest
-    environment: dev
-    permissions:
-      contents: write
+    # Production release (main branch and tags)
+    build-and-release:
+        name: Production Release
+        if: |
+            (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+        runs-on: ubuntu-latest
+        environment: prod
+        permissions:
+            contents: write
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Determine version and release type
+              id: version
+              run: |
+                  if [[ $GITHUB_REF == refs/tags/* ]]; then
+                    # Manual release by tag
+                    VERSION=${GITHUB_REF#refs/tags/}
+                    echo "version=$VERSION" >> $GITHUB_OUTPUT
+                    echo "release_type=manual" >> $GITHUB_OUTPUT
+                    echo "should_create_tag=false" >> $GITHUB_OUTPUT
+                    echo "Manual release triggered by tag: $VERSION"
+                  else
+                    # Automatic release on main branch push
+                    VERSION=v$(node -p "require('./package.json').version")
+                    echo "version=$VERSION" >> $GITHUB_OUTPUT
+                    echo "release_type=auto" >> $GITHUB_OUTPUT
+                    echo "should_create_tag=true" >> $GITHUB_OUTPUT
+                    echo "Auto release for version: $VERSION"
+                  fi
 
-      - name: Setup development environment variables
-        run: |
-          echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+            - name: Check if auto-release should proceed
+              if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+              id: check_auto_release
+              run: |
+                  if gh release view ${{ steps.version.outputs.version }} >/dev/null 2>&1; then
+                    echo "should_proceed=false" >> $GITHUB_OUTPUT
+                    echo "Release ${{ steps.version.outputs.version }} already exists, skipping auto-release"
+                  else
+                    echo "should_proceed=true" >> $GITHUB_OUTPUT
+                    echo "Proceeding with auto-release"
+                  fi
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build extension
-        run: npm run build
+            - name: Stop if auto-release not needed
+              if: |
+                  github.event_name == 'push' && 
+                  github.ref == 'refs/heads/main' && 
+                  steps.check_auto_release.outputs.should_proceed == 'false'
+              run: exit 0
 
-      - name: Create development package
-        run: |
-          cd dist
-          zip -r ../extension.zip *
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Create Development Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: dev-${{ github.sha }}
-          name: Dev Release ${{ github.sha }}
-          files: extension.zip
-          draft: false
-          prerelease: true
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Setup environment variables
+              run: |
+                  echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
+                  echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+                  echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+
+            - name: Build extension
+              run: npm run build
+
+            - name: Create release package
+              run: npm run zip
+
+            - name: Create tag for auto-release
+              if: steps.version.outputs.should_create_tag == 'true'
+              run: |
+                  git config user.name github-actions
+                  git config user.email github-actions@github.com
+                  git tag ${{ steps.version.outputs.version }}
+                  git push origin ${{ steps.version.outputs.version }}
+
+            - name: Create Production Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ steps.version.outputs.version }}
+                  name: Release ${{ steps.version.outputs.version }}
+                  files: extension.zip
+                  draft: false
+                  prerelease: false
+                  generate_release_notes: true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Development environment (dev branch)
+    build-and-release-dev:
+        name: Development Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        runs-on: ubuntu-latest
+        environment: dev
+        permissions:
+            contents: write
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Setup development environment variables
+              run: |
+                  echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
+                  echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+                  echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+
+            - name: Build extension
+              run: npm run build:dev
+
+            - name: Create development package
+              run: npm run zip:dev
+
+            - name: Create Development Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: dev-${{ github.sha }}
+                  name: Dev Release ${{ github.sha }}
+                  files: extension-dev.zip
+                  draft: false
+                  prerelease: true
+                  generate_release_notes: true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

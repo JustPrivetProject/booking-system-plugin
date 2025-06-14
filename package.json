@@ -6,11 +6,11 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "format": "prettier --write .",
-        "types": "supabase gen types typescript --project-id your-project-id --schema public > src/types/database.ts",
-        "build": "webpack --mode=production",
-        "dev": "webpack --watch",
-        "dev:types": "npm run types && npm run dev",
-        "zip": "npm run build && powershell Compress-Archive -Path dist/* -DestinationPath extension.zip -Force"
+        "build": "webpack --mode=production --env production",
+        "build:dev": "webpack --mode=development",
+        "dev": "webpack --watch --mode=development",
+        "zip": "npm run build && powershell Compress-Archive -Path dist/* -DestinationPath extension.zip -Force",
+        "zip:dev": "npm run build:dev && powershell Compress-Archive -Path dist/* -DestinationPath extension-dev.zip -Force"
     },
     "author": "Ilya Murashka",
     "license": "ISC",

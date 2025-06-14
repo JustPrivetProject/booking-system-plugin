@@ -1,9 +1,10 @@
-import { RetryObject, RetryObjectArray } from '../types/baltichub'
+import { RetryObject } from '../types/baltichub'
 import {
     generateUniqueId,
     consoleLog,
     consoleError,
 } from '../utils/utils-function'
+import { updateBadge } from './badge'
 
 class QueueManager {
     storageKey: string = 'retryQueue'
@@ -115,7 +116,7 @@ class QueueManager {
     }
 
     // Get current queue
-    async getQueue() {
+    async getQueue(): Promise<RetryObject[]> {
         const result = await chrome.storage.local.get([this.storageKey])
         return result[this.storageKey] || []
     }
@@ -179,6 +180,7 @@ class QueueManager {
             try {
                 const queue = await this.getQueue()
 
+                updateBadge(queue.map((req) => req.status))
                 // Filter requests in progress
                 const inProgressRequests = queue.filter(
                     (req) => req.status === 'in-progress'

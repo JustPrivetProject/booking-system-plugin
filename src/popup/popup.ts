@@ -3,34 +3,18 @@ import {
     normalizeFormData,
     consoleLog,
     consoleError,
+    sortStatusesByPriority,
 } from '../utils/utils-function'
 import { createConfirmationModal } from './modals/confirmation.modal'
 import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
 
-function sortStatusesByPriority(statuses) {
-    // Define the priority of statuses from the most critical to the least critical
-    const priorityOrder = [
-        Statuses.SUCCESS, // Highest priority
-        Statuses.ERROR, // High priority
-        Statuses.AUTHORIZATION_ERROR, // Medium priority
-        Statuses.ANOTHER_TASK, // Low priority
-        Statuses.IN_PROGRESS, // In progress
-        Statuses.PAUSED, // Lowest priority
-    ]
-
-    // Sort statuses according to the defined priority order
-    return statuses.sort((a, b) => {
-        const priorityA = priorityOrder.indexOf(a)
-        const priorityB = priorityOrder.indexOf(b)
-
-        // If the status is not found in the priority list, place it at the end
-        return priorityA - priorityB
-    })
-}
-
-function sendMessageToBackground(action, data) {
+function sendMessageToBackground(
+    action,
+    data,
+    options = { updateQueue: true }
+) {
     chrome.runtime.sendMessage(
         {
             target: 'background',
@@ -46,7 +30,9 @@ function sendMessageToBackground(action, data) {
             // Обработка ответа от background.js
             if (response && response.success) {
                 consoleLog(`Action ${action} completed successfully`)
-                updateQueueDisplay() // Обновление отображения очереди
+                if (options.updateQueue) {
+                    updateQueueDisplay() // Обновление отображения очереди
+                }
             } else {
                 consoleError(`Action ${action} failed`)
             }
@@ -111,7 +97,7 @@ async function restoreGroupStates() {
  * @param {string|number} groupId - The ID of the group state to delete
  * @returns {Promise<Object>} - The updated group states object
  */
-async function deleteGroupStateById(groupId) {
+async function deleteGroupStateById(groupId: string | number): Promise<object> {
     // Get current groupStates from storage
     const { groupStates = {} } = await chrome.storage.local.get('groupStates')
 
@@ -142,7 +128,7 @@ async function clearStateGroups() {
 }
 
 // set up google icons
-function getStatusIcon(status) {
+function getStatusIcon(status: string) {
     if (status === Statuses.IN_PROGRESS) return 'loop'
     if (status === Statuses.SUCCESS) return 'check_circle'
     if (status === Statuses.ANOTHER_TASK) return 'check_circle'
@@ -151,7 +137,7 @@ function getStatusIcon(status) {
     return 'report'
 }
 
-function isDisabled(status) {
+function isDisabled(status: string) {
     if (
         status === Statuses.ANOTHER_TASK ||
         status === Statuses.SUCCESS ||
@@ -161,12 +147,12 @@ function isDisabled(status) {
     return ''
 }
 
-function isPlayDisabled(status) {
+function isPlayDisabled(status: string) {
     if (status === Statuses.IN_PROGRESS) return 'disabled'
     return isDisabled(status)
 }
 
-function isPauseDisabled(status) {
+function isPauseDisabled(status: string) {
     if (status === Statuses.PAUSED || status === Statuses.AUTHORIZATION_ERROR)
         return 'disabled'
     return isDisabled(status)
@@ -377,7 +363,7 @@ async function updateQueueDisplay() {
                     })
 
                     groupHeaderRow.remove()
-                    deleteGroupStateById(groupHeaderRow.dataset.groupId)
+                    deleteGroupStateById(groupHeaderRow.dataset.groupId!)
                 })
             })
     } catch (error) {
