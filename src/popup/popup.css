@@ -9,10 +9,10 @@
 
     /* Status colors */
     --color-in-progress: black;
-    --color-success: green;
+    --color-success: #008000;
     --color-another-task: #0096b4;
-    --color-error: red;
-    --color-paused: orange;
+    --color-error: #ff0000;
+    --color-paused: #ffa500;
 
     /* Spacing and sizes */
     --spacing-tiny: 2px;
