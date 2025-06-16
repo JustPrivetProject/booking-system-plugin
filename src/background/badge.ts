@@ -1,4 +1,4 @@
-import { StatusColorMap } from '../data'
+import { StatusIconMap, Statuses } from '../data'
 import { consoleLog, sortStatusesByPriority } from '../utils/utils-function'
 
 let lastStatus = ''
@@ -13,11 +13,11 @@ export function updateBadge(statuses: string[]) {
     const top = sortedStatuses[0]
     if (top === lastStatus) return
 
-    const color = StatusColorMap[top] || '#9E9E9E'
     lastStatus = top
-    consoleLog('Updating badge to', top, color)
+    const icon = StatusIconMap[lastStatus]
+    consoleLog('Updating badge to', top, icon)
     chrome.action
-        .setBadgeText({ text: '●' })
-        .then(() => chrome.action.setBadgeBackgroundColor({ color }))
+        .setBadgeText({ text: icon })
+        // .then(() => chrome.action.setBadgeBackgroundColor({ color }))
         .catch(console.error)
 }
