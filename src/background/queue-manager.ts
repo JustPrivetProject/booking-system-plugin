@@ -80,7 +80,7 @@ class QueueManager {
     }
 
     // Safely remove an item from the queue
-    async removeFromQueue(id) {
+    async removeFromQueue(id: string) {
         return this._synchronizedOperation(async () => {
             const result = await chrome.storage.local.get([this.storageKey])
             let queue = result[this.storageKey] || []
@@ -97,7 +97,7 @@ class QueueManager {
     }
 
     // Safely update an item in the queue
-    async updateQueueItem(id, updateData) {
+    async updateQueueItem(id: string, updateData: Partial<RetryObject>) {
         return this._synchronizedOperation(async () => {
             const result = await chrome.storage.local.get([this.storageKey])
             let queue = result[this.storageKey] || []
@@ -146,7 +146,7 @@ class QueueManager {
         }
     }
 
-    async updateEntireQueue(newQueue) {
+    async updateEntireQueue(newQueue: RetryObject[]) {
         return this._synchronizedOperation(async () => {
             await chrome.storage.local.set({ [this.storageKey]: newQueue })
             consoleLog(`Entire ${this.storageKey} updated`)

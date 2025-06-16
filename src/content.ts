@@ -116,10 +116,11 @@ setInterval(
         const resetButton = document.querySelector(
             '[data-ajax-success="resetSessionCounter"]'
         )
-        if (resetButton instanceof HTMLElement) {
+        if (resetButton) {
+            // @ts-expect-error
             resetButton.click()
             console.log('Session counter reset')
         }
     },
-    10 * 60 * 1000
+    15 * 60 * 1000
 )
