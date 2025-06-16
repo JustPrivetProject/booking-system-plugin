@@ -13,7 +13,7 @@
     <body>
         <div id="authContainer" class="auth-container">
             <div id="loginForm" class="auth-form">
-                <h2>Login</h2>
+                <h2>Logowanie</h2>
                 <div class="error-message" id="loginError"></div>
                 <input type="email" id="loginEmail" placeholder="Email" />
                 <input
@@ -21,15 +21,15 @@
                     id="loginPassword"
                     placeholder="Password"
                 />
-                <button id="loginButton" type="button">Login</button>
+                <button id="loginButton" type="button">Zaloguj się</button>
                 <div class="form-links">
-                    <a href="#" id="showRegister">Register</a>
-                    <a href="#" id="showUnbind">Unbind Device</a>
+                    <a href="#" id="showRegister">Zarejestruj się</a>
+                    <a href="#" id="showUnbind">Odłącz urządzenie</a>
                 </div>
             </div>
 
             <div id="registerForm" class="auth-form hidden">
-                <h2>Register</h2>
+                <h2>Rejestracja</h2>
                 <div class="error-message" id="registerError"></div>
                 <input type="email" id="registerEmail" placeholder="Email" />
                 <input
@@ -37,15 +37,16 @@
                     id="registerPassword"
                     placeholder="Password"
                 />
-                <button id="registerButton" type="button">Register</button>
+                <button id="registerButton" type="button">Zarejestruj się</button>
                 <div class="form-links">
-                    <a href="#" id="showLogin">Back to Login</a>
-                    <a href="#" id="showUnbind">Unbind Device</a>
+                    <a href="#" id="showLogin">Wróć do logowania</a>
+                    <a href="#" id="showUnbind">Odłącz urządzenie</a>
                 </div>
             </div>
 
             <form id="unbindForm" class="hidden">
-                <h2>Unbind Device</h2>
+                <h2>Odłącz urządzenie</h2>
+                <p>Wprowadź swoją nazwę użytkownika i hasło, aby odwiązać urządzenie</p>
                 <div class="form-group">
                     <input
                         type="email"
@@ -63,11 +64,11 @@
                     />
                 </div>
                 <div class="error-message" id="unbindError"></div>
-                <button type="submit" id="unbindButton">Unbind Device</button>
+                <button type="submit" id="unbindButton">Odłącz urządzenie</button>
                 <div class="form-links">
-                    <a href="#" id="hideUnbind">Back to Login</a>
+                    <a href="#" id="hideUnbind">Powrót do logowania</a>
                     <a href="#" id="backToAppButton" class="hidden"
-                        >Back to App</a
+                        >Powrót do aplikacji</a
                     >
                 </div>
             </form>
@@ -84,9 +85,9 @@
                 </div>
                 <div class="user-actions">
                     <button id="unbindDeviceButton" class="secondary-button">
-                        Unbind Device
+                        Odłącz
                     </button>
-                    <button id="logoutButton">Logout</button>
+                    <button id="logoutButton">Wyloguj</button>
                 </div>
             </div>
             <div class="queue-container">
