@@ -9,11 +9,13 @@ import {
     getDriverNameAndContainer,
     processRequest,
 } from '../services/baltichub'
-import { Actions, Statuses, StatusColorMap } from '../data'
+import { Actions, Statuses } from '../data'
 import {
     RequestCacheHeaders,
     RequestCacheHeaderBody,
     RequestCacheBodes,
+    RequestCacheBodyObject,
+    RetryObject,
 } from '../types/baltichub'
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -23,7 +25,7 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.storage.local.set({ retryEnabled: true })
 chrome.storage.local.set({ testEnv: false })
 const queueManager = QueueManager.getInstance()
-let lastStatus = ''
+
 // Start retry attempts with random intervals between 2 and 5 seconds
 queueManager.startProcessing(processRequest, {
     intervalMin: 2000, // Minimum interval (2 seconds)
@@ -51,7 +53,6 @@ chrome.webRequest.onBeforeRequest.addListener(
 
                 cacheBody[details.requestId] = {
                     url: details.url,
-                    // @ts-expect-error
                     body: details.requestBody,
                     timestamp: Date.now(),
                 }
@@ -81,7 +82,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 
             cacheHeaders[details.requestId] = {
                 url: details.url,
-                headers: details.requestHeaders!,
+                headers: details.requestHeaders,
                 timestamp: Date.now(),
             }
 
@@ -101,6 +102,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
     { urls: [maskForCache] },
     ['requestHeaders']
 )
+
 // Listen for messages from the content script or popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const queueManager = QueueManager.getInstance()
@@ -113,20 +115,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         chrome.storage.local.get(
             {
-                requestCacheBody: {},
-                requestCacheHeaders: {},
-                retryQueue: [],
-                testEnv: false,
-                tableData: [],
+                requestCacheBody: {} as RequestCacheBodes,
+                requestCacheHeaders: {} as RequestCacheHeaders,
+                retryQueue: [] as RetryObject[],
+                testEnv: false as boolean,
+                tableData: [] as string[][],
             },
             async (data) => {
-                let requestCacheBody = getLastProperty(data.requestCacheBody)
-                let requestCacheHeaders: RequestCacheHeaderBody =
+                let requestCacheBody: RequestCacheBodyObject | null =
+                    getLastProperty(data.requestCacheBody)
+                let requestCacheHeaders: RequestCacheHeaderBody | null =
                     getLastProperty(data.requestCacheHeaders)
 
                 if (requestCacheBody) {
                     const tableData = data.tableData
-                    const retryObject = { ...requestCacheBody }
+                    // @ts-expect-error
+                    const retryObject: RetryObject = { ...requestCacheBody }
                     const requestBody = normalizeFormData(requestCacheBody.body)
                     const tvAppId = requestBody.formData.TvAppId[0]
                     const driverAndContainer = (await getDriverNameAndContainer(
@@ -134,7 +138,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         data.retryQueue
                     )) || { driverName: '', containerNumber: '' }
 
-                    retryObject.headersCache = requestCacheHeaders
+                    retryObject.headersCache = requestCacheHeaders!.headers
                     retryObject.tvAppId = tvAppId
                     retryObject.startSlot = requestBody.formData.SlotStart[0]
                     retryObject.driverName = driverAndContainer.driverName || ''
@@ -193,7 +197,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         sendResponse({ success: false, error: error.message })
                     })
                 return true // Indicates that the response is sent asynchronously
-
             case Actions.UPDATE_REQUEST_STATUS:
                 queueManager
                     .updateQueueItem(message.data.id, {
@@ -206,39 +209,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         sendResponse({ success: false, error: error.message })
                     })
                 return true // Indicates that the response is sent asynchronously
-            case Actions.UPDATE_STATUS:
-                const statuses = message.data?.statuses || []
-                consoleLog(
-                    '[Background] Received updateStatus:',
-                    message.data.statuses
-                )
-                if (statuses.length === 0) {
-                    chrome.action.setBadgeText({ text: '' })
-                    sendResponse({ success: true })
-                    return true
-                }
-
-                const topStatus = statuses[0]
-
-                if (topStatus === lastStatus) {
-                    sendResponse({ success: true })
-                    return true
-                }
-
-                const color = StatusColorMap[topStatus] || '#9E9E9E'
-                if (topStatus !== lastStatus) {
-                    consoleLog('Updating badge to', topStatus, color)
-                    lastStatus = topStatus
-                }
-
-                chrome.action.setBadgeText({ text: '●' }, () => {
-                    chrome.action.setBadgeBackgroundColor({ color }, () => {
-                        sendResponse({ success: true })
-                    })
-                })
-
-                return true // important for async response
-
             default:
                 consoleLog('Unknown action:', message.action)
                 sendResponse({ success: false })

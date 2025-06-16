@@ -51,7 +51,10 @@ export function normalizeFormData(formData): Record<string, any> {
     return result
 }
 
-export async function fetchRequest(url, options: RequestInit) {
+export async function fetchRequest(
+    url,
+    options
+): Promise<Response | { ok: false; text: () => Promise<string> }> {
     try {
         const response = await fetch(url, {
             ...options,
@@ -94,7 +97,7 @@ export function createFormData(formDataObj) {
     return formData
 }
 
-export function getLastProperty(obj) {
+export function getLastProperty<T>(obj: Record<string, T>): T | null {
     let keys = Object.keys(obj) // Get all keys
     if (keys.length === 0) return null // Return null if the object is empty
 
