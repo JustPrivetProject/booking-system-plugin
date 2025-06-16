@@ -906,7 +906,7 @@ async function checkAuth() {
 }
 
 // Add session check interval
-setInterval(checkAuth, 60000) // Check every minute
+setInterval(checkAuth, 300000) // Check every 5 minutes
 
 // Initialize
 checkAuth()

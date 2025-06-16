@@ -420,6 +420,7 @@ tr[data-is-open='false'] .status-icon {
 #logoutButton:hover {
     background-color: #018fac;
     box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
 }
 
 .email-confirm-message {
@@ -480,6 +481,7 @@ tr[data-is-open='false'] .status-icon {
     background-color: var(--color-primary);
     color: var(--color-white);
     border: none;
+    margin: 0;
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s ease-in-out;

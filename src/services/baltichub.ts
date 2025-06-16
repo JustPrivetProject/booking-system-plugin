@@ -6,8 +6,11 @@ import {
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
+import { RetryObject } from '../types/baltichub'
 
-export async function getSlots(date) {
+export async function getSlots(
+    date: string
+): Promise<Response | { ok: false; text: () => Promise<string> }> {
     const [day, month, year] = date.split('.').map(Number)
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
     const dateAfterTransfer = newDate.toISOString()
@@ -25,7 +28,9 @@ export async function getSlots(date) {
     })
 }
 
-export async function getEditForm(tvAppId) {
+export async function getEditForm(
+    tvAppId: string
+): Promise<Response | { ok: false; text: () => Promise<string> }> {
     return fetchRequest(
         `https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`,
         {
@@ -42,7 +47,7 @@ export async function getEditForm(tvAppId) {
     )
 }
 
-const parseSlotsIntoButtons = (htmlText) => {
+const parseSlotsIntoButtons = (htmlText: string) => {
     const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
     const buttons = [...htmlText.matchAll(buttonRegex)].map((match) => {
         const buttonHTML = match[0] // The entire matched <button>...</button> tag
@@ -54,7 +59,10 @@ const parseSlotsIntoButtons = (htmlText) => {
     return buttons
 }
 
-async function checkSlotAvailability(htmlText, time) {
+async function checkSlotAvailability(
+    htmlText: string,
+    time: string[]
+): Promise<boolean> {
     const buttons = parseSlotsIntoButtons(htmlText)
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
@@ -76,7 +84,10 @@ async function checkSlotAvailability(htmlText, time) {
  * @throws Will log an error message to the console if an exception is encountered during processing.
  */
 
-export async function getDriverNameAndContainer(tvAppId, retryQueue) {
+export async function getDriverNameAndContainer(
+    tvAppId: string,
+    retryQueue: RetryObject[]
+): Promise<{ driverName: string; containerNumber?: string }> {
     consoleLog('Getting driver name and container for TV App ID:', tvAppId)
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/
@@ -125,13 +136,23 @@ export async function getDriverNameAndContainer(tvAppId, retryQueue) {
  * @returns {Promise<Object>} A promise that resolves to an object containing the updated request status and message.
  * @throws {Error} If there is an issue with sending the notification or handling the response.
  */
-async function executeRequest(req, tvAppId, time) {
-    const formData = createFormData(req.body.formData)
+async function executeRequest(
+    req: RetryObject,
+    tvAppId: string,
+    time: string[]
+): Promise<{ status: string; status_message: string }> {
+    const formData = createFormData(req.body!.formData)
+    let headers: Record<string, string | undefined>[] = []
+    if (req.headersCache) {
+        headers = req.headersCache.map((header) => ({
+            [header.name]: header.value || '',
+        }))
+    }
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
         headers: {
-            ...req.headersCache.headers,
+            ...headers,
             'X-Extension-Request': 'JustPrivetProject',
             credentials: 'include',
         },
@@ -145,7 +166,7 @@ async function executeRequest(req, tvAppId, time) {
         try {
             chrome.notifications.create({
                 type: 'basic',
-                iconUrl: './icons/icon-144x144.png',
+                iconUrl: './icon-144x144.png',
                 title: 'Zmiana czasu',
                 message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie - ${time[1].slice(0, 5)}`,
                 priority: 2,
@@ -181,7 +202,12 @@ async function executeRequest(req, tvAppId, time) {
  * - For unknown errors, it logs the error and returns a modified request object with a status of "error" and an error message.
  */
 
-function handleErrorResponse(req, parsedResponse, tvAppId, time) {
+function handleErrorResponse(
+    req: RetryObject,
+    parsedResponse: string,
+    tvAppId: string,
+    time: string[]
+): RetryObject {
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
         consoleLog(
             '❌ Retry failed, keeping in queue:',
@@ -201,7 +227,7 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
         )
         return {
             ...req,
-            status: Statuses.ERROR,
+            status: Statuses.ANOTHER_TASK,
             status_message: 'Zadanie zakończone w innym wątku',
         }
     }
@@ -293,7 +319,10 @@ function handleErrorResponse(req, parsedResponse, tvAppId, time) {
  * const result = await processRequest(req, queue);
  * console.log(result);
  */
-export async function processRequest(req, queue) {
+export async function processRequest(
+    req: RetryObject,
+    queue: RetryObject[]
+): Promise<{ status: string; status_message: string }> {
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
@@ -330,7 +359,7 @@ export async function processRequest(req, queue) {
     return objectToReturn
 }
 
-function isTaskCompletedInAnotherQueue(req, queue) {
+function isTaskCompletedInAnotherQueue(req: RetryObject, queue: RetryObject[]) {
     return queue.some(
         (task) => task.tvAppId === req.tvAppId && task.status === 'success'
     )

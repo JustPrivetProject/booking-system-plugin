@@ -1,8 +1,8 @@
 export type RetryObject = {
-    body: RequestCacheBodyObject
+    body: chrome.webRequest.OnBeforeRequestDetails['requestBody']
     driverName?: string
     containerNumber?: string // MSNU2991953
-    headersCache: RequestCacheHeaderBody
+    headersCache: chrome.webRequest.OnBeforeSendHeadersDetails['requestHeaders']
     id: string
     startSlot: string // "05.06.2025 19:00:00"
     status: string // e.g. "paused"
@@ -23,25 +23,7 @@ export type RequestCacheBodes = {
 }
 
 export type RequestCacheBodyObject = {
-    body: {
-        formData: {
-            BaypassWeightValidation: [string]
-            Chassis1PlateNo: [string, string]
-            Chassis2PlateNo: [string, string]
-            CombainedTransport: string[] // иногда один элемент, иногда два
-            SelectedDriver: [string, string]
-            [key: `SelectedTasks[${number}].ContainerDoorDirection`]: [string]
-            [key: `SelectedTasks[${number}].ContainerPosition`]: [string]
-            [key: `SelectedTasks[${number}].TaskNo`]: [string]
-            SlotEnd: [string]
-            SlotStart: [string]
-            SlotType: [string]
-            TSType: [string, string]
-            TruckPlateNo: [string, string]
-            TvAppId: [string]
-            __RequestVerificationToken: [string]
-        }
-    }
+    body: chrome.webRequest.OnBeforeRequestDetails['requestBody']
     timestamp: number
     url: string
 }
@@ -51,14 +33,7 @@ export type RequestCacheHeaders = {
 }
 
 export type RequestCacheHeaderBody = {
-    headers: {
-        /** Name of the HTTP header. */
-        name: string
-        /** Value of the HTTP header if it can be represented by UTF-8. */
-        value?: string | undefined
-        /** Value of the HTTP header if it cannot be represented by UTF-8, stored as individual byte values (0..255). */
-        binaryValue?: ArrayBuffer | undefined
-    }[]
+    headers: chrome.webRequest.OnBeforeSendHeadersDetails['requestHeaders']
     timestamp: number
     url: string
 }

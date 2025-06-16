@@ -25,11 +25,11 @@ export const StatusesPriority = [
     Statuses.PAUSED, // Lowest priority
 ]
 
-export const StatusColorMap: Record<string, string> = {
-    [Statuses.ERROR]: '#ff0000',
-    [Statuses.AUTHORIZATION_ERROR]: '#F44338',
-    [Statuses.SUCCESS]: '#008000',
-    [Statuses.ANOTHER_TASK]: '#008000',
-    [Statuses.IN_PROGRESS]: '#9E9E9E',
-    [Statuses.PAUSED]: '#ffa500',
+export const StatusIconMap: Record<string, string> = {
+    [Statuses.ERROR]: '❌',
+    [Statuses.AUTHORIZATION_ERROR]: '❌',
+    [Statuses.SUCCESS]: '✅',
+    [Statuses.ANOTHER_TASK]: '✅',
+    [Statuses.IN_PROGRESS]: '▶️',
+    [Statuses.PAUSED]: '⏸️',
 }
