@@ -186,9 +186,15 @@ function sendActionAfterElementDisappears(
     })
 }
 
-sendActionAfterElementDisappears(
+// sendActionAfterElementDisappears(
+//     '#vbsBgModal[style="display: block;"]',
+//     Actions.PARSED_TABLE,
+//     () => parseTable(),
+//     undefined
+// )
+
+waitElementAndSendChromeMessage(
     '#vbsBgModal[style="display: block;"]',
     Actions.PARSED_TABLE,
-    () => parseTable(),
-    undefined
+    () => parseTable()
 )

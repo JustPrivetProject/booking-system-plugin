@@ -158,8 +158,8 @@ class QueueManager {
     async startProcessing(
         processRequest,
         options = {
-            intervalMin: 2000, // Minimum interval in milliseconds (2 seconds)
-            intervalMax: 10000, // Maximum interval in milliseconds (10 seconds)
+            intervalMin: 1000, // Minimum interval in milliseconds (1 seconds)
+            intervalMax: 5000, // Maximum interval in milliseconds (5 seconds)
             retryEnabled: true,
         }
     ) {

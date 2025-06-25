@@ -4,6 +4,7 @@ import {
     consoleError,
     getLastProperty,
     normalizeFormData,
+    cleanupCache,
 } from '../utils/utils-function'
 import {
     getDriverNameAndContainer,
@@ -34,15 +35,6 @@ queueManager.startProcessing(processRequest, {
 })
 
 const maskForCache = '*://*/TVApp/EditTvAppSubmit/*'
-
-async function cleanupCache() {
-    consoleLog('Cleaning up cache...')
-    // Clear the cache for request bodies and headers
-    return chrome.storage.local.set({
-        requestCacheBody: {},
-        requestCacheHeaders: {},
-    })
-}
 
 // Cache logic
 chrome.webRequest.onBeforeRequest.addListener(

@@ -136,3 +136,26 @@ export function sortStatusesByPriority(statuses) {
         return priorityA - priorityB
     })
 }
+
+export async function cleanupCache() {
+    consoleLog('Cleaning up cache...')
+    return new Promise((resolve) => {
+        chrome.storage.local.set(
+            {
+                requestCacheBody: {},
+                requestCacheHeaders: {},
+            },
+            () => {
+                if (chrome.runtime.lastError) {
+                    consoleError(
+                        'Error cleaning up cache:',
+                        chrome.runtime.lastError
+                    )
+                    resolve(false)
+                } else {
+                    resolve(true)
+                }
+            }
+        )
+    })
+}

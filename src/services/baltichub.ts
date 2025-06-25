@@ -3,6 +3,7 @@ import {
     consoleError,
     fetchRequest,
     normalizeFormData,
+    cleanupCache,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -142,22 +143,17 @@ async function executeRequest(
     time: string[]
 ): Promise<{ status: string; status_message: string }> {
     const formData = createFormData(req.body!.formData)
-    let headers: Record<string, string | undefined>[] = []
-    if (req.headersCache) {
-        headers = req.headersCache.map((header) => ({
-            [header.name]: header.value || '',
-        }))
-    }
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
         headers: {
-            ...headers,
             'X-Extension-Request': 'JustPrivetProject',
             credentials: 'include',
         },
         body: formData,
     })
+
+    await cleanupCache()
 
     const parsedResponse = await response.text()
     if (!parsedResponse.includes('error') && response.ok) {
