@@ -44,18 +44,7 @@ function waitElementAndSendChromeMessage(selector, action, actionFunction) {
 
         try {
             const parsedData = actionFunction()
-
-            chrome.runtime.sendMessage(
-                { action: action, message: parsedData },
-                (response) => {
-                    if (chrome.runtime.lastError) {
-                        console.error(
-                            `Error sending ${action} message:`,
-                            chrome.runtime.lastError
-                        )
-                    }
-                }
-            )
+            sendActionToBackground(action, parsedData, undefined)
         } catch (error) {
             console.error(`Error processing ${action}:`, error)
         }
@@ -111,16 +100,95 @@ waitForElement('#slotsDisplay', (targetNode) => {
 })
 
 // Reset session counter every 10 minutes
-setInterval(
-    () => {
-        const resetButton = document.querySelector(
-            '[data-ajax-success="resetSessionCounter"]'
-        )
-        if (resetButton) {
-            // @ts-expect-error
-            resetButton.click()
-            console.log('Session counter reset')
+// setInterval(
+//     () => {
+//         const resetButton = document.querySelector(
+//             '[data-ajax-success="resetSessionCounter"]'
+//         )
+//         if (resetButton) {
+//             // @ts-expect-error
+//             resetButton.click()
+//             console.log('Session counter reset')
+//         }
+//     },
+//     15 * 60 * 1000
+// )
+
+/**
+ * Ожидает исчезновения элемента по селектору, затем вызывает callback.
+ * @param {string} selector - CSS-селектор модального окна или любого элемента
+ * @param {Function} callback - Функция, вызываемая после исчезновения элемента
+ */
+function waitForElementToDisappear(selector, callback) {
+    // Если элемент уже отсутствует, сразу вызываем callback
+    if (!document.querySelector(selector)) {
+        callback()
+        return
+    }
+    const observer = new MutationObserver(() => {
+        if (!document.querySelector(selector)) {
+            observer.disconnect()
+            callback()
         }
-    },
-    15 * 60 * 1000
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+}
+
+/**
+ * Универсальная функция для отправки экшена и сообщения в background script.
+ * @param {string} action - Имя экшена
+ * @param {any} message - Данные для отправки
+ * @param {Function} [callback] - Необязательный callback для обработки ответа
+ */
+function sendActionToBackground(action, message, callback) {
+    if (
+        typeof chrome === 'undefined' ||
+        !chrome.runtime ||
+        !chrome.runtime.sendMessage
+    ) {
+        console.error('Chrome runtime API is not available')
+        return
+    }
+    chrome.runtime.sendMessage({ action, message }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error(
+                `Error sending ${action} message:`,
+                chrome.runtime.lastError
+            )
+        }
+        if (typeof callback === 'function') {
+            callback(response)
+        }
+    })
+}
+
+/**
+ * Ждёт появления элемента, затем его исчезновения, и отправляет экшен в background.
+ * @param {string} selector - CSS-селектор элемента
+ * @param {string} action - Имя экшена для background
+ * @param {any|Function} messageOrFn - Данные для отправки или функция, возвращающая данные
+ * @param {Function} [callback] - Необязательный callback для обработки ответа
+ */
+function sendActionAfterElementDisappears(
+    selector,
+    action,
+    messageOrFn,
+    callback
+) {
+    // Сначала ждём появления элемента
+    waitForElement(selector, () => {
+        // Затем ждём исчезновения
+        waitForElementToDisappear(selector, () => {
+            const message =
+                typeof messageOrFn === 'function' ? messageOrFn() : messageOrFn
+            sendActionToBackground(action, message, callback)
+        })
+    })
+}
+
+sendActionAfterElementDisappears(
+    '#vbsBgModal[style="display: block;"]',
+    Actions.PARSED_TABLE,
+    () => parseTable(),
+    undefined
 )
