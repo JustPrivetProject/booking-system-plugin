@@ -4,7 +4,8 @@ import {
     consoleLog,
     consoleError,
 } from '../utils/utils-function'
-import { updateBadge } from './badge'
+import { clearBadge, updateBadge } from './badge'
+import { authService } from '../services/authService'
 
 class QueueManager {
     storageKey: string = 'retryQueue'
@@ -172,12 +173,27 @@ class QueueManager {
         this.isProcessing = true
 
         const processNextRequests = async () => {
+            const randomInterval = Math.floor(
+                Math.random() * (intervalMax - intervalMin + 1) + intervalMin
+            )
+            // Проверка авторизации пользователя
+            const isAuthenticated = await authService.isAuthenticated()
+
             if (!retryEnabled) {
                 this.isProcessing = false
                 return
             }
 
             try {
+                if (!isAuthenticated) {
+                    consoleLog(
+                        'User is not authenticated. Skipping this cycle.'
+                    )
+                    clearBadge()
+                    setTimeout(processNextRequests, randomInterval)
+                    return
+                }
+
                 const queue = await this.getQueue()
 
                 updateBadge(queue.map((req) => req.status))
@@ -219,15 +235,10 @@ class QueueManager {
                 consoleError('Error in queue processing:', error)
             }
 
-            // Calculate a random interval between intervalMin and intervalMax
-            const randomInterval = Math.floor(
-                Math.random() * (intervalMax - intervalMin + 1) + intervalMin
-            )
             consoleLog(
                 `Next processing cycle in ${randomInterval / 1000} seconds`
             )
 
-            // Start the next processing cycle with random interval
             setTimeout(processNextRequests, randomInterval)
         }
 

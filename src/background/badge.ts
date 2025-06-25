@@ -1,4 +1,4 @@
-import { StatusIconMap, Statuses } from '../data'
+import { StatusIconMap } from '../data'
 import { consoleLog, sortStatusesByPriority } from '../utils/utils-function'
 
 let lastStatus = ''
@@ -20,4 +20,11 @@ export function updateBadge(statuses: string[]) {
         .setBadgeText({ text: icon })
         // .then(() => chrome.action.setBadgeBackgroundColor({ color }))
         .catch(console.error)
+}
+
+export function clearBadge() {
+    if (lastStatus === '') return
+    consoleLog('Clearing badge')
+    lastStatus = ''
+    chrome.action.setBadgeText({ text: lastStatus })
 }
