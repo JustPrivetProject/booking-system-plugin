@@ -70,6 +70,13 @@ export const authService = {
             throw profileError
         }
 
+        // Проверяем, совпадает ли device_id с тем, что в профиле
+        if (profile?.device_id && profile.device_id !== deviceId) {
+            throw new Error(
+                'Device ID mismatch. Please use the same device you registered with.'
+            )
+        }
+
         // Если device_id в профиле пустой или null, обновляем его
         if (!profile?.device_id) {
             const { error: updateError } = await supabase
@@ -147,22 +154,14 @@ export const authService = {
         if (error) throw error
         if (!data.user) throw new Error('Invalid credentials')
 
-        // Get current device ID
-        const currentDeviceId = await getOrCreateDeviceId()
-
         // Get user profile
-        const { data: profile, error: profileError } = await supabase
+        const { error: profileError } = await supabase
             .from('profiles')
             .select('device_id')
             .eq('id', data.user.id)
             .single()
 
         if (profileError) throw profileError
-
-        // Verify device ID matches
-        if (profile?.device_id !== currentDeviceId) {
-            throw new Error('Device ID mismatch')
-        }
 
         // Clear device ID in profile
         const { error: updateError } = await supabase
