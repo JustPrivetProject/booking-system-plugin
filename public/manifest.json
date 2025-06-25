@@ -8,6 +8,11 @@
         "https://ebrama.baltichub.com/*",
         "https://*.supabase.co/*"
     ],
+    "icons": {
+        "16": "128.png",
+        "48": "128.png",
+        "128": "128.png"
+    },
     "background": {
         "service_worker": "background.js"
     },
@@ -26,6 +31,6 @@
         }
     ],
     "content_security_policy": {
-        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src *;"
+        "extension_pages": "script-src 'self'; object-src 'self'; connect-src *;"
     }
 }
