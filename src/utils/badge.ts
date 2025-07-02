@@ -1,5 +1,5 @@
 import { StatusIconMap } from '../data'
-import { consoleLog, sortStatusesByPriority } from '../utils/utils-function'
+import { consoleLog, sortStatusesByPriority } from './utils-function'
 
 let lastStatus = ''
 

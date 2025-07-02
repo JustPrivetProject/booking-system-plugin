@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient'
+import { authService } from './authService'
+import { getOrCreateDeviceId } from '../utils/deviceId'
 
 interface ErrorLog {
     error_message: string
@@ -32,6 +34,29 @@ export const errorLogService = {
             }
         } catch (e) {
             console.error('Error while logging to Supabase:', e)
+        }
+    },
+    async sendLogs(logs: any[], userId?: string, description?: string) {
+        if (!Array.isArray(logs) || logs.length === 0) return
+        const logRow = {
+            user_id: userId || null,
+            log: logs,
+            source: null,
+            description: description || null,
+            created_at: new Date().toISOString(),
+        }
+        try {
+            const { error: supabaseError } = await supabase
+                .from('logs')
+                .insert([logRow])
+            if (supabaseError) {
+                console.error(
+                    'Failed to send logs to Supabase:',
+                    JSON.stringify(supabaseError, null, 2)
+                )
+            }
+        } catch (e) {
+            console.error('Error while sending logs to Supabase:', e)
         }
     },
 }

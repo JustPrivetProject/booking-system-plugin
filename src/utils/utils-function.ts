@@ -13,6 +13,10 @@ export function consoleLog(...args) {
             ...args
         )
     }
+    // Save log to chrome.storage.session
+    saveLogToSession('log', args).catch((e) => {
+        console.error('Error saving log to chrome.storage.session:', e)
+    })
 }
 
 export function consoleError(...args) {
@@ -26,7 +30,10 @@ export function consoleError(...args) {
         'color:rgb(192, 4, 4); font-weight: bold;',
         ...args
     )
-
+    // Save error to chrome.storage.session
+    saveLogToSession('error', args).catch((e) => {
+        console.error('Error saving error to chrome.storage.session:', e)
+    })
     // Log to Supabase only in development
     if (process.env.NODE_ENV === 'development') {
         const errorMessage = args
@@ -105,6 +112,19 @@ export function getLastProperty<T>(obj: Record<string, T>): T | null {
     return { ...obj[lastKey] } // Return both key and value
 }
 
+export function getPropertyById<T>(
+    obj: Record<string, T>,
+    id: string
+): T | null {
+    if (!obj.hasOwnProperty(id)) return null
+    return { ...obj[id] } // Возвращаем копию объекта по id
+}
+
+export function extractFirstId(obj: Record<string, unknown>): string | null {
+    const keys = Object.keys(obj)
+    return keys.length > 0 ? keys[0] : null
+}
+
 export function generateUniqueId() {
     return crypto.randomUUID()
 }
@@ -157,5 +177,33 @@ export async function cleanupCache() {
                 }
             }
         )
+    })
+}
+
+// Async helpers for chrome.storage.session
+export async function saveLogToSession(type: 'log' | 'error', args: any[]) {
+    return new Promise<void>((resolve) => {
+        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+            bramaLogs.push({
+                type,
+                message: args.map(String).join(' '),
+                timestamp: new Date().toISOString(),
+            })
+            chrome.storage.session.set({ bramaLogs }, () => resolve())
+        })
+    })
+}
+
+export async function getLogsFromSession() {
+    return new Promise<any[]>((resolve) => {
+        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+            resolve(bramaLogs)
+        })
+    })
+}
+
+export async function clearLogsInSession() {
+    return new Promise<void>((resolve) => {
+        chrome.storage.session.set({ bramaLogs: [] }, () => resolve())
     })
 }
