@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Booking System Plugin - Dev",
-    "version": "2.0.8",
+    "version": "2.0.9",
     "description": "Help to booking slot",
     "permissions": ["storage", "webRequest", "notifications"],
     "host_permissions": [
