@@ -5,6 +5,10 @@ import {
     getLastProperty,
     normalizeFormData,
     cleanupCache,
+    getPropertyById,
+    extractFirstId,
+    getLogsFromSession,
+    clearLogsInSession,
 } from '../utils/utils-function'
 import {
     getDriverNameAndContainer,
@@ -18,6 +22,9 @@ import {
     RequestCacheBodyObject,
     RetryObject,
 } from '../types/baltichub'
+import { errorLogService } from '../services/errorLogService'
+import { authService } from '../services/authService'
+import { getOrCreateDeviceId } from '../utils/deviceId'
 
 chrome.runtime.onInstalled.addListener(() => {
     consoleLog('Plugin installed!')
@@ -69,6 +76,32 @@ chrome.webRequest.onBeforeRequest.addListener(
 
 chrome.webRequest.onBeforeSendHeaders.addListener(
     (details) => {
+        // Проверка на наличие нужного заголовка
+        consoleLog('Checking for our header:', details.requestHeaders)
+        const hasOurHeader = details.requestHeaders?.some(
+            (header) =>
+                header.name.toLowerCase() === 'x-extension-request' &&
+                header.value === 'JustPrivetProject'
+        )
+        if (hasOurHeader) {
+            // Если заголовка нет — удаляем из requestCacheBody по requestId
+            chrome.storage.local.get({ requestCacheBody: {} }, (data) => {
+                let cacheBody: RequestCacheBodes = data.requestCacheBody
+                if (cacheBody && cacheBody[details.requestId]) {
+                    delete cacheBody[details.requestId]
+                    chrome.storage.local.set(
+                        { requestCacheBody: cacheBody },
+                        () => {
+                            consoleLog(
+                                'Removed cacheBody by id (no header):',
+                                details.requestId
+                            )
+                        }
+                    )
+                }
+            })
+            return undefined // Не наш запрос, не кэшируем
+        }
         chrome.storage.local.get({ requestCacheHeaders: {} }, (data) => {
             let cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders
 
@@ -104,72 +137,102 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         message.action === Actions.SUCCEED_BOOKING
     ) {
         consoleLog('Getting request from Cache...')
-
         chrome.storage.local.get(
-            {
-                requestCacheBody: {} as RequestCacheBodes,
-                requestCacheHeaders: {} as RequestCacheHeaders,
-                retryQueue: [] as RetryObject[],
-                testEnv: false as boolean,
-                tableData: [] as string[][],
-            },
-            async (data) => {
-                let requestCacheBody: RequestCacheBodyObject | null =
-                    getLastProperty(data.requestCacheBody)
-                let requestCacheHeaders: RequestCacheHeaderBody | null =
-                    getLastProperty(data.requestCacheHeaders)
+            { requestCacheHeaders: {} as RequestCacheHeaders },
+            (data) => {
+                if (data.requestCacheHeaders) {
+                    let requestCacheHeaders: RequestCacheHeaderBody | null =
+                        getLastProperty(data.requestCacheHeaders)
 
-                if (requestCacheBody) {
-                    const tableData = data.tableData
-                    // @ts-expect-error
-                    const retryObject: RetryObject = { ...requestCacheBody }
-                    const requestBody = normalizeFormData(requestCacheBody.body)
-                    const tvAppId = requestBody.formData.TvAppId[0]
-                    const driverAndContainer = (await getDriverNameAndContainer(
-                        tvAppId,
-                        data.retryQueue
-                    )) || { driverName: '', containerNumber: '' }
+                    let requestId = extractFirstId(data.requestCacheHeaders)!
+                    chrome.storage.local.get(
+                        {
+                            requestCacheBody: {} as RequestCacheBodes,
+                            retryQueue: [] as RetryObject[],
+                            testEnv: false as boolean,
+                            tableData: [] as string[][],
+                        },
+                        async (data) => {
+                            let requestCacheBody: RequestCacheBodyObject | null =
+                                getPropertyById(
+                                    data.requestCacheBody,
+                                    requestId
+                                )
 
-                    retryObject.headersCache = requestCacheHeaders!.headers
-                    retryObject.tvAppId = tvAppId
-                    retryObject.startSlot = requestBody.formData.SlotStart[0]
-                    retryObject.driverName = driverAndContainer.driverName || ''
+                            if (requestCacheBody) {
+                                const tableData = data.tableData
+                                // @ts-expect-error
+                                const retryObject: RetryObject = {
+                                    ...requestCacheBody,
+                                }
+                                const requestBody = normalizeFormData(
+                                    requestCacheBody.body
+                                )
+                                const tvAppId = requestBody.formData.TvAppId[0]
+                                const driverAndContainer =
+                                    (await getDriverNameAndContainer(
+                                        tvAppId,
+                                        data.retryQueue
+                                    )) || {
+                                        driverName: '',
+                                        containerNumber: '',
+                                    }
 
-                    if (tableData) {
-                        const row = (retryObject.containerNumber =
-                            tableData.find((row) => row.includes(tvAppId)))
+                                retryObject.headersCache =
+                                    requestCacheHeaders!.headers
+                                retryObject.tvAppId = tvAppId
+                                retryObject.startSlot =
+                                    requestBody.formData.SlotStart[0]
+                                retryObject.driverName =
+                                    driverAndContainer.driverName || ''
 
-                        if (row) {
-                            retryObject.containerNumber =
-                                row[tableData[0].indexOf('Nr kontenera')]
+                                if (tableData) {
+                                    const row = (retryObject.containerNumber =
+                                        tableData.find((row) =>
+                                            row.includes(tvAppId)
+                                        ))
+
+                                    if (row) {
+                                        retryObject.containerNumber =
+                                            row[
+                                                tableData[0].indexOf(
+                                                    'Nr kontenera'
+                                                )
+                                            ]
+                                    }
+                                }
+
+                                switch (message.action) {
+                                    case Actions.SHOW_ERROR:
+                                        retryObject.status =
+                                            Statuses.IN_PROGRESS
+                                        retryObject.status_message =
+                                            'Zadanie jest w trakcie realizacji'
+                                        break
+                                    case Actions.SUCCEED_BOOKING:
+                                        retryObject.status = Statuses.SUCCESS
+                                        retryObject.status_message =
+                                            'Zadanie zakończone sukcesem'
+                                        break
+                                    default:
+                                        retryObject.status = Statuses.ERROR
+                                        retryObject.status_message =
+                                            'Nieznane działanie'
+                                        break
+                                }
+                                // Add request to the retry queue
+                                await queueManager.addToQueue(retryObject)
+                                // Remove the last request from the cache
+                                await cleanupCache()
+                            } else {
+                                consoleLog('No data in cache object')
+                            }
                         }
-                    }
-
-                    switch (message.action) {
-                        case Actions.SHOW_ERROR:
-                            retryObject.status = Statuses.IN_PROGRESS
-                            retryObject.status_message =
-                                'Zadanie jest w trakcie realizacji'
-                            break
-                        case Actions.SUCCEED_BOOKING:
-                            retryObject.status = Statuses.SUCCESS
-                            retryObject.status_message =
-                                'Zadanie zakończone sukcesem'
-                            break
-                        default:
-                            retryObject.status = Statuses.ERROR
-                            retryObject.status_message = 'Nieznane działanie'
-                            break
-                    }
-                    // Add request to the retry queue
-                    await queueManager.addToQueue(retryObject)
-                    // Remove the last request from the cache
-                    await cleanupCache()
-                } else {
-                    consoleLog('No data in cache object')
+                    )
                 }
             }
         )
+
         sendResponse({ success: true })
     }
     if (message.action === Actions.PARSED_TABLE) {
@@ -200,6 +263,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         consoleError('Error updating request status:', error)
                         sendResponse({ success: false, error: error.message })
                     })
+                return true // Indicates that the response is sent asynchronously
+            case 'SEND_LOGS_TO_SUPABASE':
+                ;(async () => {
+                    try {
+                        consoleLog('Sending logs to Supabase...')
+                        const logs = await getLogsFromSession()
+                        let userId: string | null = null
+                        const user = await authService.getCurrentUser()
+                        if (user && user.id) {
+                            userId = user.id
+                        } else {
+                            userId = await getOrCreateDeviceId()
+                        }
+                        const description = message.data?.description || null
+                        if (logs && logs.length > 0) {
+                            await errorLogService.sendLogs(
+                                [logs],
+                                userId,
+                                description
+                            )
+                            await clearLogsInSession()
+                        }
+                        sendResponse({ success: true })
+                    } catch (error) {
+                        consoleError('SEND_LOGS_TO_SUPABASE error:', error)
+                        const errorMsg =
+                            error instanceof Error && error.message
+                                ? error.message
+                                : String(error)
+                        sendResponse({ success: false, error: errorMsg })
+                    }
+                })()
                 return true // Indicates that the response is sent asynchronously
             default:
                 consoleLog('Unknown action:', message.action)

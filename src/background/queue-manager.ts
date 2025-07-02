@@ -4,7 +4,7 @@ import {
     consoleLog,
     consoleError,
 } from '../utils/utils-function'
-import { clearBadge, updateBadge } from './badge'
+import { clearBadge, updateBadge } from '../utils/badge'
 import { authService } from '../services/authService'
 
 class QueueManager {

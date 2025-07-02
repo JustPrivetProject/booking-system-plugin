@@ -9,6 +9,7 @@ import { createConfirmationModal } from './modals/confirmation.modal'
 import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
+import { showInfoModal } from './modals/info.modal'
 
 function sendMessageToBackground(
     action,
@@ -627,6 +628,20 @@ loginForm.addEventListener('submit', (e) => {
 registerForm.addEventListener('submit', (e) => {
     e.preventDefault()
 })
+
+document
+    .getElementById('send-logs-btn')
+    ?.addEventListener('click', async () => {
+        const description = await createConfirmationModal(
+            'Czy pojawił się jakiś problem? Opisz go poniżej:',
+            true
+        )
+        if (!description) return
+        sendMessageToBackground('SEND_LOGS_TO_SUPABASE', { description })
+        await showInfoModal(
+            'Dziękujemy za opisanie problemu. Postaramy się go rozwiązać najszybciej jak to możliwe.'
+        )
+    })
 
 // Functions
 async function handleLogin() {

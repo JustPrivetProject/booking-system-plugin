@@ -153,8 +153,6 @@ async function executeRequest(
         body: formData,
     })
 
-    await cleanupCache()
-
     const parsedResponse = await response.text()
     if (!parsedResponse.includes('error') && response.ok) {
         consoleLog('✅Request retried successfully:', tvAppId, time.join(', '))
