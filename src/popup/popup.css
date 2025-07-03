@@ -37,11 +37,13 @@
     /* Darker colors */
     --color-primary-dark: #0099cc;
     --color-primary-light: #00bbee;
+
+    --app-width: 440px;
 }
 
 /* ===== GLOBAL STYLES ===== */
 body {
-    min-width: 440px;
+    min-width: var(--app-width);
     height: 35px;
     overflow: auto;
     font-family: Arial, sans-serif;
@@ -83,6 +85,7 @@ tr:last-child td {
     text-align: center;
     color: var(--color-text-light);
     padding: var(--spacing-medium);
+    min-width: var(--app-width);
 }
 
 #queueTableBody:empty + tr {

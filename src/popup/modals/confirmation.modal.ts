@@ -1,7 +1,9 @@
 export function createConfirmationModal(message, withInput = false) {
     return new Promise((resolve) => {
         const initialBodyHeight = document.querySelector('body')!.style.height
-        document.body.style.height = '100px'
+        if (withInput) document.body.style.height = '200px'
+        else document.body.style.height = '100px'
+
         const overlay = document.createElement('div')
         overlay.style.position = 'fixed'
         overlay.style.top = '0'

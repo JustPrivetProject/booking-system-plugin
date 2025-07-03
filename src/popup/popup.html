@@ -12,7 +12,7 @@
     </head>
     <body>
         <div id="authContainer" class="auth-container">
-            <div id="loginForm" class="auth-form">
+            <form id="loginForm" class="auth-form">
                 <h2>Logowanie</h2>
                 <div class="error-message" id="loginError"></div>
                 <input type="email" id="loginEmail" placeholder="Email" />
@@ -21,14 +21,14 @@
                     id="loginPassword"
                     placeholder="Password"
                 />
-                <button id="loginButton" type="button">Zaloguj się</button>
+                <button id="loginButton" type="submit">Zaloguj się</button>
                 <div class="form-links">
                     <a href="#" id="showRegister">Zarejestruj się</a>
                     <a href="#" id="showUnbind">Odłącz urządzenie</a>
                 </div>
-            </div>
+            </form>
 
-            <div id="registerForm" class="auth-form hidden">
+            <form id="registerForm" class="auth-form hidden">
                 <h2>Rejestracja</h2>
                 <div class="error-message" id="registerError"></div>
                 <input type="email" id="registerEmail" placeholder="Email" />
@@ -37,12 +37,12 @@
                     id="registerPassword"
                     placeholder="Password"
                 />
-                <button id="registerButton" type="button">Zarejestruj się</button>
+                <button id="registerButton" type="submit">Zarejestruj się</button>
                 <div class="form-links">
                     <a href="#" id="showLogin">Wróć do logowania</a>
                     <a href="#" id="showUnbind">Odłącz urządzenie</a>
                 </div>
-            </div>
+            </form>
 
             <form id="unbindForm" class="hidden">
                 <h2>Odłącz urządzenie</h2>

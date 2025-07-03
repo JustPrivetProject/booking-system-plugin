@@ -624,9 +624,17 @@ backToAppButton.addEventListener('click', (e) => {
 // Prevent form submit for login and register forms
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault()
+    handleLogin()
+    updateQueueDisplay()
 })
 registerForm.addEventListener('submit', (e) => {
     e.preventDefault()
+    handleRegister()
+    updateQueueDisplay()
+})
+unbindForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    handleUnbind()
 })
 
 document
