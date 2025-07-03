@@ -464,6 +464,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .header {
+    width: var(--app-width);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -622,13 +623,13 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .bug-report-btn {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 24px;
+    /* position: absolute; */
+    /* top: 8px;
+    right: 8px; */
+    /* width: 24px;
     height: 24px;
     min-width: 24px;
-    min-height: 24px;
+    min-height: 24px; */
     border-radius: 50%;
     background: var(--color-white);
     border: none;
