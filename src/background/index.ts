@@ -9,6 +9,7 @@ import {
     extractFirstId,
     getLogsFromSession,
     clearLogsInSession,
+    getLocalStorageData,
 } from '../utils/utils-function'
 import {
     getDriverNameAndContainer,
@@ -139,7 +140,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         consoleLog('Getting request from Cache...')
         chrome.storage.local.get(
             { requestCacheHeaders: {} as RequestCacheHeaders },
-            (data) => {
+            async (data) => {
+                const user = await authService.getCurrentUser()
+
+                if (!user) {
+                    consoleLog('User is not authenticated, cant add Container!')
+                    sendResponse({ success: true, error: 'Not authorized' })
+                    return
+                }
+
                 if (data.requestCacheHeaders) {
                     let requestCacheHeaders: RequestCacheHeaderBody | null =
                         getLastProperty(data.requestCacheHeaders)
@@ -227,13 +236,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                             } else {
                                 consoleLog('No data in cache object')
                             }
+                            sendResponse({ success: true }) // sendResponse вызывается только здесь
                         }
                     )
                 }
             }
         )
-
-        sendResponse({ success: true })
+        return true // return true только в основном слушателе
     }
     if (message.action === Actions.PARSED_TABLE) {
         chrome.storage.local.set({ tableData: message.message }, () => {
@@ -264,11 +273,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         sendResponse({ success: false, error: error.message })
                     })
                 return true // Indicates that the response is sent asynchronously
-            case 'SEND_LOGS_TO_SUPABASE':
+            case Actions.SEND_LOGS:
                 ;(async () => {
+                    const user = await authService.getCurrentUser()
+
+                    if (!user) {
+                        consoleLog('User is not authenticated, cant sent Logs')
+                        sendResponse({
+                            success: true,
+                            error: 'Not authorized',
+                        })
+                        return
+                    }
+
                     try {
                         consoleLog('Sending logs to Supabase...')
+                        let localData = null
+                        if (process.env.NODE_ENV === 'development') {
+                            localData = await getLocalStorageData()
+                        }
+
                         const logs = await getLogsFromSession()
+
                         let userId: string | null = null
                         const user = await authService.getCurrentUser()
                         if (user && user.id) {
@@ -277,17 +303,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                             userId = await getOrCreateDeviceId()
                         }
                         const description = message.data?.description || null
+
+                        // Send logs with localStorage data
                         if (logs && logs.length > 0) {
                             await errorLogService.sendLogs(
                                 [logs],
                                 userId,
-                                description
+                                description,
+                                [localData]
                             )
                             await clearLogsInSession()
                         }
                         sendResponse({ success: true })
                     } catch (error) {
-                        consoleError('SEND_LOGS_TO_SUPABASE error:', error)
+                        consoleError(`${Actions.SEND_LOGS} error:`, error)
                         const errorMsg =
                             error instanceof Error && error.message
                                 ? error.message
