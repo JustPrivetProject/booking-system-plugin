@@ -14,6 +14,7 @@ export const Actions = {
     REMOVE_REQUEST: 'removeRequest',
     UPDATE_REQUEST_STATUS: 'updateRequestStatus',
     UPDATE_STATUS: 'updateStatus',
+    SEND_LOGS: 'SEND_LOGS_TO_SUPABASE',
 }
 
 export const StatusesPriority = [

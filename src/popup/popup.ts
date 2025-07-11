@@ -10,6 +10,7 @@ import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
 import { showInfoModal } from './modals/info.modal'
+import { showEmailConfirmationModal } from './modals/emailConfirm.modal'
 
 function sendMessageToBackground(
     action,
@@ -454,6 +455,9 @@ document.addEventListener('DOMContentLoaded', () => {
     updateQueueDisplay()
     toggleHeaderVisibility()
     restoreHeaderState()
+    // Удаляем тестовую кнопку, если она есть
+    const testBtn = document.getElementById('testEmailConfirmBtn')
+    if (testBtn) testBtn.remove()
 })
 
 // DOM Elements
@@ -703,7 +707,10 @@ async function handleRegister() {
         if (user) {
             // Показываем сообщение о необходимости подтверждения email
             registerForm.classList.add('hidden')
-            showEmailConfirmationMessage(registerEmail.value)
+            showEmailConfirmationModal(registerEmail.value, () => {
+                registerForm.classList.add('hidden')
+                loginForm.classList.remove('hidden')
+            })
             manualRegisterMode = false
         }
     } catch (error: any) {
@@ -714,108 +721,6 @@ async function handleRegister() {
     } finally {
         isRegistering = false
     }
-}
-
-function showEmailConfirmationMessage(email) {
-    // Создаём или находим контейнер для сообщения
-    let confirmMsg = document.getElementById('emailConfirmMsg')
-    if (!confirmMsg) {
-        confirmMsg = document.createElement('div')
-        confirmMsg.id = 'emailConfirmMsg'
-        confirmMsg.className = 'email-confirm-message'
-        authContainer.appendChild(confirmMsg)
-    }
-
-    confirmMsg.innerHTML = `
-        <div class="confirm-content">
-            <h3>📧 Sprawdź swoją skrzynkę e-mail</h3>
-            <p>Wysłaliśmy link potwierdzający na adres:</p>
-            <p class="email-address">${email}</p>
-            <button id="backToLoginBtn" class="confirm-btn">OK</button>
-        </div>
-    `
-
-    // Добавляем простые стили
-    addSimpleStyles()
-
-    confirmMsg.classList.add('show')
-
-    // Функция возврата к форме входа и скрытия сообщения
-    function hideConfirmMsg() {
-        confirmMsg?.classList.remove('show')
-        registerForm.classList.add('hidden')
-        loginForm.classList.remove('hidden')
-    }
-
-    // Обработчик кнопки
-    const backBtn = document.getElementById('backToLoginBtn')
-    if (backBtn) {
-        backBtn.addEventListener('click', hideConfirmMsg)
-    }
-
-    // Автоматическое скрытие через 7 секунд
-    setTimeout(hideConfirmMsg, 15000)
-}
-
-function addSimpleStyles() {
-    if (document.getElementById('simpleConfirmStyles')) return
-
-    const style = document.createElement('style')
-    style.id = 'simpleConfirmStyles'
-    style.textContent = `
-        .email-confirm-message {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            opacity: 0;
-            transform: translateY(-10px);
-            transition: all 0.3s ease;
-        }
-
-        .email-confirm-message.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .confirm-content h3 {
-            color: #00aacc;
-            margin: 0 0 15px 0;
-            font-size: 18px;
-        }
-
-        .confirm-content p {
-            margin: 10px 0;
-            color: #6c757d;
-        }
-
-        .email-address {
-            color:rgb(2, 13, 26) !important;
-            font-weight: bold;
-            background: #e7f3ff;
-            padding: 5px 10px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-
-        .confirm-btn {
-            background: ##00aacc;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-
-        .confirm-btn:hover {
-            background: ##018fac;
-        }
-    `
-    document.head.appendChild(style)
 }
 
 async function handleLogout() {

@@ -3,6 +3,7 @@ import {
     generateUniqueId,
     consoleLog,
     consoleError,
+    consoleLogWithoutSave,
 } from '../utils/utils-function'
 import { clearBadge, updateBadge } from '../utils/badge'
 import { authService } from '../services/authService'
@@ -186,7 +187,7 @@ class QueueManager {
 
             try {
                 if (!isAuthenticated) {
-                    consoleLog(
+                    consoleLogWithoutSave(
                         'User is not authenticated. Skipping this cycle.'
                     )
                     clearBadge()
@@ -235,7 +236,7 @@ class QueueManager {
                 consoleError('Error in queue processing:', error)
             }
 
-            consoleLog(
+            consoleLogWithoutSave(
                 `Next processing cycle in ${randomInterval / 1000} seconds`
             )
 

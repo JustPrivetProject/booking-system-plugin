@@ -19,6 +19,20 @@ export function consoleLog(...args) {
     })
 }
 
+export function consoleLogWithoutSave(...args) {
+    if (process.env.NODE_ENV === 'development') {
+        const date = new Date().toLocaleString('pl-PL', {
+            timeZone: 'Europe/Warsaw',
+        })
+        console.log(
+            `%c[${date}] %c[JustPrivetProject]:`,
+            'color: #00bfff; font-weight: bold;',
+            'color: #ff8c00; font-weight: bold;',
+            ...args
+        )
+    }
+}
+
 export function consoleError(...args) {
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
@@ -184,11 +198,18 @@ export async function cleanupCache() {
 export async function saveLogToSession(type: 'log' | 'error', args: any[]) {
     return new Promise<void>((resolve) => {
         chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+            // Add new log entry
             bramaLogs.push({
                 type,
                 message: args.map(String).join(' '),
                 timestamp: new Date().toISOString(),
             })
+            const logsLength = 300
+            // Keep only the last 300 entries
+            if (bramaLogs.length > logsLength) {
+                bramaLogs = bramaLogs.slice(-logsLength)
+            }
+
             chrome.storage.session.set({ bramaLogs }, () => resolve())
         })
     })
@@ -205,5 +226,13 @@ export async function getLogsFromSession() {
 export async function clearLogsInSession() {
     return new Promise<void>((resolve) => {
         chrome.storage.session.set({ bramaLogs: [] }, () => resolve())
+    })
+}
+
+export async function getLocalStorageData() {
+    return new Promise<any>((resolve) => {
+        chrome.storage.local.get(null, (data) => {
+            resolve(data)
+        })
     })
 }
