@@ -37,7 +37,9 @@
                     id="registerPassword"
                     placeholder="Password"
                 />
-                <button id="registerButton" type="submit">Zarejestruj się</button>
+                <button id="registerButton" type="submit">
+                    Zarejestruj się
+                </button>
                 <div class="form-links">
                     <a href="#" id="showLogin">Wróć do logowania</a>
                     <a href="#" id="showUnbind">Odłącz urządzenie</a>
@@ -46,7 +48,10 @@
 
             <form id="unbindForm" class="hidden">
                 <h2>Odłącz urządzenie</h2>
-                <p>Wprowadź swoją nazwę użytkownika i hasło, aby odwiązać urządzenie</p>
+                <p>
+                    Wprowadź swoją nazwę użytkownika i hasło, aby odwiązać
+                    urządzenie
+                </p>
                 <div class="form-group">
                     <input
                         type="email"
@@ -64,7 +69,9 @@
                     />
                 </div>
                 <div class="error-message" id="unbindError"></div>
-                <button type="submit" id="unbindButton">Odłącz urządzenie</button>
+                <button type="submit" id="unbindButton">
+                    Odłącz urządzenie
+                </button>
                 <div class="form-links">
                     <a href="#" id="hideUnbind">Powrót do logowania</a>
                     <a href="#" id="backToAppButton" class="hidden"
@@ -76,20 +83,35 @@
 
         <!-- Main Content (hidden when not authenticated) -->
         <div id="mainContent" class="hidden">
-            <button id="toggleHeaderBtn" class="toggle-header-btn" title="Ukryj/Pokaż">
-                <span class="material-icons" id="toggleHeaderIcon">arrow_drop_up</span>
+            <button
+                id="toggleHeaderBtn"
+                class="toggle-header-btn"
+                title="Ukryj/Pokaż"
+            >
+                <span class="material-icons" id="toggleHeaderIcon"
+                    >arrow_drop_up</span
+                >
             </button>
             <div class="header">
                 <div class="user-info">
                     <span id="userEmail"></span>
                 </div>
                 <div class="user-actions">
-                    
-                    <button id="unbindDeviceButton" class="secondary-button" title="Odłącz to urządzenie od konta">
+                    <button
+                        id="unbindDeviceButton"
+                        class="secondary-button"
+                        title="Odłącz to urządzenie od konta"
+                    >
                         Odłącz
                     </button>
-                    <button id="logoutButton" title="Wyloguj się z konta">Wyloguj</button>
-                    <button id="send-logs-btn" class="bug-report-btn" title="Zgłoś problem lub błąd">
+                    <button id="logoutButton" title="Wyloguj się z konta">
+                        Wyloguj
+                    </button>
+                    <button
+                        id="send-logs-btn"
+                        class="bug-report-btn"
+                        title="Zgłoś problem lub błąd"
+                    >
                         <span class="material-icons">bug_report</span>
                     </button>
                 </div>

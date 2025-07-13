@@ -26,6 +26,7 @@ import {
 import { errorLogService } from '../services/errorLogService'
 import { authService } from '../services/authService'
 import { getOrCreateDeviceId } from '../utils/deviceId'
+import { sessionService } from '../services/sessionService'
 
 chrome.runtime.onInstalled.addListener(() => {
     consoleLog('Plugin installed!')
@@ -250,6 +251,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         sendResponse({ success: true })
     }
+    if (message.action === Actions.IS_AUTHENTICATED) {
+        sessionService
+            .isAuthenticated()
+            .then((isAuth) => {
+                consoleLog('[BG] Responding isAuthenticated:', isAuth)
+                sendResponse({ isAuthenticated: isAuth })
+            })
+            .catch((e) => {
+                consoleLog('[BG] Error in isAuthenticated:', e)
+                sendResponse({ isAuthenticated: false })
+            })
+        return true // Важно для асинхронного ответа!)
+    }
     if (message.target === 'background') {
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
@@ -325,6 +339,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
                 })()
                 return true // Indicates that the response is sent asynchronously
+
             default:
                 consoleLog('Unknown action:', message.action)
                 sendResponse({ success: false })

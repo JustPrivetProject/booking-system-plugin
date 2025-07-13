@@ -15,6 +15,7 @@ export const Actions = {
     UPDATE_REQUEST_STATUS: 'updateRequestStatus',
     UPDATE_STATUS: 'updateStatus',
     SEND_LOGS: 'SEND_LOGS_TO_SUPABASE',
+    IS_AUTHENTICATED: 'IS_AUTHENTICATED',
 }
 
 export const StatusesPriority = [
