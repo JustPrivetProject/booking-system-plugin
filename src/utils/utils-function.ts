@@ -236,3 +236,19 @@ export async function getLocalStorageData() {
         })
     })
 }
+
+/**
+ * Преобразует строку даты из формата "DD.MM.YYYY HH:mm[:ss]" в объект Date.
+ * @param input Строка даты, например "26.06.2025 00:59:00" или "26.06.2025 00:59"
+ * @returns Date объект или Invalid Date, если формат некорректен
+ */
+export function parseDateTimeFromDMY(input: string): Date {
+    const [datePart, timePart] = input.split(' ')
+    if (!datePart || !timePart) return new Date(NaN)
+    const [day, month, year] = datePart.split('.').map(Number)
+    if (!day || !month || !year) return new Date(NaN)
+    // Если timePart без секунд, добавим :00
+    const time = timePart.length === 5 ? `${timePart}:00` : timePart
+    const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time}`
+    return new Date(isoString)
+}

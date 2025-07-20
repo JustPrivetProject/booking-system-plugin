@@ -4,6 +4,7 @@ import {
     waitElementAndSendChromeMessage,
     parseTable,
     waitForElement,
+    isUserAuthenticated,
 } from './utils/contentUtils'
 
 console.log('Content script is loaded')
@@ -25,7 +26,9 @@ waitElementAndSendChromeMessage('#Grid table', Actions.PARSED_TABLE, () => {
 })
 
 waitForElement('#slotsDisplay', (targetNode) => {
-    const enableButtons = () => {
+    const enableButtons = async () => {
+        const isAuth = await isUserAuthenticated()
+        if (!isAuth) return
         targetNode.querySelectorAll('button[disabled]').forEach((button) => {
             button.removeAttribute('disabled')
             button.classList.remove('disabled')
