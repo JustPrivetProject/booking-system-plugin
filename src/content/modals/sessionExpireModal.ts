@@ -1,20 +1,4 @@
-// Модальное окно для предупреждения об истечении сессии
-// Экспортируемая функция: showSessionExpireModal
-
-import { Actions } from '../../data'
-
-async function isUserAuthenticated(): Promise<boolean> {
-    return new Promise((resolve) => {
-        if (!chrome.runtime || !chrome.runtime.sendMessage)
-            return resolve(false)
-        chrome.runtime.sendMessage(
-            { action: Actions.IS_AUTHENTICATED },
-            (response) => {
-                resolve(response && response.isAuthenticated === true)
-            }
-        )
-    })
-}
+import { isUserAuthenticated } from '../utils/contentUtils'
 
 export async function showSessionExpireModal(opts?: {
     onModalClosed?: () => void

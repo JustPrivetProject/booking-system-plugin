@@ -1,3 +1,5 @@
+import { Actions } from '../../data'
+
 /**
  * Ждёт появления элемента, затем его исчезновения, и отправляет экшен в background.
  * @param {string} selector - CSS-селектор элемента
@@ -138,4 +140,17 @@ export function waitForElementToDisappear(selector, callback) {
         }
     })
     observer.observe(document.body, { childList: true, subtree: true })
+}
+
+export function isUserAuthenticated(): Promise<boolean> {
+    return new Promise((resolve) => {
+        if (!chrome.runtime || !chrome.runtime.sendMessage)
+            return resolve(false)
+        chrome.runtime.sendMessage(
+            { action: Actions.IS_AUTHENTICATED },
+            (response) => {
+                resolve(response && response.isAuthenticated === true)
+            }
+        )
+    })
 }

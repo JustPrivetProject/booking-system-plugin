@@ -136,6 +136,7 @@ function getStatusIcon(status: string) {
     if (status === Statuses.ANOTHER_TASK) return 'check_circle'
     if (status === Statuses.PAUSED) return 'pause_circle'
     if (status === Statuses.AUTHORIZATION_ERROR) return 'report'
+    if (status === Statuses.EXPIRED) return 'hourglass_disabled'
     return 'report'
 }
 
@@ -143,7 +144,8 @@ function isDisabled(status: string) {
     if (
         status === Statuses.ANOTHER_TASK ||
         status === Statuses.SUCCESS ||
-        status === Statuses.ERROR
+        status === Statuses.ERROR ||
+        status === Statuses.EXPIRED
     )
         return 'disabled'
     return ''

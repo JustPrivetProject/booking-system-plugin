@@ -193,6 +193,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                 retryObject.tvAppId = tvAppId
                                 retryObject.startSlot =
                                     requestBody.formData.SlotStart[0]
+                                retryObject.endSlot =
+                                    requestBody.formData.SlotEnd[0]
                                 retryObject.driverName =
                                     driverAndContainer.driverName || ''
 

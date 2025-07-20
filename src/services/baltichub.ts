@@ -4,6 +4,7 @@ import {
     fetchRequest,
     normalizeFormData,
     cleanupCache,
+    parseDateTimeFromDMY,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -320,6 +321,20 @@ export async function processRequest(
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
+    const endTimeStr = body.SlotEnd[0] // 26.06.2025 00:59:00
+
+    if (parseDateTimeFromDMY(endTimeStr) < new Date()) {
+        consoleLog(
+            '❌ End time is in the past, cannot process:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message: 'Czas zakończenia slotu już minął',
+        }
+    }
 
     if (isTaskCompletedInAnotherQueue(req, queue)) {
         consoleLog(

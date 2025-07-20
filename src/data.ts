@@ -5,6 +5,7 @@ export const Statuses = {
     PAUSED: 'paused',
     AUTHORIZATION_ERROR: 'authorization-error',
     ERROR: 'error',
+    EXPIRED: 'expired',
 }
 
 export const Actions = {
@@ -21,6 +22,7 @@ export const Actions = {
 export const StatusesPriority = [
     Statuses.ERROR, // High priority
     Statuses.AUTHORIZATION_ERROR, // Medium priority
+    Statuses.EXPIRED,
     Statuses.SUCCESS, // Highest priority
     Statuses.ANOTHER_TASK, // Low priority
     Statuses.IN_PROGRESS, // In progress
@@ -34,4 +36,5 @@ export const StatusIconMap: Record<string, string> = {
     [Statuses.ANOTHER_TASK]: '✅',
     [Statuses.IN_PROGRESS]: '▶️',
     [Statuses.PAUSED]: '⏸️',
+    [Statuses.EXPIRED]: '❌',
 }
