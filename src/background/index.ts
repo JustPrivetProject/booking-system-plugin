@@ -27,9 +27,11 @@ import { errorLogService } from '../services/errorLogService'
 import { authService } from '../services/authService'
 import { getOrCreateDeviceId } from '../utils/deviceId'
 import { sessionService } from '../services/sessionService'
+import { clearBadge } from '../utils/badge'
 
 chrome.runtime.onInstalled.addListener(() => {
     consoleLog('Plugin installed!')
+    clearBadge()
 })
 // Settings
 chrome.storage.local.set({ retryEnabled: true })
