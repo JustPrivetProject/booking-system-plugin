@@ -206,7 +206,7 @@ class QueueManager {
                 // Sequential processing
                 for (const req of inProgressRequests) {
                     try {
-                        consoleLog(`Processing request: ${req.id}`)
+                        consoleLogWithoutSave(`Processing request: ${req.id}`)
 
                         const updatedReq = await processRequest(req, queue)
                         if (updatedReq.status !== 'in-progress') {

@@ -3,8 +3,8 @@ import {
     consoleError,
     fetchRequest,
     normalizeFormData,
-    cleanupCache,
     parseDateTimeFromDMY,
+    consoleLogWithoutSave,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -321,9 +321,9 @@ export async function processRequest(
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
-    const endTimeStr = body.SlotEnd[0] // 26.06.2025 00:59:00
+    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]) // 26.06.2025 00:59:00
 
-    if (parseDateTimeFromDMY(endTimeStr) < new Date()) {
+    if (new Date(endTimeStr.getTime() + 90 * 1000) < new Date()) {
         consoleLog(
             '❌ End time is in the past, cannot process:',
             tvAppId,
@@ -361,7 +361,11 @@ export async function processRequest(
     const htmlText = await slots.text()
     const isSlotAvailable = await checkSlotAvailability(htmlText, time)
     if (!isSlotAvailable) {
-        consoleLog('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
+        consoleLogWithoutSave(
+            '❌ No slots, keeping in queue:',
+            tvAppId,
+            time.join(', ')
+        )
         return req
     }
     const objectToReturn = await executeRequest(req, tvAppId, time)

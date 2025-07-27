@@ -1,5 +1,4 @@
 import { Actions } from '../data'
-import { showSessionExpireModal } from './modals/sessionExpireModal'
 import {
     waitElementAndSendChromeMessage,
     parseTable,
@@ -47,39 +46,3 @@ waitElementAndSendChromeMessage(
     Actions.PARSED_TABLE,
     () => parseTable()
 )
-
-// ===== Session Timer Modal Logic =====
-
-let modalShown = false // Сделать на уровне модуля
-
-function monitorSessionTimer() {
-    const timerSpan = document.getElementById('sessionTime')
-    if (!timerSpan) return
-
-    let lastValue = timerSpan.textContent
-    setInterval(() => {
-        const value = timerSpan.textContent
-        if (value && value !== lastValue) {
-            lastValue = value
-
-            const [minStr, secStr] = value.split(':')
-            const min = Number(minStr)
-            const sec = Number(secStr)
-            if (
-                !modalShown &&
-                !isNaN(min) &&
-                !isNaN(sec) &&
-                (min < 5 || (min === 5 && sec === 0))
-            ) {
-                modalShown = true
-                showSessionExpireModal({
-                    onModalClosed: () => {
-                        modalShown = true // Не показывать больше до перезагрузки
-                    },
-                })
-            }
-        }
-    }, 1000)
-}
-
-waitForElement('#sessionTime', monitorSessionTimer)
