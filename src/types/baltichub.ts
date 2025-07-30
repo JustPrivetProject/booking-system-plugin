@@ -4,6 +4,7 @@ export type RetryObject = {
     containerNumber?: string // MSNU2991953
     headersCache: RequestHeader
     id: string
+    currentSlot: string // 2025-07-30 19:00
     startSlot: string // "05.06.2025 19:00:00"
     endSlot: string // 26.06.2025 00:59:00
     status: string // e.g. "paused"
