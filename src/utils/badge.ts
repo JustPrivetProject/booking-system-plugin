@@ -11,7 +11,7 @@ export function updateBadge(statuses: string[]) {
 
     const sortedStatuses = sortStatusesByPriority(statuses)
     const top = sortedStatuses[0]
-    if (top === lastStatus) return
+    if (top === lastStatus && lastStatus != '') return
 
     lastStatus = top
     const icon = StatusIconMap[lastStatus]

@@ -10,6 +10,7 @@ import {
     getLogsFromSession,
     clearLogsInSession,
     getLocalStorageData,
+    JSONstringify,
 } from '../utils/utils-function'
 import {
     getDriverNameAndContainer,
@@ -66,7 +67,7 @@ chrome.webRequest.onBeforeRequest.addListener(
                         consoleLog(
                             '✅ Cached Request Body:',
                             details.requestId,
-                            cacheBody
+                            JSONstringify(cacheBody)
                         )
                     }
                 )
@@ -81,7 +82,10 @@ chrome.webRequest.onBeforeRequest.addListener(
 chrome.webRequest.onBeforeSendHeaders.addListener(
     (details) => {
         // Проверка на наличие нужного заголовка
-        consoleLog('Checking for our header:', details.requestHeaders)
+        consoleLog(
+            'Checking for our header:',
+            JSONstringify(details.requestHeaders)
+        )
         const hasOurHeader = details.requestHeaders?.some(
             (header) =>
                 header.name.toLowerCase() === 'x-extension-request' &&
@@ -201,18 +205,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                     driverAndContainer.driverName || ''
 
                                 if (tableData) {
+                                    consoleLog('Getting table data...')
                                     const row = (retryObject.containerNumber =
                                         tableData.find((row) =>
                                             row.includes(tvAppId)
                                         ))
-
+                                    consoleLog('Row: ', row)
                                     if (row) {
-                                        retryObject.containerNumber =
+                                        const containerNumber =
                                             row[
                                                 tableData[0].indexOf(
                                                     'Nr kontenera'
                                                 )
                                             ]
+                                        consoleLog(
+                                            'Getting container...',
+                                            containerNumber
+                                        )
+
+                                        const currentSlot = `${row[tableData[0].indexOf('Wybrana data')]} ${row[tableData[0].indexOf('Start')]}`
+                                        consoleLog(
+                                            'Getting current slot time... :',
+                                            currentSlot
+                                        )
+                                        retryObject.containerNumber =
+                                            containerNumber
+
+                                        retryObject.currentSlot = currentSlot
                                     }
                                 }
 

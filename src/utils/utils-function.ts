@@ -237,6 +237,10 @@ export async function getLocalStorageData() {
     })
 }
 
+export function JSONstringify(object) {
+    return JSON.stringify(object, null, 2)
+}
+
 /**
  * Преобразует строку даты из формата "DD.MM.YYYY HH:mm[:ss]" в объект Date.
  * @param input Строка даты, например "26.06.2025 00:59:00" или "26.06.2025 00:59"

@@ -69,7 +69,7 @@ async function checkSlotAvailability(
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
     )
-    consoleLog('Slot button:', slotButton)
+
     return slotButton ? !slotButton.disabled : false
 }
 
@@ -116,9 +116,11 @@ export async function getDriverNameAndContainer(
 
     const driverNameObject = request.match(regex)?.[1] || ''
     const driverNameItems = driverNameObject.split(' ')
+    const driverName =
+        `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim()
+    consoleLog('Driver info:', driverName)
     return {
-        driverName:
-            `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim(),
+        driverName,
     }
 }
 
@@ -242,7 +244,10 @@ function handleErrorResponse(
                 time.join(', '),
                 parsedResponse
             )
-            return req
+            return {
+                ...req,
+                status_message: 'Za duża ilość transakcji w sektorze',
+            }
         }
 
         if (responseObj.messageCode === 'NoSlotsAvailable') {
@@ -260,7 +265,7 @@ function handleErrorResponse(
             responseObj.messageCode.includes('FE_0091')
         ) {
             consoleLog(
-                '⚠️ Too many transactions in sector, keeping in queue:',
+                '⚠️Awizacja edytowana przez innego użytkownika:',
                 tvAppId,
                 time.join(', '),
                 parsedResponse
@@ -270,6 +275,24 @@ function handleErrorResponse(
                 status: Statuses.ANOTHER_TASK,
                 status_message:
                     'Awizacja edytowana przez innego użytkownika. Otwórz okno ponownie w celu aktualizacji awizacji',
+            }
+        }
+
+        if (
+            responseObj.messageCode &&
+            responseObj.messageCode.includes('VBS_0072')
+        ) {
+            consoleLog(
+                '⚠️Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return {
+                ...req,
+                status: Statuses.ERROR,
+                status_message:
+                    'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
             }
         }
 
@@ -322,8 +345,10 @@ export async function processRequest(
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
     const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]) // 26.06.2025 00:59:00
+    const currentTimeSlot = new Date(req.currentSlot)
+    const currentTIme = new Date()
 
-    if (new Date(endTimeStr.getTime() + 90 * 1000) < new Date()) {
+    if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
         consoleLog(
             '❌ End time is in the past, cannot process:',
             tvAppId,
@@ -333,6 +358,20 @@ export async function processRequest(
             ...req,
             status: Statuses.EXPIRED,
             status_message: 'Czas zakończenia slotu już minął',
+        }
+    }
+
+    if (currentTimeSlot < currentTIme) {
+        consoleLog(
+            '❌ Changing the time is no longer possible:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message:
+                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
         }
     }
 
