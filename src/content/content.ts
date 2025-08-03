@@ -4,9 +4,38 @@ import {
     parseTable,
     waitForElement,
     isUserAuthenticated,
+    tryClickLoginButton,
+    isAppUnauthorized,
 } from './utils/contentUtils'
 
-console.log('Content script is loaded')
+console.log('[content] Content script is loaded')
+
+// Check if extension is available
+if (!chrome.runtime || !chrome.runtime.sendMessage) {
+    console.warn(
+        '[content] Chrome runtime not available - extension may not be loaded'
+    )
+} else {
+    console.log('[content] Chrome runtime available')
+}
+
+// Start authorization check interval
+console.log('[content] Starting authorization check interval (60s)')
+
+setInterval(async () => {
+    try {
+        const isUnauthorized = await isAppUnauthorized()
+
+        if (isUnauthorized) {
+            console.warn('[content] Unauthorized — reloading page')
+            location.reload()
+        } else {
+            console.log('[content] User authorized')
+        }
+    } catch (error) {
+        console.warn('[content] Error in authorization check:', error)
+    }
+}, 60_000)
 
 waitElementAndSendChromeMessage('#toast-container', Actions.SHOW_ERROR, () => {
     return 'An error occurred!'
@@ -46,3 +75,16 @@ waitElementAndSendChromeMessage(
     Actions.PARSED_TABLE,
     () => parseTable()
 )
+
+// Auto-login on login page
+window.addEventListener('load', async () => {
+    const isAuth = await isUserAuthenticated()
+    if (!isAuth) return
+
+    if (location.pathname === '/login') {
+        console.log('[content] Login page detected, trying auto-login...')
+        setTimeout(() => {
+            tryClickLoginButton()
+        }, 1000)
+    }
+})

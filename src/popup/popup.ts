@@ -11,6 +11,8 @@ import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
 import { showInfoModal } from './modals/info.modal'
 import { showEmailConfirmationModal } from './modals/emailConfirm.modal'
+import { showAutoLoginModal } from './modals/autoLogin.modal'
+import { autoLoginService } from '../services/autoLoginService'
 
 function sendMessageToBackground(
     action,
@@ -381,6 +383,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         consoleLog('Queue data changed, updating UI')
         updateQueueDisplay()
     }
+    if (namespace === 'local' && changes.autoLoginData) {
+        consoleLog('Auto-login data changed, updating UI')
+        updateAutoLoginButtonState()
+    }
 })
 
 async function saveHeaderState(isHidden: boolean) {
@@ -451,12 +457,33 @@ function toggleHeaderVisibility() {
     }
 }
 
+async function updateAutoLoginButtonState() {
+    try {
+        const isEnabled = await autoLoginService.isEnabled()
+        const autoLoginToggle = document.getElementById(
+            'autoLoginToggle'
+        ) as HTMLElement
+        if (autoLoginToggle) {
+            if (isEnabled) {
+                autoLoginToggle.classList.add('enabled')
+                autoLoginToggle.title = 'Auto-Login Włączony'
+            } else {
+                autoLoginToggle.classList.remove('enabled')
+                autoLoginToggle.title = 'Włącz Auto-Login'
+            }
+        }
+    } catch (error) {
+        consoleError('Error updating auto-login button state:', error)
+    }
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates()
     updateQueueDisplay()
     toggleHeaderVisibility()
     restoreHeaderState()
+    updateAutoLoginButtonState()
     // Удаляем тестовую кнопку, если она есть
     const testBtn = document.getElementById('testEmailConfirmBtn')
     if (testBtn) testBtn.remove()
@@ -625,6 +652,35 @@ backToAppButton.addEventListener('click', (e) => {
     mainContent.classList.remove('hidden')
     unbindForm.classList.add('hidden')
     clearErrors()
+})
+
+// Auto-login toggle button handler
+const autoLoginToggle = document.getElementById('autoLoginToggle')!
+autoLoginToggle.addEventListener('click', async (e) => {
+    e.preventDefault()
+    try {
+        const isEnabled = await autoLoginService.isEnabled()
+
+        if (isEnabled) {
+            // If auto-login is enabled, show modal to manage credentials
+            const credentials = await showAutoLoginModal()
+            if (credentials) {
+                await updateAutoLoginButtonState()
+                await showInfoModal(
+                    'Dane auto-login zostały zapisane pomyślnie!'
+                )
+            }
+        } else {
+            // If auto-login is disabled, show modal to set up credentials
+            const credentials = await showAutoLoginModal()
+            if (credentials) {
+                await updateAutoLoginButtonState()
+                await showInfoModal('Auto-login został włączony!')
+            }
+        }
+    } catch (error) {
+        consoleError('Error in auto-login modal:', error)
+    }
 })
 
 // Prevent form submit for login and register forms
@@ -864,6 +920,7 @@ function showAuthenticatedUI(user: { email: string }) {
     if (toggleHeaderBtn) toggleHeaderBtn.style.display = ''
     restoreHeaderState()
     updateQueueDisplay()
+    updateAutoLoginButtonState()
 }
 
 function showUnauthenticatedUI() {
@@ -900,6 +957,15 @@ async function checkAuth() {
             showUnauthenticatedUI()
         }
     } else {
+        // Try auto-login if not authenticated
+        const autoLoginSuccess = await autoLoginService.performAutoLogin()
+        if (autoLoginSuccess) {
+            const user = await authService.getCurrentUser()
+            if (user) {
+                showAuthenticatedUI(user)
+                return
+            }
+        }
         showUnauthenticatedUI()
     }
 }

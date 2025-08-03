@@ -28,7 +28,9 @@ import { errorLogService } from '../services/errorLogService'
 import { authService } from '../services/authService'
 import { getOrCreateDeviceId } from '../utils/deviceId'
 import { sessionService } from '../services/sessionService'
+import { autoLoginService } from '../services/autoLoginService'
 import { clearBadge } from '../utils/badge'
+import { getStorage, onStorageChange } from '../utils/storageControl.helper'
 
 chrome.runtime.onInstalled.addListener(() => {
     consoleLog('Plugin installed!')
@@ -285,8 +287,104 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 consoleLog('[BG] Error in isAuthenticated:', e)
                 sendResponse({ isAuthenticated: false })
             })
-        return true // Важно для асинхронного ответа!)
+        return true
     }
+    if (message.action === Actions.GET_AUTH_STATUS) {
+        getStorage('unauthorized')
+            .then(({ unauthorized }) => {
+                const isUnauthorized = !!unauthorized
+                sendResponse({ unauthorized: isUnauthorized })
+            })
+            .catch((error) => {
+                consoleError('[background] Error getting auth status:', error)
+                sendResponse({ unauthorized: false })
+            })
+        return true
+    }
+
+    if (message.action === Actions.LOGIN_SUCCESS) {
+        const { success } = message.message || {}
+        consoleLog('[background] LOGIN_SUCCESS:', success)
+
+        if (success) {
+            chrome.storage.local.set({ unauthorized: false }, () => {
+                consoleLog(
+                    '[background] Manual login successful - Auth restored'
+                )
+                sendResponse({ success: true })
+            })
+        } else {
+            consoleLog('[background] Manual login attempt (not yet successful)')
+            sendResponse({ success: false })
+        }
+        return true
+    }
+
+    if (message.action === Actions.AUTO_LOGIN_ATTEMPT) {
+        const { success } = message.message || {}
+
+        if (success) {
+            chrome.storage.local.set({ unauthorized: false }, () => {
+                consoleLog('[background] Auto-login successful - Auth restored')
+                sendResponse({ success: true, autoLogin: true })
+            })
+        } else {
+            consoleLog('[background] Auto-login attempt (not yet successful)')
+            sendResponse({ success: false, autoLogin: true })
+        }
+        return true
+    }
+
+    if (message.action === Actions.LOAD_AUTO_LOGIN_CREDENTIALS) {
+        autoLoginService
+            .loadCredentials()
+            .then((credentials) => {
+                if (credentials) {
+                    // Check if credentials are valid (not corrupted)
+                    const isLoginValid =
+                        typeof credentials.login === 'string' &&
+                        credentials.login.length > 0 &&
+                        !credentials.login.includes('□') &&
+                        !credentials.login.includes('\\')
+
+                    const isPasswordValid =
+                        typeof credentials.password === 'string' &&
+                        credentials.password.length > 0
+
+                    if (isLoginValid && isPasswordValid) {
+                        consoleLog('[background] Auto-login credentials loaded')
+                        sendResponse({
+                            success: true,
+                            credentials: {
+                                login: credentials.login,
+                                password: credentials.password,
+                            },
+                        })
+                    } else {
+                        // Clear corrupted credentials
+                        consoleLog(
+                            '[background] Detected corrupted auto-login credentials, clearing...'
+                        )
+                        autoLoginService.clearCredentials()
+                        sendResponse({ success: false, credentials: null })
+                    }
+                } else {
+                    consoleLog('[background] No auto-login credentials found')
+                    sendResponse({ success: false, credentials: null })
+                }
+            })
+            .catch((error) => {
+                consoleError(
+                    '[background] Error loading auto-login credentials:',
+                    error
+                )
+                // Clear credentials on error to prevent future issues
+                autoLoginService.clearCredentials()
+                sendResponse({ success: false, error: error.message })
+            })
+        return true
+    }
+
     if (message.target === 'background') {
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
@@ -377,5 +475,39 @@ chrome.runtime.onInstalled.addListener((details) => {
         chrome.tabs.create({
             url: chrome.runtime.getURL('welcome.html'),
         })
+    }
+
+    // Migrate auto-login data to fix encoding issues
+    autoLoginService.migrateAndCleanData().catch((error) => {
+        consoleError('[background] Failed to migrate auto-login data:', error)
+    })
+})
+
+onStorageChange('unauthorized', async (newValue, oldValue) => {
+    consoleLog('[background] Change unauthorized:', oldValue, '→', newValue)
+
+    if (oldValue === true && newValue === false) {
+        consoleLog('[background] Auth restored — starting queue restoration')
+        const queueManager = QueueManager.getInstance()
+        const queue = await queueManager.getQueue()
+
+        const authErrorItems = queue.filter(
+            (item) => item.status === Statuses.AUTHORIZATION_ERROR
+        )
+
+        if (authErrorItems.length === 0) {
+            consoleLog('[background] No entities with status auth_error')
+            return
+        }
+
+        consoleLog(`[background] Restoring ${authErrorItems.length} entities`)
+
+        for (const item of authErrorItems) {
+            await queueManager.updateQueueItem(item.id, {
+                status: Statuses.IN_PROGRESS,
+            })
+        }
+
+        consoleLog('[background] All statuses updated to in-progress')
     }
 })

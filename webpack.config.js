@@ -78,7 +78,10 @@ module.exports = (env) => {
                     },
                 ],
             }),
-            new Dotenv(),
+            new Dotenv({
+                systemvars: true, // Load all system variables
+                safe: true, // Load '.env.example' to verify the '.env' variables
+            }),
 
             // Генерация popup.html с подключённым popup.js
             new HtmlWebpackPlugin({

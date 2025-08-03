@@ -93,7 +93,7 @@ export async function fetchRequest(
 
         return response
     } catch (error) {
-        consoleError('Error fetching request:', error)
+        consoleLog('Error fetching request:', error)
         return { ok: false, text: () => Promise.resolve('') }
     }
 }

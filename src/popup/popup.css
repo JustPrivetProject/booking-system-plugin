@@ -662,3 +662,42 @@ tr[data-is-open='false'] .status-icon {
     background: #e3f2fd;
     box-shadow: var(--shadow-hover);
 }
+
+/* Auto-Login Toggle Button */
+.auto-login-toggle {
+    border-radius: 50%;
+    background: var(--color-white);
+    border: none;
+    box-shadow: var(--shadow-button);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.2s ease-in-out;
+    width: 28px;
+    height: 28px;
+    margin-left: var(--spacing-small);
+}
+
+.auto-login-toggle:hover {
+    background: #e0f7fa;
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+
+.auto-login-toggle .material-icons {
+    font-size: 14px;
+    color: var(--color-primary);
+}
+
+.auto-login-toggle.enabled {
+    background-color: var(--color-primary);
+}
+
+.auto-login-toggle.enabled .material-icons {
+    color: var(--color-white);
+}
+
+.auto-login-toggle.enabled:hover {
+    background-color: var(--color-primary-dark);
+}
