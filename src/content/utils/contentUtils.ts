@@ -1,4 +1,5 @@
 import { Actions } from '../../data'
+import { autoLoginHelper, AutoLoginCredentials } from './autoLoginHelper'
 
 /**
  * Ждёт появления элемента, затем его исчезновения, и отправляет экшен в background.
@@ -144,13 +145,129 @@ export function waitForElementToDisappear(selector, callback) {
 
 export function isUserAuthenticated(): Promise<boolean> {
     return new Promise((resolve) => {
-        if (!chrome.runtime || !chrome.runtime.sendMessage)
-            return resolve(false)
-        chrome.runtime.sendMessage(
-            { action: Actions.IS_AUTHENTICATED },
-            (response) => {
-                resolve(response && response.isAuthenticated === true)
+        try {
+            if (!chrome.runtime || !chrome.runtime.sendMessage) {
+                console.warn('[content] Chrome runtime not available')
+                return resolve(false)
             }
-        )
+
+            // Add timeout to prevent hanging
+            const timeout = setTimeout(() => {
+                console.warn('[content] isUserAuthenticated timeout')
+                resolve(false)
+            }, 5000)
+
+            chrome.runtime.sendMessage(
+                { action: Actions.IS_AUTHENTICATED },
+                (response) => {
+                    clearTimeout(timeout)
+
+                    if (chrome.runtime.lastError) {
+                        console.warn(
+                            '[content] Runtime error:',
+                            chrome.runtime.lastError
+                        )
+                        return resolve(false)
+                    }
+
+                    if (!response) {
+                        console.warn('[content] No response from background')
+                        return resolve(false)
+                    }
+
+                    resolve(response.isAuthenticated === true)
+                }
+            )
+        } catch (error) {
+            console.warn('[content] Error in isUserAuthenticated:', error)
+            resolve(false)
+        }
     })
+}
+
+export function isAppUnauthorized(): Promise<boolean> {
+    return new Promise((resolve) => {
+        try {
+            if (!chrome.runtime || !chrome.runtime.sendMessage) {
+                console.warn('[content] Chrome runtime not available')
+                return resolve(false)
+            }
+
+            // Add timeout to prevent hanging
+            const timeout = setTimeout(() => {
+                console.warn('[content] isAppUnauthorized timeout')
+                resolve(false)
+            }, 5000)
+
+            chrome.runtime.sendMessage(
+                { action: Actions.GET_AUTH_STATUS },
+                (response) => {
+                    clearTimeout(timeout)
+
+                    if (chrome.runtime.lastError) {
+                        console.warn(
+                            '[content] Runtime error:',
+                            chrome.runtime.lastError
+                        )
+                        return resolve(false)
+                    }
+
+                    if (!response) {
+                        console.warn('[content] No response from background')
+                        return resolve(false)
+                    }
+
+                    // Check if login form is present on the page
+                    const loginForm = document.querySelector('.loginscreen')
+                    const loginButton = document.querySelector('#loginBtn')
+                    const hasLoginForm = !!(loginForm || loginButton)
+
+                    // Simple logic: user is unauthorized if login form is present
+                    const isUnauthorized = hasLoginForm
+
+                    resolve(isUnauthorized)
+                }
+            )
+        } catch (error) {
+            console.warn('[content] Error in isAppUnauthorized:', error)
+            resolve(false)
+        }
+    })
+}
+
+export async function tryClickLoginButton() {
+    const LOGIN_FORM_SELECTOR = '.loginscreen'
+    const LOGIN_BUTTON_SELECTOR = '#loginBtn'
+
+    // Step 1: Focus the form if available
+    const form = document.querySelector<HTMLElement>(LOGIN_FORM_SELECTOR)
+    if (form) {
+        form.focus()
+    }
+
+    // Step 2: Try auto-login first
+    let autoLoginCredentials: AutoLoginCredentials | null = null
+
+    try {
+        autoLoginCredentials = await autoLoginHelper.loadCredentials()
+        if (autoLoginCredentials) {
+            autoLoginHelper.fillLoginForm(autoLoginCredentials)
+        }
+    } catch (error) {
+        console.warn('[content] Error loading auto-login credentials:', error)
+    }
+
+    // Step 3: Find and click login button
+    const button = document.querySelector<HTMLButtonElement>(
+        LOGIN_BUTTON_SELECTOR
+    )
+    if (!button) {
+        console.warn('[content] Login button not found')
+        return
+    }
+
+    button.click()
+
+    console.warn('[content] Manual login successful')
+    sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null)
 }
