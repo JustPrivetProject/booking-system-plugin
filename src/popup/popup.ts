@@ -466,10 +466,10 @@ async function updateAutoLoginButtonState() {
         if (autoLoginToggle) {
             if (isEnabled) {
                 autoLoginToggle.classList.add('enabled')
-                autoLoginToggle.title = 'Auto-Login Włączony'
+                autoLoginToggle.title = 'Auto-Logowanie Włączone'
             } else {
                 autoLoginToggle.classList.remove('enabled')
-                autoLoginToggle.title = 'Włącz Auto-Login'
+                autoLoginToggle.title = 'Włącz Auto-Logowanie'
             }
         }
     } catch (error) {

@@ -210,33 +210,33 @@ export async function processRequest(
     const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]) // 26.06.2025 00:59:00
     const currentTimeSlot = new Date(req.currentSlot)
     const currentTIme = new Date()
-    // TODO: включить перед коммитом
-    // if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
-    //     consoleLog(
-    //         '❌ End time is in the past, cannot process:',
-    //         tvAppId,
-    //         endTimeStr
-    //     )
-    //     return {
-    //         ...req,
-    //         status: Statuses.EXPIRED,
-    //         status_message: 'Czas zakończenia slotu już minął',
-    //     }
-    // }
 
-    // if (currentTimeSlot < currentTIme) {
-    //     consoleLog(
-    //         '❌ Changing the time is no longer possible:',
-    //         tvAppId,
-    //         endTimeStr
-    //     )
-    //     return {
-    //         ...req,
-    //         status: Statuses.EXPIRED,
-    //         status_message:
-    //             'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
-    //     }
-    // }
+    if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
+        consoleLog(
+            '❌ End time is in the past, cannot process:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message: 'Czas zakończenia slotu już minął',
+        }
+    }
+
+    if (currentTimeSlot < currentTIme) {
+        consoleLog(
+            '❌ Changing the time is no longer possible:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message:
+                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+        }
+    }
 
     if (isTaskCompletedInAnotherQueue(req, queue)) {
         consoleLog(

@@ -95,32 +95,39 @@
             <div class="header">
                 <div class="user-info">
                     <span id="userEmail"></span>
-                    <button
-                        id="autoLoginToggle"
-                        class="auto-login-toggle"
-                        title="Włącz Auto-Login"
-                    >
-                        <span class="material-icons">login</span>
-                    </button>
+                    <div class="main-buttons-row">
+                        <button
+                            id="unbindDeviceButton"
+                            class="secondary-button"
+                            title="Odłącz to urządzenie od konta"
+                        >
+                            Odłącz
+                        </button>
+                        <button id="logoutButton" title="Wyloguj się z konta">
+                            Wyloguj
+                        </button>
+                    </div>
                 </div>
                 <div class="user-actions">
-                    <button
-                        id="unbindDeviceButton"
-                        class="secondary-button"
-                        title="Odłącz to urządzenie od konta"
-                    >
-                        Odłącz
-                    </button>
-                    <button id="logoutButton" title="Wyloguj się z konta">
-                        Wyloguj
-                    </button>
-                    <button
-                        id="send-logs-btn"
-                        class="bug-report-btn"
-                        title="Zgłoś problem lub błąd"
-                    >
-                        <span class="material-icons">bug_report</span>
-                    </button>
+                    <div class="action-buttons-row">
+                        <button
+                            id="send-logs-btn"
+                            class="bug-report-btn"
+                            title="Zgłoś problem lub błąd"
+                        >
+                            <span class="material-icons">bug_report</span>
+                        </button>
+                    </div>
+                    <div class="auto-login-row">
+                        <button
+                            id="autoLoginToggle"
+                            class="secondary-button"
+                            title="Włącz Auto-Logowanie"
+                        >
+                            <span class="material-icons">login</span>
+                            Auto-Logowanie
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="queue-container">

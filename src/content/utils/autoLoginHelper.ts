@@ -32,7 +32,7 @@ export const autoLoginHelper = {
                         clearTimeout(timeout)
 
                         if (chrome.runtime.lastError) {
-                            console.error(
+                            console.warn(
                                 '[content] Runtime error in auto-login:',
                                 chrome.runtime.lastError
                             )
@@ -49,20 +49,14 @@ export const autoLoginHelper = {
                         }
 
                         if (response.success && response.credentials) {
-                            console.log(
-                                '[content] Auto-login credentials loaded from background'
-                            )
                             resolve(response.credentials)
                         } else {
-                            console.log(
-                                '[content] No auto-login credentials available'
-                            )
                             resolve(null)
                         }
                     }
                 )
             } catch (error) {
-                console.error(
+                console.warn(
                     '[content] Error loading auto-login credentials:',
                     error
                 )
@@ -79,7 +73,7 @@ export const autoLoginHelper = {
             const credentials = await this.loadCredentials()
             return !!credentials
         } catch (error) {
-            console.error('Failed to check auto-login status:', error)
+            console.warn('Failed to check auto-login status:', error)
             return false
         }
     },
@@ -98,7 +92,6 @@ export const autoLoginHelper = {
         )
 
         if (loginInput && passwordInput) {
-            console.log('[content] Filling auto-login credentials')
             loginInput.value = credentials.login
             passwordInput.value = credentials.password
 

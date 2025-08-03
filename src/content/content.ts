@@ -29,8 +29,6 @@ setInterval(async () => {
         if (isUnauthorized) {
             console.warn('[content] Unauthorized — reloading page')
             location.reload()
-        } else {
-            console.log('[content] User authorized')
         }
     } catch (error) {
         console.warn('[content] Error in authorization check:', error)

@@ -163,7 +163,7 @@ export function isUserAuthenticated(): Promise<boolean> {
                     clearTimeout(timeout)
 
                     if (chrome.runtime.lastError) {
-                        console.error(
+                        console.warn(
                             '[content] Runtime error:',
                             chrome.runtime.lastError
                         )
@@ -179,7 +179,7 @@ export function isUserAuthenticated(): Promise<boolean> {
                 }
             )
         } catch (error) {
-            console.error('[content] Error in isUserAuthenticated:', error)
+            console.warn('[content] Error in isUserAuthenticated:', error)
             resolve(false)
         }
     })
@@ -205,7 +205,7 @@ export function isAppUnauthorized(): Promise<boolean> {
                     clearTimeout(timeout)
 
                     if (chrome.runtime.lastError) {
-                        console.error(
+                        console.warn(
                             '[content] Runtime error:',
                             chrome.runtime.lastError
                         )
@@ -216,10 +216,6 @@ export function isAppUnauthorized(): Promise<boolean> {
                         console.warn('[content] No response from background')
                         return resolve(false)
                     }
-                    console.log(
-                        '[content] Response.unauthorized value:',
-                        response.unauthorized
-                    )
 
                     // Check if login form is present on the page
                     const loginForm = document.querySelector('.loginscreen')
@@ -229,32 +225,23 @@ export function isAppUnauthorized(): Promise<boolean> {
                     // Simple logic: user is unauthorized if login form is present
                     const isUnauthorized = hasLoginForm
 
-                    console.log('[content] Login form present:', hasLoginForm)
-                    console.log(
-                        '[content] Final isAppUnauthorized result:',
-                        isUnauthorized
-                    )
-
                     resolve(isUnauthorized)
                 }
             )
         } catch (error) {
-            console.error('[content] Error in isAppUnauthorized:', error)
+            console.warn('[content] Error in isAppUnauthorized:', error)
             resolve(false)
         }
     })
 }
 
 export async function tryClickLoginButton() {
-    console.log('[content] tryClickLoginButton called')
-
     const LOGIN_FORM_SELECTOR = '.loginscreen'
     const LOGIN_BUTTON_SELECTOR = '#loginBtn'
 
     // Step 1: Focus the form if available
     const form = document.querySelector<HTMLElement>(LOGIN_FORM_SELECTOR)
     if (form) {
-        console.log('[content] Focusing form')
         form.focus()
     }
 
@@ -264,13 +251,10 @@ export async function tryClickLoginButton() {
     try {
         autoLoginCredentials = await autoLoginHelper.loadCredentials()
         if (autoLoginCredentials) {
-            console.log('[content] Found auto-login credentials, filling form')
-            await autoLoginHelper.fillLoginForm(autoLoginCredentials)
-        } else {
-            console.log('[content] No auto-login credentials found')
+            autoLoginHelper.fillLoginForm(autoLoginCredentials)
         }
     } catch (error) {
-        console.error('[content] Error loading auto-login credentials:', error)
+        console.warn('[content] Error loading auto-login credentials:', error)
     }
 
     // Step 3: Find and click login button
@@ -282,9 +266,8 @@ export async function tryClickLoginButton() {
         return
     }
 
-    console.log('[content] Clicking login button')
     button.click()
 
-    console.log('[content] Manual login successful')
+    console.warn('[content] Manual login successful')
     sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null)
 }
