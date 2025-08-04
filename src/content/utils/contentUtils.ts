@@ -271,3 +271,17 @@ export async function tryClickLoginButton() {
     console.warn('[content] Manual login successful')
     sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null)
 }
+
+export function clickLoginButton() {
+    const LOGIN_BUTTON_SELECTOR = 'a.product-box[href="/login"]'
+    const button = document.querySelector<HTMLButtonElement>(
+        LOGIN_BUTTON_SELECTOR
+    )
+    if (!button) {
+        console.warn('[content] Login button not found')
+        return
+    }
+
+    console.log('[content] Clicking login button...')
+    button.click()
+}

@@ -7,6 +7,7 @@ import {
     tryClickLoginButton,
     isAppUnauthorized,
 } from './utils/contentUtils'
+import { showCountdownModal } from './modals/countdownModal'
 
 console.log('[content] Content script is loaded')
 
@@ -78,6 +79,11 @@ waitElementAndSendChromeMessage(
 window.addEventListener('load', async () => {
     const isAuth = await isUserAuthenticated()
     if (!isAuth) return
+
+    if (location.pathname === '/') {
+        console.log('[content] Home page detected, showing countdown modal...')
+        showCountdownModal()
+    }
 
     if (location.pathname === '/login') {
         console.log('[content] Login page detected, trying auto-login...')

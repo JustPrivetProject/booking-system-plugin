@@ -10,6 +10,12 @@ Periodically (every 1 minute) calls `isAppUnauthorized()` by sending a message t
 
 If unauthorized, triggers `window.location.reload()` to redirect to the login page.
 
+**New: Countdown Modal on Home Page**
+- On the home page (`/`), if user is not authenticated, shows a countdown modal
+- Modal displays 60-second countdown before automatic login button click
+- User can click "Zaloguj teraz" immediately or wait for countdown to complete
+- Simply clicks the login button on the home page (no auto-login form filling)
+
 After reload, attempts to simulate a login by clicking the login button.
 
 Upon successful login, sends a message (`LOGIN_SUCCESS` or `AUTO_LOGIN_ATTEMPT`) back to the background.
@@ -56,6 +62,23 @@ Opens a modal dialog for managing auto-login credentials with:
 
 All UI text is in Polish language.
 
+### 6. Countdown Modal
+
+**New Component: `src/content/modals/countdownModal.ts`**
+
+Shows a modal dialog on the home page with:
+- Title: "Automatyczne logowanie"
+- Countdown timer showing seconds remaining (60 seconds)
+- "Zaloguj teraz" button for immediate action
+- "Anuluj" button to cancel
+- 60-second automatic countdown
+
+**Simple Implementation:**
+- Only clicks the login button on the home page (`a.product-box[href="/login"]`)
+- No auto-login form filling (unlike login page)
+- No credential loading or form manipulation
+- Just navigates to login page after countdown
+
 ## Storage Keys
 
 | Key | Scope | Description |
@@ -66,6 +89,14 @@ All UI text is in Polish language.
 
 ## Sequence of Events (Detailed)
 
+### Home Page Flow (New)
+1. **User visits home page** → content script checks authentication
+2. **If not authenticated** → shows countdown modal
+3. **Countdown modal** → 60-second timer with simple login button click
+4. **Login button click** → navigates to login page
+5. **On login page** → existing auto-login logic applies
+
+### Login Page Flow (Existing)
 1. **Request to backend fails** → background sets `unauthorized = true`
 2. **Content script detects unauthorized** → triggers page reload
 3. **On login page** → script attempts auto-login:
@@ -93,6 +124,13 @@ graph TD
     C -->|unauthorized = false| I[onStorageChange]
     I --> J[restoreEntityStatuses]
     J --> K[QueueManager.updateQueueItem]
+
+    %% New Home Page Flow
+    L[Home page load] -->|Not authenticated| M[Show countdown modal]
+    M -->|60 second timer| N[Auto-login attempt]
+    N -->|Load credentials| O[Fill form if available]
+    O --> P[Click login button]
+    P -->|LOGIN_SUCCESS| C
 ```
 
 ## Security Notes
@@ -101,3 +139,4 @@ graph TD
 - In production, a more secure encryption method should be used
 - Credentials are only used for automatic login and never transmitted to external servers
 - Users can clear stored credentials at any time through the popup UI
+- Countdown modal provides user control over automatic navigation to login page
