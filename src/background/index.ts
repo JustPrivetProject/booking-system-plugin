@@ -11,6 +11,7 @@ import {
     clearLogsInSession,
     getLocalStorageData,
     JSONstringify,
+    consoleLogWithoutSave,
 } from '../utils/utils-function'
 import {
     getDriverNameAndContainer,
@@ -271,7 +272,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sessionService
             .isAuthenticated()
             .then((isAuth) => {
-                consoleLog('[BG] Responding isAuthenticated:', isAuth)
+                consoleLogWithoutSave(
+                    '[BG] Responding isAuthenticated:',
+                    isAuth
+                )
                 sendResponse({ isAuthenticated: isAuth })
             })
             .catch((e) => {
@@ -365,7 +369,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
             })
             .catch((error) => {
-                consoleError(
+                consoleLog(
                     '[background] Error loading auto-login credentials:',
                     error
                 )
