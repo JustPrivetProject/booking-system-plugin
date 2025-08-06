@@ -2,10 +2,10 @@ import { Actions } from '../../data'
 import { autoLoginHelper, AutoLoginCredentials } from './autoLoginHelper'
 
 /**
- * Ждёт появления элемента, затем его исчезновения, и отправляет экшен в background.
- * @param {string} selector - CSS-селектор элемента
- * @param {string} action - Имя экшена для background
- * @param {any|Function} messageOrFn - Данные для отправки или функция, возвращающая данные
+ * Waits for the appearance of an element, then its disappearance, and sends an action to the background.
+ * @param {string} selector - CSS selector of the element
+ * @param {string} action - Name of the action for the background
+ * @param {any|Function} messageOrFn - Data to send or a function that returns data
  * @param {Function} [callback] - Необязательный callback для обработки ответа
  */
 export function sendActionAfterElementDisappears(
@@ -14,9 +14,9 @@ export function sendActionAfterElementDisappears(
     messageOrFn,
     callback
 ) {
-    // Сначала ждём появления элемента
+    // First, wait for the appearance of the element
     waitForElement(selector, () => {
-        // Затем ждём исчезновения
+        // Then wait for the disappearance
         waitForElementToDisappear(selector, () => {
             const message =
                 typeof messageOrFn === 'function' ? messageOrFn() : messageOrFn
@@ -26,10 +26,10 @@ export function sendActionAfterElementDisappears(
 }
 
 /**
- * Универсальная функция для отправки экшена и сообщения в background script.
- * @param {string} action - Имя экшена
- * @param {any} message - Данные для отправки
- * @param {Function} [callback] - Необязательный callback для обработки ответа
+ * Universal function to send an action and message to the background script.
+ * @param {string} action - Name of the action
+ * @param {any} message - Data to send
+ * @param {Function} [callback] - Optional callback for processing the response
  */
 export function sendActionToBackground(action, message, callback) {
     if (
@@ -37,12 +37,12 @@ export function sendActionToBackground(action, message, callback) {
         !chrome.runtime ||
         !chrome.runtime.sendMessage
     ) {
-        console.error('Chrome runtime API is not available')
+        console.warn('Chrome runtime API is not available')
         return
     }
     chrome.runtime.sendMessage({ action, message }, (response) => {
         if (chrome.runtime.lastError) {
-            console.error(
+            console.warn(
                 `Error sending ${action} message:`,
                 chrome.runtime.lastError
             )
@@ -93,7 +93,7 @@ export function waitElementAndSendChromeMessage(
             !chrome.runtime ||
             !chrome.runtime.sendMessage
         ) {
-            console.error('Chrome runtime API is not available')
+            console.warn('Chrome runtime API is not available')
             return
         }
 
@@ -101,7 +101,7 @@ export function waitElementAndSendChromeMessage(
             const parsedData = actionFunction()
             sendActionToBackground(action, parsedData, undefined)
         } catch (error) {
-            console.error(`Error processing ${action}:`, error)
+            console.warn(`Error processing ${action}:`, error)
         }
     })
 }
@@ -124,9 +124,9 @@ export function parseTable(): string[][] {
 }
 
 /**
- * Ожидает исчезновения элемента по селектору, затем вызывает callback.
- * @param {string} selector - CSS-селектор модального окна или любого элемента
- * @param {Function} callback - Функция, вызываемая после исчезновения элемента
+ * Waits for the disappearance of an element by selector, then calls the callback.
+ * @param {string} selector - CSS selector of the modal window or any element
+ * @param {Function} callback - Function called after the element disappears
  */
 export function waitForElementToDisappear(selector, callback) {
     // Если элемент уже отсутствует, сразу вызываем callback
@@ -217,15 +217,7 @@ export function isAppUnauthorized(): Promise<boolean> {
                         return resolve(false)
                     }
 
-                    // Check if login form is present on the page
-                    const loginForm = document.querySelector('.loginscreen')
-                    const loginButton = document.querySelector('#loginBtn')
-                    const hasLoginForm = !!(loginForm || loginButton)
-
-                    // Simple logic: user is unauthorized if login form is present
-                    const isUnauthorized = hasLoginForm
-
-                    resolve(isUnauthorized)
+                    resolve(response.unauthorized)
                 }
             )
         } catch (error) {

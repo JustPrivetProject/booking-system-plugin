@@ -43,8 +43,8 @@ const queueManager = QueueManager.getInstance()
 
 // Start retry attempts with random intervals between 2 and 5 seconds
 queueManager.startProcessing(processRequest, {
-    intervalMin: 2000, // Minimum interval (2 seconds)
-    intervalMax: 5000, // Maximum interval (5 seconds)
+    intervalMin: 1000, // Minimum interval (2 seconds)
+    intervalMax: 2000, // Maximum interval (5 seconds)
     retryEnabled: true, // Can be controlled via storage
 })
 
@@ -205,33 +205,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                     requestBody.formData.SlotEnd[0]
                                 retryObject.driverName =
                                     driverAndContainer.driverName || ''
+                                retryObject.containerNumber =
+                                    driverAndContainer.containerNumber || ''
 
                                 if (tableData) {
                                     consoleLog('Getting table data...')
-                                    const row = (retryObject.containerNumber =
-                                        tableData.find((row) =>
-                                            row.includes(tvAppId)
-                                        ))
+                                    const row = tableData.find((row) =>
+                                        row.includes(
+                                            driverAndContainer.containerNumber
+                                        )
+                                    )
+
                                     consoleLog('Row: ', row)
                                     if (row) {
-                                        const containerNumber =
-                                            row[
-                                                tableData[0].indexOf(
-                                                    'Nr kontenera'
-                                                )
-                                            ]
-                                        consoleLog(
-                                            'Getting container...',
-                                            containerNumber
-                                        )
-
                                         const currentSlot = `${row[tableData[0].indexOf('Wybrana data')]} ${row[tableData[0].indexOf('Start')]}`
                                         consoleLog(
                                             'Getting current slot time... :',
                                             currentSlot
                                         )
-                                        retryObject.containerNumber =
-                                            containerNumber
 
                                         retryObject.currentSlot = currentSlot
                                     }

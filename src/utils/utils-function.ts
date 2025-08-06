@@ -15,7 +15,7 @@ export function consoleLog(...args) {
     }
     // Save log to chrome.storage.session
     saveLogToSession('log', args).catch((e) => {
-        console.error('Error saving log to chrome.storage.session:', e)
+        console.warn('Error saving log to chrome.storage.session:', e)
     })
 }
 
@@ -242,9 +242,9 @@ export function JSONstringify(object) {
 }
 
 /**
- * Преобразует строку даты из формата "DD.MM.YYYY HH:mm[:ss]" в объект Date.
- * @param input Строка даты, например "26.06.2025 00:59:00" или "26.06.2025 00:59"
- * @returns Date объект или Invalid Date, если формат некорректен
+ * Converts a date string from the format "DD.MM.YYYY HH:mm[:ss]" to a Date object.
+ * @param input Date string, e.g. "26.06.2025 00:59:00" or "26.06.2025 00:59"
+ * @returns Date object or Invalid Date if the format is incorrect
  */
 export function parseDateTimeFromDMY(input: string): Date {
     const [datePart, timePart] = input.split(' ')

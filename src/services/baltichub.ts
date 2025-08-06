@@ -5,6 +5,7 @@ import {
     normalizeFormData,
     parseDateTimeFromDMY,
     consoleLogWithoutSave,
+    JSONstringify,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -63,7 +64,7 @@ async function checkSlotAvailability(
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
     )
-
+    consoleLog('Slot button:', slotButton)
     return slotButton ? !slotButton.disabled : false
 }
 
@@ -83,10 +84,11 @@ async function checkSlotAvailability(
 export async function getDriverNameAndContainer(
     tvAppId: string,
     retryQueue: RetryObject[]
-): Promise<{ driverName: string; containerNumber?: string }> {
+): Promise<{ driverName: string; containerNumber: string }> {
     consoleLog('Getting driver name and container for TV App ID:', tvAppId)
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/
+    const containerIdRegex = /"ContainerId":"([^"]+)"/
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
 
     if (sameItem) {
@@ -98,11 +100,15 @@ export async function getDriverNameAndContainer(
 
     const response = await getEditForm(tvAppId)
     if (!response.ok) {
-        consoleLog('Error getting driver name: Response not OK')
+        consoleLog(
+            'Error getting driver name: Response not OK',
+            JSONstringify(response)
+        )
         return { driverName: '', containerNumber: '' }
     }
 
     const request = await response.text()
+    consoleLog('Request Edit form:', request)
     if (!request.trim()) {
         consoleLog('Error getting driver name: Response is empty')
         return { driverName: '', containerNumber: '' }
@@ -112,9 +118,15 @@ export async function getDriverNameAndContainer(
     const driverNameItems = driverNameObject.split(' ')
     const driverName =
         `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim()
+
+    const containerNumberMatch = request.match(containerIdRegex)
+    const containerNumber = containerNumberMatch?.[1] || ''
+
     consoleLog('Driver info:', driverName)
+    consoleLog('Container ID:', containerNumber)
     return {
         driverName,
+        containerNumber,
     }
 }
 

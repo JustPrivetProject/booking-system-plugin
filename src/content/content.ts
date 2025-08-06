@@ -80,6 +80,9 @@ window.addEventListener('load', async () => {
     const isAuth = await isUserAuthenticated()
     if (!isAuth) return
 
+    const isAutoLoginEnabled = await isAppUnauthorized()
+    if (!isAutoLoginEnabled) return
+
     if (location.pathname === '/') {
         console.log('[content] Home page detected, showing countdown modal...')
         showCountdownModal()
