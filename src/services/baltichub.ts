@@ -64,7 +64,7 @@ async function checkSlotAvailability(
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
     )
-    consoleLog('Slot button:', slotButton)
+    consoleLogWithoutSave('Slot button:', slotButton)
     return slotButton ? !slotButton.disabled : false
 }
 
