@@ -19,7 +19,7 @@ export function updateBadge(statuses: string[]) {
     chrome.action
         .setBadgeText({ text: icon })
         // .then(() => chrome.action.setBadgeBackgroundColor({ color }))
-        .catch(console.error)
+        .catch(console.warn)
 }
 
 export function clearBadge() {

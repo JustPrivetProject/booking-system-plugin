@@ -28,10 +28,10 @@ export const errorLogService = {
                 .insert([errorLog])
 
             if (supabaseError) {
-                console.error('Failed to log error to Supabase:', supabaseError)
+                console.warn('Failed to log error to Supabase:', supabaseError)
             }
         } catch (e) {
-            console.error('Error while logging to Supabase:', e)
+            console.warn('Error while logging to Supabase:', e)
         }
     },
     async sendLogs(
@@ -54,7 +54,7 @@ export const errorLogService = {
                 .from('logs')
                 .insert([logRow])
             if (supabaseError) {
-                console.error(
+                console.warn(
                     'Failed to send logs to Supabase:',
                     JSON.stringify(supabaseError, null, 2)
                 )

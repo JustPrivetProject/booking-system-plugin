@@ -13,6 +13,7 @@ import { showInfoModal } from './modals/info.modal'
 import { showEmailConfirmationModal } from './modals/emailConfirm.modal'
 import { showAutoLoginModal } from './modals/autoLogin.modal'
 import { autoLoginService } from '../services/autoLoginService'
+import { clearBadge } from '../utils/badge'
 
 function sendMessageToBackground(
     action,
@@ -195,6 +196,7 @@ async function updateQueueDisplay() {
         // clear states on empty grid
         if (!data.length) {
             clearStateGroups()
+            clearBadge()
         }
         // Populate the table with data from the queue
         data.forEach(([tvAppId, items]) => {
