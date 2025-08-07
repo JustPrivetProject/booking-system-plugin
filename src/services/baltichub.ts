@@ -6,6 +6,7 @@ import {
     parseDateTimeFromDMY,
     consoleLogWithoutSave,
     JSONstringify,
+    formatDateToDMY,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -22,18 +23,16 @@ export async function getSlots(
 ): Promise<Response | { ok: false; text: () => Promise<string> }> {
     const [day, month, year] = date.split('.').map(Number)
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
-    const dateAfterTransfer = newDate.toISOString()
+    const dateAfterTransfer = formatDateToDMY(newDate)
     return fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
-            'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            'X-Requested-With': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
-            'X-Extension-Request': 'JustPrivetProject',
         },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
-        credentials: 'include',
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 07.08.2025 26.02.2025
     })
 }
 
