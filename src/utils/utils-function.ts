@@ -81,10 +81,13 @@ export async function fetchRequest(
             ...options,
             headers: {
                 ...options.headers,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                Pragma: 'no-cache',
+                Expires: '0',
             },
             credentials: 'include',
         })
-
+        consoleLog('response', JSONstringify(response))
         if (!response.ok) {
             throw new Error(
                 `Request Error! Message: ${await response.text()} Status: ${response.status}`
@@ -255,4 +258,24 @@ export function parseDateTimeFromDMY(input: string): Date {
     const time = timePart.length === 5 ? `${timePart}:00` : timePart
     const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time}`
     return new Date(isoString)
+}
+
+/**
+ * Formats a Date object to the format "DD.MM.YYYY"
+ * @param date Date object to format (defaults to current date)
+ * @returns Formatted date string, e.g. "07.08.2025"
+ */
+export function formatDateToDMY(date: Date = new Date()): string {
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}.${month}.${year}`
+}
+
+/**
+ * Gets today's date in the format "DD.MM.YYYY"
+ * @returns Today's date as string, e.g. "07.08.2025"
+ */
+export function getTodayFormatted(): string {
+    return formatDateToDMY(new Date())
 }
