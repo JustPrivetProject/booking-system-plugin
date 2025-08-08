@@ -3,8 +3,10 @@ import {
     generateUniqueId,
     consoleLog,
     consoleError,
+    consoleLogWithoutSave,
 } from '../utils/utils-function'
-import { updateBadge } from './badge'
+import { clearBadge, updateBadge } from '../utils/badge'
+import { authService } from '../services/authService'
 
 class QueueManager {
     storageKey: string = 'retryQueue'
@@ -157,8 +159,8 @@ class QueueManager {
     async startProcessing(
         processRequest,
         options = {
-            intervalMin: 2000, // Minimum interval in milliseconds (2 seconds)
-            intervalMax: 10000, // Maximum interval in milliseconds (10 seconds)
+            intervalMin: 1000, // Minimum interval in milliseconds (1 seconds)
+            intervalMax: 5000, // Maximum interval in milliseconds (5 seconds)
             retryEnabled: true,
         }
     ) {
@@ -172,12 +174,27 @@ class QueueManager {
         this.isProcessing = true
 
         const processNextRequests = async () => {
+            const randomInterval = Math.floor(
+                Math.random() * (intervalMax - intervalMin + 1) + intervalMin
+            )
+            // Проверка авторизации пользователя
+            const isAuthenticated = await authService.isAuthenticated()
+
             if (!retryEnabled) {
                 this.isProcessing = false
                 return
             }
 
             try {
+                if (!isAuthenticated) {
+                    consoleLogWithoutSave(
+                        'User is not authenticated. Skipping this cycle.'
+                    )
+                    clearBadge()
+                    setTimeout(processNextRequests, randomInterval)
+                    return
+                }
+
                 const queue = await this.getQueue()
 
                 updateBadge(queue.map((req) => req.status))
@@ -189,7 +206,7 @@ class QueueManager {
                 // Sequential processing
                 for (const req of inProgressRequests) {
                     try {
-                        consoleLog(`Processing request: ${req.id}`)
+                        consoleLogWithoutSave(`Processing request: ${req.id}`)
 
                         const updatedReq = await processRequest(req, queue)
                         if (updatedReq.status !== 'in-progress') {
@@ -219,15 +236,10 @@ class QueueManager {
                 consoleError('Error in queue processing:', error)
             }
 
-            // Calculate a random interval between intervalMin and intervalMax
-            const randomInterval = Math.floor(
-                Math.random() * (intervalMax - intervalMin + 1) + intervalMin
-            )
-            consoleLog(
+            consoleLogWithoutSave(
                 `Next processing cycle in ${randomInterval / 1000} seconds`
             )
 
-            // Start the next processing cycle with random interval
             setTimeout(processNextRequests, randomInterval)
         }
 

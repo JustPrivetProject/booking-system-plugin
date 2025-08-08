@@ -9,6 +9,11 @@ import { createConfirmationModal } from './modals/confirmation.modal'
 import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'
 import { authService } from '../services/authService'
+import { showInfoModal } from './modals/info.modal'
+import { showEmailConfirmationModal } from './modals/emailConfirm.modal'
+import { showAutoLoginModal } from './modals/autoLogin.modal'
+import { autoLoginService } from '../services/autoLoginService'
+import { clearBadge } from '../utils/badge'
 
 function sendMessageToBackground(
     action,
@@ -134,6 +139,7 @@ function getStatusIcon(status: string) {
     if (status === Statuses.ANOTHER_TASK) return 'check_circle'
     if (status === Statuses.PAUSED) return 'pause_circle'
     if (status === Statuses.AUTHORIZATION_ERROR) return 'report'
+    if (status === Statuses.EXPIRED) return 'hourglass_disabled'
     return 'report'
 }
 
@@ -141,7 +147,8 @@ function isDisabled(status: string) {
     if (
         status === Statuses.ANOTHER_TASK ||
         status === Statuses.SUCCESS ||
-        status === Statuses.ERROR
+        status === Statuses.ERROR ||
+        status === Statuses.EXPIRED
     )
         return 'disabled'
     return ''
@@ -189,6 +196,7 @@ async function updateQueueDisplay() {
         // clear states on empty grid
         if (!data.length) {
             clearStateGroups()
+            clearBadge()
         }
         // Populate the table with data from the queue
         data.forEach(([tvAppId, items]) => {
@@ -377,6 +385,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         consoleLog('Queue data changed, updating UI')
         updateQueueDisplay()
     }
+    if (namespace === 'local' && changes.autoLoginData) {
+        consoleLog('Auto-login data changed, updating UI')
+        updateAutoLoginButtonState()
+    }
 })
 
 async function saveHeaderState(isHidden: boolean) {
@@ -447,12 +459,36 @@ function toggleHeaderVisibility() {
     }
 }
 
+async function updateAutoLoginButtonState() {
+    try {
+        const isEnabled = await autoLoginService.isEnabled()
+        const autoLoginToggle = document.getElementById(
+            'autoLoginToggle'
+        ) as HTMLElement
+        if (autoLoginToggle) {
+            if (isEnabled) {
+                autoLoginToggle.classList.add('enabled')
+                autoLoginToggle.title = 'Auto-Logowanie Włączone'
+            } else {
+                autoLoginToggle.classList.remove('enabled')
+                autoLoginToggle.title = 'Włącz Auto-Logowanie'
+            }
+        }
+    } catch (error) {
+        consoleError('Error updating auto-login button state:', error)
+    }
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates()
     updateQueueDisplay()
     toggleHeaderVisibility()
     restoreHeaderState()
+    updateAutoLoginButtonState()
+    // Удаляем тестовую кнопку, если она есть
+    const testBtn = document.getElementById('testEmailConfirmBtn')
+    if (testBtn) testBtn.remove()
 })
 
 // DOM Elements
@@ -620,13 +656,64 @@ backToAppButton.addEventListener('click', (e) => {
     clearErrors()
 })
 
+// Auto-login toggle button handler
+const autoLoginToggle = document.getElementById('autoLoginToggle')!
+autoLoginToggle.addEventListener('click', async (e) => {
+    e.preventDefault()
+    try {
+        const isEnabled = await autoLoginService.isEnabled()
+
+        if (isEnabled) {
+            // If auto-login is enabled, show modal to manage credentials
+            const credentials = await showAutoLoginModal()
+            if (credentials) {
+                await updateAutoLoginButtonState()
+                await showInfoModal(
+                    'Dane auto-login zostały zapisane pomyślnie!'
+                )
+            }
+        } else {
+            // If auto-login is disabled, show modal to set up credentials
+            const credentials = await showAutoLoginModal()
+            if (credentials) {
+                await updateAutoLoginButtonState()
+                await showInfoModal('Auto-login został włączony!')
+            }
+        }
+    } catch (error) {
+        consoleError('Error in auto-login modal:', error)
+    }
+})
+
 // Prevent form submit for login and register forms
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault()
+    handleLogin()
+    updateQueueDisplay()
 })
 registerForm.addEventListener('submit', (e) => {
     e.preventDefault()
+    handleRegister()
+    updateQueueDisplay()
 })
+unbindForm.addEventListener('submit', (e) => {
+    e.preventDefault()
+    handleUnbind()
+})
+
+document
+    .getElementById('send-logs-btn')
+    ?.addEventListener('click', async () => {
+        const description = await createConfirmationModal(
+            'Czy pojawił się jakiś problem? Opisz go poniżej:',
+            true
+        )
+        if (!description) return
+        sendMessageToBackground('SEND_LOGS_TO_SUPABASE', { description })
+        await showInfoModal(
+            'Dziękujemy za opisanie problemu. Postaramy się go rozwiązać najszybciej jak to możliwe.'
+        )
+    })
 
 // Functions
 async function handleLogin() {
@@ -680,7 +767,10 @@ async function handleRegister() {
         if (user) {
             // Показываем сообщение о необходимости подтверждения email
             registerForm.classList.add('hidden')
-            showEmailConfirmationMessage(registerEmail.value)
+            showEmailConfirmationModal(registerEmail.value, () => {
+                registerForm.classList.add('hidden')
+                loginForm.classList.remove('hidden')
+            })
             manualRegisterMode = false
         }
     } catch (error: any) {
@@ -691,39 +781,6 @@ async function handleRegister() {
     } finally {
         isRegistering = false
     }
-}
-
-function showEmailConfirmationMessage(email: string) {
-    // Создаём или находим контейнер для сообщения
-    let confirmMsg = document.getElementById('emailConfirmMsg')
-    if (!confirmMsg) {
-        confirmMsg = document.createElement('div')
-        confirmMsg.id = 'emailConfirmMsg'
-        confirmMsg.className = 'email-confirm-message'
-        authContainer.appendChild(confirmMsg)
-    }
-    confirmMsg.innerHTML = `
-        Please confirm your email address (${email}) via the link sent to your inbox.
-        <br>
-        <button id="backToLoginBtn" style="margin-top:10px;">OK</button>
-    `
-    confirmMsg.classList.add('show')
-
-    // Функция возврата к форме входа и скрытия сообщения
-    function hideConfirmMsg() {
-        confirmMsg?.classList.remove('show')
-        registerForm.classList.add('hidden')
-        loginForm.classList.remove('hidden')
-    }
-
-    // Обработчик кнопки
-    const backBtn = document.getElementById('backToLoginBtn')
-    if (backBtn) {
-        backBtn.addEventListener('click', hideConfirmMsg)
-    }
-
-    // Автоматическое скрытие через 7 секунд
-    setTimeout(hideConfirmMsg, 7000)
 }
 
 async function handleLogout() {
@@ -865,6 +922,7 @@ function showAuthenticatedUI(user: { email: string }) {
     if (toggleHeaderBtn) toggleHeaderBtn.style.display = ''
     restoreHeaderState()
     updateQueueDisplay()
+    updateAutoLoginButtonState()
 }
 
 function showUnauthenticatedUI() {
@@ -901,6 +959,15 @@ async function checkAuth() {
             showUnauthenticatedUI()
         }
     } else {
+        // Try auto-login if not authenticated
+        const autoLoginSuccess = await autoLoginService.performAutoLogin()
+        if (autoLoginSuccess) {
+            const user = await authService.getCurrentUser()
+            if (user) {
+                showAuthenticatedUI(user)
+                return
+            }
+        }
         showUnauthenticatedUI()
     }
 }

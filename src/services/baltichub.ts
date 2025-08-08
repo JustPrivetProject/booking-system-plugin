@@ -3,28 +3,36 @@ import {
     consoleError,
     fetchRequest,
     normalizeFormData,
+    parseDateTimeFromDMY,
+    consoleLogWithoutSave,
+    JSONstringify,
+    formatDateToDMY,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
 import { RetryObject } from '../types/baltichub'
+import {
+    parseSlotsIntoButtons,
+    handleErrorResponse,
+    isTaskCompletedInAnotherQueue,
+} from '../utils/baltichub.helper'
+import { setStorage } from '../utils/storageControl.helper'
 
 export async function getSlots(
     date: string
 ): Promise<Response | { ok: false; text: () => Promise<string> }> {
     const [day, month, year] = date.split('.').map(Number)
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
-    const dateAfterTransfer = newDate.toISOString()
+    const dateAfterTransfer = formatDateToDMY(newDate)
     return fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
-            'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            'X-Requested-With': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
-            'X-Extension-Request': 'JustPrivetProject',
         },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 26.02.2025
-        credentials: 'include',
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 07.08.2025 26.02.2025
     })
 }
 
@@ -47,18 +55,6 @@ export async function getEditForm(
     )
 }
 
-const parseSlotsIntoButtons = (htmlText: string) => {
-    const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
-    const buttons = [...htmlText.matchAll(buttonRegex)].map((match) => {
-        const buttonHTML = match[0] // The entire matched <button>...</button> tag
-        const text = match[1].trim() // The text inside the button
-        const disabled = /disabled/i.test(buttonHTML) // Check for the presence of the disabled attribute
-
-        return { text, disabled }
-    })
-    return buttons
-}
-
 async function checkSlotAvailability(
     htmlText: string,
     time: string[]
@@ -67,7 +63,7 @@ async function checkSlotAvailability(
     const slotButton = buttons.find((button) =>
         button.text.includes(time[1].slice(0, 5))
     )
-    consoleLog('Slot button:', slotButton)
+    consoleLogWithoutSave('Slot button:', slotButton)
     return slotButton ? !slotButton.disabled : false
 }
 
@@ -87,10 +83,11 @@ async function checkSlotAvailability(
 export async function getDriverNameAndContainer(
     tvAppId: string,
     retryQueue: RetryObject[]
-): Promise<{ driverName: string; containerNumber?: string }> {
+): Promise<{ driverName: string; containerNumber: string }> {
     consoleLog('Getting driver name and container for TV App ID:', tvAppId)
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/
+    const containerIdRegex = /"ContainerId":"([^"]+)"/
     const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
 
     if (sameItem) {
@@ -102,11 +99,15 @@ export async function getDriverNameAndContainer(
 
     const response = await getEditForm(tvAppId)
     if (!response.ok) {
-        consoleLog('Error getting driver name: Response not OK')
+        consoleLog(
+            'Error getting driver name: Response not OK',
+            JSONstringify(response)
+        )
         return { driverName: '', containerNumber: '' }
     }
 
     const request = await response.text()
+    consoleLog('Request Edit form:', request)
     if (!request.trim()) {
         consoleLog('Error getting driver name: Response is empty')
         return { driverName: '', containerNumber: '' }
@@ -114,9 +115,17 @@ export async function getDriverNameAndContainer(
 
     const driverNameObject = request.match(regex)?.[1] || ''
     const driverNameItems = driverNameObject.split(' ')
+    const driverName =
+        `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim()
+
+    const containerNumberMatch = request.match(containerIdRegex)
+    const containerNumber = containerNumberMatch?.[1] || ''
+
+    consoleLog('Driver info:', driverName)
+    consoleLog('Container ID:', containerNumber)
     return {
-        driverName:
-            `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim(),
+        driverName,
+        containerNumber,
     }
 }
 
@@ -142,17 +151,10 @@ async function executeRequest(
     time: string[]
 ): Promise<{ status: string; status_message: string }> {
     const formData = createFormData(req.body!.formData)
-    let headers: Record<string, string | undefined>[] = []
-    if (req.headersCache) {
-        headers = req.headersCache.map((header) => ({
-            [header.name]: header.value || '',
-        }))
-    }
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
         headers: {
-            ...headers,
             'X-Extension-Request': 'JustPrivetProject',
             credentials: 'include',
         },
@@ -187,116 +189,6 @@ async function executeRequest(
 }
 
 /**
- * Handles error responses by analyzing the parsed response and returning an appropriate object.
- *
- * @param {Object} req - The original request object.
- * @param {string} parsedResponse - The parsed response string from the server.
- * @param {string} tvAppId - The ID of the TV application associated with the request.
- * @param {Array<string>} time - An array of time-related strings associated with the request.
- * @returns {Object} - The modified request object or an object containing error details.
- *
- * @description
- * This function processes error responses and determines the appropriate action based on the error type:
- * - If the error is "CannotCreateTvaInSelectedSlot", it logs the error and returns the original request.
- * - If the error is "TaskWasUsedInAnotherTva", it logs the success message and returns a modified request object with a status of "another-task".
- * - For unknown errors, it logs the error and returns a modified request object with a status of "error" and an error message.
- */
-
-function handleErrorResponse(
-    req: RetryObject,
-    parsedResponse: string,
-    tvAppId: string,
-    time: string[]
-): RetryObject {
-    if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-        consoleLog(
-            '❌ Retry failed, keeping in queue:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse
-        )
-        return req
-    }
-
-    if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
-        consoleLog(
-            '✅ The request was executed in another task:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse
-        )
-        return {
-            ...req,
-            status: Statuses.ANOTHER_TASK,
-            status_message: 'Zadanie zakończone w innym wątku',
-        }
-    }
-
-    let responseObj
-    try {
-        responseObj = JSON.parse(parsedResponse)
-
-        // Handle specific error codes
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('ToMuchTransactionInSector')
-        ) {
-            consoleLog(
-                '⚠️ Too many transactions in sector, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return req
-        }
-
-        if (responseObj.messageCode === 'NoSlotsAvailable') {
-            consoleLog(
-                '⚠️ No slots available, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return req
-        }
-
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('FE_0091')
-        ) {
-            consoleLog(
-                '⚠️ Too many transactions in sector, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status: Statuses.ANOTHER_TASK,
-                status_message:
-                    'Awizacja edytowana przez innego użytkownika. Otwórz okno ponownie w celu aktualizacji awizacji',
-            }
-        }
-
-        // Handle unknown JSON error
-        consoleError('❌ Unknown error occurred:', parsedResponse)
-        return {
-            ...req,
-            status: Statuses.ERROR,
-            status_message: responseObj.error || 'Nieznany błąd',
-        }
-    } catch (e) {
-        // Handle non-JSON responses
-        consoleError('❌ Unknown error (not JSON):', parsedResponse)
-        return {
-            ...req,
-            status: Statuses.ERROR,
-            status_message: 'Nieznany błąd (niepoprawny format)',
-        }
-    }
-}
-
-/**
  * Processes a request by normalizing its form data, checking task completion,
  * verifying authorization, checking slot availability, and executing the request if applicable.
  *
@@ -326,6 +218,36 @@ export async function processRequest(
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')
+    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]) // 26.06.2025 00:59:00
+    const currentTimeSlot = new Date(req.currentSlot)
+    const currentTIme = new Date()
+
+    if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
+        consoleLog(
+            '❌ End time is in the past, cannot process:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message: 'Czas zakończenia slotu już minął',
+        }
+    }
+
+    if (currentTimeSlot < currentTIme) {
+        consoleLog(
+            '❌ Changing the time is no longer possible:',
+            tvAppId,
+            endTimeStr
+        )
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message:
+                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+        }
+    }
 
     if (isTaskCompletedInAnotherQueue(req, queue)) {
         consoleLog(
@@ -343,6 +265,7 @@ export async function processRequest(
     // Check Authorization
     if (!slots.ok) {
         consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '))
+        setStorage({ unauthorized: true })
         return {
             ...req,
             status: Statuses.AUTHORIZATION_ERROR,
@@ -352,15 +275,13 @@ export async function processRequest(
     const htmlText = await slots.text()
     const isSlotAvailable = await checkSlotAvailability(htmlText, time)
     if (!isSlotAvailable) {
-        consoleLog('❌ No slots, keeping in queue:', tvAppId, time.join(', '))
+        consoleLogWithoutSave(
+            '❌ No slots, keeping in queue:',
+            tvAppId,
+            time.join(', ')
+        )
         return req
     }
     const objectToReturn = await executeRequest(req, tvAppId, time)
     return objectToReturn
-}
-
-function isTaskCompletedInAnotherQueue(req: RetryObject, queue: RetryObject[]) {
-    return queue.some(
-        (task) => task.tvAppId === req.tvAppId && task.status === 'success'
-    )
 }

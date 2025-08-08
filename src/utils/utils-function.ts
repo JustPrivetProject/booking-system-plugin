@@ -13,6 +13,24 @@ export function consoleLog(...args) {
             ...args
         )
     }
+    // Save log to chrome.storage.session
+    saveLogToSession('log', args).catch((e) => {
+        console.warn('Error saving log to chrome.storage.session:', e)
+    })
+}
+
+export function consoleLogWithoutSave(...args) {
+    if (process.env.NODE_ENV === 'development') {
+        const date = new Date().toLocaleString('pl-PL', {
+            timeZone: 'Europe/Warsaw',
+        })
+        console.log(
+            `%c[${date}] %c[JustPrivetProject]:`,
+            'color: #00bfff; font-weight: bold;',
+            'color: #ff8c00; font-weight: bold;',
+            ...args
+        )
+    }
 }
 
 export function consoleError(...args) {
@@ -26,7 +44,10 @@ export function consoleError(...args) {
         'color:rgb(192, 4, 4); font-weight: bold;',
         ...args
     )
-
+    // Save error to chrome.storage.session
+    saveLogToSession('error', args).catch((e) => {
+        console.error('Error saving error to chrome.storage.session:', e)
+    })
     // Log to Supabase only in development
     if (process.env.NODE_ENV === 'development') {
         const errorMessage = args
@@ -60,10 +81,13 @@ export async function fetchRequest(
             ...options,
             headers: {
                 ...options.headers,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                Pragma: 'no-cache',
+                Expires: '0',
             },
             credentials: 'include',
         })
-
+        consoleLog('response', JSONstringify(response))
         if (!response.ok) {
             throw new Error(
                 `Request Error! Message: ${await response.text()} Status: ${response.status}`
@@ -72,7 +96,7 @@ export async function fetchRequest(
 
         return response
     } catch (error) {
-        consoleError('Error fetching request:', error)
+        consoleLog('Error fetching request:', error)
         return { ok: false, text: () => Promise.resolve('') }
     }
 }
@@ -105,6 +129,19 @@ export function getLastProperty<T>(obj: Record<string, T>): T | null {
     return { ...obj[lastKey] } // Return both key and value
 }
 
+export function getPropertyById<T>(
+    obj: Record<string, T>,
+    id: string
+): T | null {
+    if (!obj.hasOwnProperty(id)) return null
+    return { ...obj[id] } // Возвращаем копию объекта по id
+}
+
+export function extractFirstId(obj: Record<string, unknown>): string | null {
+    const keys = Object.keys(obj)
+    return keys.length > 0 ? keys[0] : null
+}
+
 export function generateUniqueId() {
     return crypto.randomUUID()
 }
@@ -135,4 +172,110 @@ export function sortStatusesByPriority(statuses) {
         // If the status is not found in the priority list, place it at the end
         return priorityA - priorityB
     })
+}
+
+export async function cleanupCache() {
+    consoleLog('Cleaning up cache...')
+    return new Promise((resolve) => {
+        chrome.storage.local.set(
+            {
+                requestCacheBody: {},
+                requestCacheHeaders: {},
+            },
+            () => {
+                if (chrome.runtime.lastError) {
+                    consoleError(
+                        'Error cleaning up cache:',
+                        chrome.runtime.lastError
+                    )
+                    resolve(false)
+                } else {
+                    resolve(true)
+                }
+            }
+        )
+    })
+}
+
+// Async helpers for chrome.storage.session
+export async function saveLogToSession(type: 'log' | 'error', args: any[]) {
+    return new Promise<void>((resolve) => {
+        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+            // Add new log entry
+            bramaLogs.push({
+                type,
+                message: args.map(String).join(' '),
+                timestamp: new Date().toISOString(),
+            })
+            const logsLength = 300
+            // Keep only the last 300 entries
+            if (bramaLogs.length > logsLength) {
+                bramaLogs = bramaLogs.slice(-logsLength)
+            }
+
+            chrome.storage.session.set({ bramaLogs }, () => resolve())
+        })
+    })
+}
+
+export async function getLogsFromSession() {
+    return new Promise<any[]>((resolve) => {
+        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+            resolve(bramaLogs)
+        })
+    })
+}
+
+export async function clearLogsInSession() {
+    return new Promise<void>((resolve) => {
+        chrome.storage.session.set({ bramaLogs: [] }, () => resolve())
+    })
+}
+
+export async function getLocalStorageData() {
+    return new Promise<any>((resolve) => {
+        chrome.storage.local.get(null, (data) => {
+            resolve(data)
+        })
+    })
+}
+
+export function JSONstringify(object) {
+    return JSON.stringify(object, null, 2)
+}
+
+/**
+ * Converts a date string from the format "DD.MM.YYYY HH:mm[:ss]" to a Date object.
+ * @param input Date string, e.g. "26.06.2025 00:59:00" or "26.06.2025 00:59"
+ * @returns Date object or Invalid Date if the format is incorrect
+ */
+export function parseDateTimeFromDMY(input: string): Date {
+    const [datePart, timePart] = input.split(' ')
+    if (!datePart || !timePart) return new Date(NaN)
+    const [day, month, year] = datePart.split('.').map(Number)
+    if (!day || !month || !year) return new Date(NaN)
+    // Если timePart без секунд, добавим :00
+    const time = timePart.length === 5 ? `${timePart}:00` : timePart
+    const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${time}`
+    return new Date(isoString)
+}
+
+/**
+ * Formats a Date object to the format "DD.MM.YYYY"
+ * @param date Date object to format (defaults to current date)
+ * @returns Formatted date string, e.g. "07.08.2025"
+ */
+export function formatDateToDMY(date: Date = new Date()): string {
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}.${month}.${year}`
+}
+
+/**
+ * Gets today's date in the format "DD.MM.YYYY"
+ * @returns Today's date as string, e.g. "07.08.2025"
+ */
+export function getTodayFormatted(): string {
+    return formatDateToDMY(new Date())
 }

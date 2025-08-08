@@ -4,16 +4,20 @@ const HtmlWebpackPlugin = require('html-webpack-plugin')
 const Dotenv = require('dotenv-webpack')
 
 module.exports = (env) => {
-    const isProduction = env.production === true;
-    const manifestPath = isProduction ? 'public/manifest.json' : 'public/manifest-dev.json';
-    const iconPath = isProduction ? 'public/icon-144x144.png' : 'public/icon-144x144-dev.png';
+    const isProduction = env.production === true
+    const manifestPath = isProduction
+        ? 'public/manifest.json'
+        : 'public/manifest-dev.json'
+    const iconPath = isProduction
+        ? 'public/icon-144x144.png'
+        : 'public/icon-144x144-dev.png'
 
     return {
         mode: isProduction ? 'production' : 'development',
         // Точки входа
         entry: {
             background: './src/background/index.ts',
-            content: './src/content.ts',
+            content: './src/content/content.ts',
             popup: './src/popup/popup.ts',
         },
 
@@ -57,18 +61,21 @@ module.exports = (env) => {
                         from: 'public',
                         to: '.',
                         globOptions: {
-                            ignore: ['**/icon-144x144*.png', '**/manifest*.json']
+                            ignore: [
+                                '**/icon-144x144*.png',
+                                '**/manifest*.json',
+                            ],
                         },
                         noErrorOnMissing: true,
                     },
                     {
                         from: iconPath,
-                        to: 'icon-144x144.png'
+                        to: 'icon-144x144.png',
                     },
                     {
                         from: manifestPath,
-                        to: 'manifest.json'
-                    }
+                        to: 'manifest.json',
+                    },
                 ],
             }),
             new Dotenv(),

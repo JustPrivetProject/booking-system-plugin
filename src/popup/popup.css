@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 /* ===== GLOBAL VARIABLES ===== */
 :root {
     /* Colors */
@@ -30,6 +36,7 @@
     --font-size-small: 12px;
     --font-size-medium: 14px;
     --font-size-large: 18px;
+    --font-size-super-large: 24px;
 
     /* Borders */
     --border-radius: 8px;
@@ -37,11 +44,14 @@
     /* Darker colors */
     --color-primary-dark: #0099cc;
     --color-primary-light: #00bbee;
+
+    --app-width: 440px;
+    --modal-width: 420px;
 }
 
 /* ===== GLOBAL STYLES ===== */
 body {
-    min-width: 440px;
+    min-width: var(--app-width);
     height: 35px;
     overflow: auto;
     font-family: Arial, sans-serif;
@@ -58,6 +68,8 @@ body {
 /* ===== TABLE ===== */
 table {
     width: 100%;
+    max-width: var(--app-width);
+    margin: 0 auto;
     border-collapse: collapse; /* Изменено с separate для лучшего отображения границ */
     border-radius: 12px;
     overflow: hidden;
@@ -83,6 +95,7 @@ tr:last-child td {
     text-align: center;
     color: var(--color-text-light);
     padding: var(--spacing-medium);
+    width: var(--app-width);
 }
 
 #queueTableBody:empty + tr {
@@ -162,6 +175,7 @@ td.actions .remove-button:hover {
 /* ===== ROW HOVER AND ALTERNATION ===== */
 tr {
     background: var(--color-white);
+    width: var(--app-width);
 }
 
 tr:nth-child(even) {
@@ -289,8 +303,8 @@ tr[data-is-open='false'] .status-icon {
 /* Auth Container */
 .auth-container {
     width: 100%;
-    max-width: 400px;
-    margin: 16px auto 0 auto;
+    max-width: var(--modal-width);
+    margin-top: 8px;
     background: transparent;
     border-radius: 0;
     box-shadow: none;
@@ -324,14 +338,14 @@ tr[data-is-open='false'] .status-icon {
     margin: 0 0 var(--spacing-medium) 0;
     text-align: center;
     color: var(--color-primary);
-    font-size: 20px;
+    font-size: --font-size-super-large;
 }
 
 .auth-form input {
     padding: var(--spacing-medium);
     border: 1px solid var(--color-border-light);
     border-radius: 4px;
-    font-size: 14px;
+    font-size: --font-size-large;
     transition: border-color 0.2s ease-in-out;
 }
 
@@ -347,7 +361,7 @@ tr[data-is-open='false'] .status-icon {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: --font-size-large;
     transition: all 0.2s ease-in-out;
     box-shadow: var(--shadow-button);
 }
@@ -383,7 +397,7 @@ tr[data-is-open='false'] .status-icon {
     border-radius: 4px;
     padding: var(--spacing-medium);
     margin-bottom: var(--spacing-medium);
-    font-size: 14px;
+    font-size: --font-size-large;
     text-align: center;
     box-shadow: var(--shadow-light);
 }
@@ -396,13 +410,15 @@ tr[data-is-open='false'] .status-icon {
 /* User Info */
 .user-info {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
     padding: var(--spacing-small) 16px;
     background-color: var(--color-background-light);
-    border-bottom: 1px solid var(--color-border-light);
     margin-bottom: var(--spacing-small);
     border-radius: 0;
+    gap: var(--spacing-small);
+    margin-bottom: var(--spacing-small);
 }
 
 #logoutButton {
@@ -461,19 +477,47 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .header {
+    width: 100%;
+    max-width: var(--app-width);
+    margin: 0 auto;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: stretch;
     padding: var(--spacing-medium);
     background-color: var(--color-background-light);
-    border-bottom: 1px solid var(--color-border-light);
     position: relative;
+    min-height: 80px;
 }
 
 .user-actions {
     display: flex;
+    flex-direction: column;
+    gap: var(--spacing-small);
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+.action-buttons-row {
+    display: flex;
     gap: var(--spacing-small);
     align-items: center;
+}
+
+.main-buttons-row {
+    display: flex;
+    gap: var(--spacing-small);
+    align-items: center;
+    border-top: 1px solid var(--color-border-light);
+    padding-top: var(--spacing-small);
+    margin-top: var(--spacing-small);
+}
+
+.auto-login-row {
+    display: flex;
+    gap: var(--spacing-small);
+    align-items: center;
+    margin-top: auto;
+    margin-bottom: 8px;
 }
 
 .secondary-button {
@@ -496,7 +540,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 #unbindForm {
-    max-width: 400px;
+    max-width: var(--modal-width);
     margin: 0 auto;
     padding: var(--spacing-large);
     background-color: var(--color-white);
@@ -615,4 +659,108 @@ tr[data-is-open='false'] .status-icon {
 }
 #mainContent.header-hidden .toggle-header-btn:hover {
     opacity: 0.7;
+}
+
+.bug-report-btn {
+    /* position: absolute; */
+    /* top: 8px;
+    right: 8px; */
+    /* width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px; */
+    border-radius: 50%;
+    background: var(--color-white);
+    border: none;
+    box-shadow: var(--shadow-button);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
+}
+.bug-report-btn .material-icons {
+    font-size: 16px;
+    color: #1976d2;
+}
+.bug-report-btn:hover {
+    background: #e3f2fd;
+    box-shadow: var(--shadow-hover);
+}
+
+/* Auto-Login Toggle Button */
+.auto-login-toggle {
+    border-radius: 50%;
+    background: var(--color-white);
+    border: none;
+    box-shadow: var(--shadow-button);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: all 0.2s ease-in-out;
+    width: 28px;
+    height: 28px;
+    margin-left: var(--spacing-small);
+}
+
+.auto-login-toggle:hover {
+    background: #e0f7fa;
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-1px);
+}
+
+.auto-login-toggle .material-icons {
+    font-size: 14px;
+    color: var(--color-primary);
+}
+
+.auto-login-toggle.enabled {
+    background-color: var(--color-primary);
+}
+
+.auto-login-toggle.enabled .material-icons {
+    color: var(--color-white);
+}
+
+.auto-login-toggle.enabled:hover {
+    background-color: var(--color-primary-dark);
+}
+
+/* Auto-Login Button with Text */
+#autoLoginToggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+    padding: var(--spacing-small) var(--spacing-medium);
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
+    font-size: var(--font-size-small);
+    margin-left: var(--spacing-medium);
+}
+
+#autoLoginToggle:hover {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
+}
+
+#autoLoginToggle .material-icons {
+    font-size: 14px;
+    color: var(--color-white);
+}
+
+#autoLoginToggle.enabled {
+    background-color: var(--color-success);
+}
+
+#autoLoginToggle.enabled:hover {
+    background-color: #006600;
 }

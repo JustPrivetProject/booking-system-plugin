@@ -1,7 +1,9 @@
-export function createConfirmationModal(message) {
+export function createConfirmationModal(message, withInput = false) {
     return new Promise((resolve) => {
         const initialBodyHeight = document.querySelector('body')!.style.height
-        document.body.style.height = '100px'
+        if (withInput) document.body.style.height = '200px'
+        else document.body.style.height = '100px'
+
         const overlay = document.createElement('div')
         overlay.style.position = 'fixed'
         overlay.style.top = '0'
@@ -25,6 +27,26 @@ export function createConfirmationModal(message) {
         const messageEl = document.createElement('p')
         messageEl.textContent = message
         messageEl.style.marginBottom = '20px'
+
+        let inputEl: HTMLTextAreaElement | null = null
+        let errorEl: HTMLDivElement | null = null
+        if (withInput) {
+            inputEl = document.createElement('textarea')
+            inputEl.style.width = '100%'
+            inputEl.style.minHeight = '60px'
+            inputEl.style.marginBottom = '10px'
+            inputEl.style.resize = 'vertical'
+            inputEl.placeholder = 'Opisz problem...'
+            inputEl.style.minWidth = '100px'
+            inputEl.style.maxWidth = '100%'
+            inputEl.style.maxHeight = '65px'
+            inputEl.style.minHeight = '40px'
+            errorEl = document.createElement('div')
+            errorEl.style.color = 'red'
+            errorEl.style.fontSize = '13px'
+            errorEl.style.marginBottom = '10px'
+            errorEl.style.display = 'none'
+        }
 
         const buttonsContainer = document.createElement('div')
         buttonsContainer.style.display = 'flex'
@@ -53,15 +75,32 @@ export function createConfirmationModal(message) {
         })
 
         confirmButton.addEventListener('click', () => {
-            document.body.removeChild(overlay)
-            document.body.style.height = initialBodyHeight
-            resolve(true)
+            if (withInput && inputEl) {
+                const value = inputEl.value.trim()
+                if (!value) {
+                    if (errorEl) {
+                        errorEl.textContent = 'Proszę opisać problem.'
+                        errorEl.style.display = 'block'
+                    }
+                    inputEl.focus()
+                    return
+                }
+                document.body.removeChild(overlay)
+                document.body.style.height = initialBodyHeight
+                resolve(value)
+            } else {
+                document.body.removeChild(overlay)
+                document.body.style.height = initialBodyHeight
+                resolve(true)
+            }
         })
 
         buttonsContainer.appendChild(cancelButton)
         buttonsContainer.appendChild(confirmButton)
 
         modal.appendChild(messageEl)
+        if (inputEl) modal.appendChild(inputEl)
+        if (errorEl) modal.appendChild(errorEl)
         modal.appendChild(buttonsContainer)
 
         overlay.appendChild(modal)
