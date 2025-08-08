@@ -44,35 +44,36 @@ export function handleErrorResponse(
     tvAppId: string,
     time: string[]
 ): RetryObject {
-    if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-        consoleLog(
-            '❌ Retry failed, keeping in queue:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse
-        )
-        return req
-    }
-
-    if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
-        consoleLog(
-            '✅ The request was executed in another task:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse
-        )
-        return {
-            ...req,
-            status: Statuses.ANOTHER_TASK,
-            status_message: 'Zadanie zakończone w innym wątku',
-        }
-    }
-
-    let responseObj
     try {
-        responseObj = JSON.parse(parsedResponse)
+        const responseObj = JSON.parse(parsedResponse)
 
-        // Handle specific error codes
+        if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
+            consoleLog(
+                '❌ Retry failed, keeping in queue:',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return {
+                ...req,
+                status_message: responseObj.error ?? req.status_message,
+            }
+        }
+
+        if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
+            consoleLog(
+                '✅ The request was executed in another task:',
+                tvAppId,
+                time.join(', '),
+                parsedResponse
+            )
+            return {
+                ...req,
+                status: Statuses.ANOTHER_TASK,
+                status_message: 'Zadanie zakończone w innym wątku',
+            }
+        }
+
         if (
             responseObj.messageCode &&
             responseObj.messageCode.includes('ToMuchTransactionInSector')
