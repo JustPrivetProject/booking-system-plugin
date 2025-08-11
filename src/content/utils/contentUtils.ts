@@ -227,6 +227,18 @@ export function isAppUnauthorized(): Promise<boolean> {
     })
 }
 
+export function isAutoLoginEnabled(): Promise<boolean> {
+    return new Promise((resolve) => {
+        sendActionToBackground(
+            Actions.IS_AUTO_LOGIN_ENABLED,
+            null,
+            (response) => {
+                resolve(response.isEnabled)
+            }
+        )
+    })
+}
+
 export async function tryClickLoginButton() {
     const LOGIN_FORM_SELECTOR = '.loginscreen'
     const LOGIN_BUTTON_SELECTOR = '#loginBtn'
