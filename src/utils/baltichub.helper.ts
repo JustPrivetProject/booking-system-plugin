@@ -44,51 +44,45 @@ export function handleErrorResponse(
     tvAppId: string,
     time: string[]
 ): RetryObject {
+    if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
+        consoleLog(
+            '❌ Retry failed, keeping in queue:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return req
+    }
+
+    if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
+        consoleLog(
+            '✅ The request was executed in another task:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return {
+            ...req,
+            status: Statuses.ANOTHER_TASK,
+            status_message: 'Zadanie zakończone w innym wątku',
+        }
+    }
+
+    if (parsedResponse.includes('ToMuchTransactionInSector')) {
+        consoleLog(
+            '⚠️ Too many transactions in sector, keeping in queue:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return {
+            ...req,
+            status_message: 'Za duża ilość transakcji w sektorze',
+        }
+    }
+    let responseObj
     try {
-        const responseObj = JSON.parse(parsedResponse)
-
-        if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-            consoleLog(
-                '❌ Retry failed, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status_message: responseObj.error ?? req.status_message,
-            }
-        }
-
-        if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
-            consoleLog(
-                '✅ The request was executed in another task:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status: Statuses.ANOTHER_TASK,
-                status_message: 'Zadanie zakończone w innym wątku',
-            }
-        }
-
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('ToMuchTransactionInSector')
-        ) {
-            consoleLog(
-                '⚠️ Too many transactions in sector, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status_message: 'Za duża ilość transakcji w sektorze',
-            }
-        }
+        responseObj = JSON.parse(parsedResponse)
 
         if (responseObj.messageCode === 'NoSlotsAvailable') {
             consoleLog(
@@ -146,6 +140,50 @@ export function handleErrorResponse(
     } catch (e) {
         // Handle non-JSON responses
         consoleLog('❌ Unknown error (not JSON):', parsedResponse)
+        if (
+            parsedResponse.includes('<!DOCTYPE html>') ||
+            parsedResponse.includes('<html')
+        ) {
+            // Extract error information from HTML
+            let errorType = 'Unknown Server Error'
+            let errorDetails = ''
+
+            // Check for specific error types in HTML
+            if (parsedResponse.includes('Error 500')) {
+                errorType = 'Server Error (500)'
+            } else if (parsedResponse.includes('Error 404')) {
+                errorType = 'Not Found (404)'
+            } else if (parsedResponse.includes('Error 403')) {
+                errorType = 'Forbidden (403)'
+            } else if (parsedResponse.includes('Error 401')) {
+                errorType = 'Unauthorized (401)'
+            } else if (parsedResponse.includes('Error 400')) {
+                errorType = 'Bad Request (400)'
+            }
+
+            // Try to extract error message from HTML
+            const errorMatch = parsedResponse.match(
+                /<h[12][^>]*>([^<]+)<\/h[12]>/i
+            )
+            if (errorMatch) {
+                errorDetails = errorMatch[1].trim()
+            }
+
+            consoleLog(
+                '❌ HTML Error Page received:',
+                tvAppId,
+                time.join(', '),
+                errorType,
+                errorDetails
+            )
+
+            return {
+                ...req,
+                status: Statuses.ERROR,
+                status_message: `${errorType}: ${errorDetails || 'Serwer ma problemy, proszę czekać'}`,
+            }
+        }
+
         return {
             ...req,
             status: Statuses.ERROR,
