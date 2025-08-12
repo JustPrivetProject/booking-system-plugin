@@ -1,6 +1,10 @@
 import { Statuses } from '../data'
 import { RetryObject } from '../types/baltichub'
-import { consoleLog, consoleError } from './utils-function'
+import {
+    consoleLog,
+    detectHtmlError,
+    determineErrorType,
+} from './utils-function'
 
 export const parseSlotsIntoButtons = (htmlText: string) => {
     const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
@@ -138,35 +142,52 @@ export function handleErrorResponse(
             status_message: responseObj.error || 'Nieznany błąd',
         }
     } catch (e) {
-        // Handle non-JSON responses
+        // Handle non-JSON responses using new error handling system
         consoleLog('❌ Unknown error (not JSON):', parsedResponse)
+
         if (
             parsedResponse.includes('<!DOCTYPE html>') ||
             parsedResponse.includes('<html')
         ) {
-            // Extract error information from HTML
-            let errorType = 'Unknown Server Error'
-            let errorDetails = ''
+            // Use the new HTML error detection system
+            const htmlError = detectHtmlError(parsedResponse)
+            const errorType = determineErrorType(0, parsedResponse) // 0 status since we don't have HTTP status here
 
-            // Check for specific error types in HTML
+            let errorMessage = 'Serwer ma problemy, proszę czekać'
+            let status = Statuses.ERROR
+
+            // Determine specific error details
             if (parsedResponse.includes('Error 500')) {
-                errorType = 'Server Error (500)'
+                errorMessage = 'Błąd serwera (500) - spróbuj ponownie później'
+                status = Statuses.ERROR
             } else if (parsedResponse.includes('Error 404')) {
-                errorType = 'Not Found (404)'
+                errorMessage =
+                    'Nie znaleziono (404) - sprawdź poprawność danych'
+                status = Statuses.ERROR
             } else if (parsedResponse.includes('Error 403')) {
-                errorType = 'Forbidden (403)'
+                errorMessage = 'Dostęp zabroniony (403) - brak uprawnień'
+                status = Statuses.AUTHORIZATION_ERROR
             } else if (parsedResponse.includes('Error 401')) {
-                errorType = 'Unauthorized (401)'
+                errorMessage =
+                    'Nieautoryzowany dostęp (401) - wymagane ponowne logowanie'
+                status = Statuses.AUTHORIZATION_ERROR
             } else if (parsedResponse.includes('Error 400')) {
-                errorType = 'Bad Request (400)'
+                errorMessage =
+                    'Nieprawidłowe żądanie (400) - sprawdź dane wejściowe'
+                status = Statuses.ERROR
+            } else if (htmlError.isError && htmlError.message) {
+                errorMessage = `Błąd HTML: ${htmlError.message}`
             }
 
-            // Try to extract error message from HTML
+            // Try to extract additional error details from HTML
             const errorMatch = parsedResponse.match(
                 /<h[12][^>]*>([^<]+)<\/h[12]>/i
             )
             if (errorMatch) {
-                errorDetails = errorMatch[1].trim()
+                const details = errorMatch[1].trim()
+                if (details && !errorMessage.includes(details)) {
+                    errorMessage += ` - ${details}`
+                }
             }
 
             consoleLog(
@@ -174,20 +195,21 @@ export function handleErrorResponse(
                 tvAppId,
                 time.join(', '),
                 errorType,
-                errorDetails
+                errorMessage
             )
 
             return {
                 ...req,
-                status: Statuses.ERROR,
-                status_message: `${errorType}: ${errorDetails || 'Serwer ma problemy, proszę czekać'}`,
+                status,
+                status_message: errorMessage,
             }
         }
 
+        // Handle other non-JSON errors
         return {
             ...req,
             status: Statuses.ERROR,
-            status_message: 'Nieznany błąd (niepoprawny format)',
+            status_message: 'Nieznany błąd (niepoprawny format odpowiedzi)',
         }
     }
 }

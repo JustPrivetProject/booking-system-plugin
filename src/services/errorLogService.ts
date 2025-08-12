@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { ErrorType, HttpStatus } from '../utils/utils-function'
 
 interface ErrorLog {
     error_message: string
@@ -6,6 +7,14 @@ interface ErrorLog {
     source: string
     additional_data?: Record<string, any>
     created_at?: string
+}
+
+interface RequestErrorLog extends ErrorLog {
+    error_type: ErrorType
+    http_status?: number
+    url?: string
+    attempt?: number
+    response_text?: string
 }
 
 export const errorLogService = {
@@ -32,6 +41,43 @@ export const errorLogService = {
             }
         } catch (e) {
             console.warn('Error while logging to Supabase:', e)
+        }
+    },
+
+    async logRequestError(
+        errorType: ErrorType,
+        message: string,
+        url: string,
+        status?: number,
+        attempt?: number,
+        responseText?: string,
+        additionalData?: Record<string, any>
+    ) {
+        const requestErrorLog: RequestErrorLog = {
+            error_message: message,
+            error_type: errorType,
+            http_status: status,
+            url,
+            attempt,
+            response_text: responseText,
+            source: 'fetchRequest',
+            additional_data: additionalData,
+            created_at: new Date().toISOString(),
+        }
+
+        try {
+            const { error: supabaseError } = await supabase
+                .from('request_error_logs')
+                .insert([requestErrorLog])
+
+            if (supabaseError) {
+                console.warn(
+                    'Failed to log request error to Supabase:',
+                    supabaseError
+                )
+            }
+        } catch (e) {
+            console.warn('Error while logging request error to Supabase:', e)
         }
     },
     async sendLogs(
