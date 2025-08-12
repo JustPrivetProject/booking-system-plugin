@@ -42,7 +42,7 @@ setInterval(async () => {
     } catch (error) {
         console.warn('[content] Error in authorization check:', error)
     }
-}, 120_000)
+}, 65_000)
 
 waitElementAndSendChromeMessage('#toast-container', Actions.SHOW_ERROR, () => {
     return 'An error occurred!'

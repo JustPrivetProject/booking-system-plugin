@@ -7,6 +7,8 @@ import {
     consoleLogWithoutSave,
     JSONstringify,
     formatDateToDMY,
+    ErrorResponse,
+    ErrorType,
 } from '../utils/utils-function'
 import { Statuses } from '../data'
 import { createFormData } from '../utils/utils-function'
@@ -20,7 +22,7 @@ import { setStorage } from '../utils/storageControl.helper'
 
 export async function getSlots(
     date: string
-): Promise<Response | { ok: false; text: () => Promise<string> }> {
+): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number)
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
     const dateAfterTransfer = formatDateToDMY(newDate)
@@ -38,7 +40,7 @@ export async function getSlots(
 
 export async function getEditForm(
     tvAppId: string
-): Promise<Response | { ok: false; text: () => Promise<string> }> {
+): Promise<Response | ErrorResponse> {
     return fetchRequest(
         `https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`,
         {
@@ -263,13 +265,53 @@ export async function processRequest(
     }
     const slots = await getSlots(time[0])
     // Check Authorization
-    if (!slots.ok) {
-        consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '))
-        setStorage({ unauthorized: true })
-        return {
-            ...req,
-            status: Statuses.AUTHORIZATION_ERROR,
-            status_message: 'Problem z autoryzacją',
+    if (!slots.ok && 'error' in slots) {
+        consoleLog(
+            '❌ Problem with authorization:',
+            tvAppId,
+            time.join(', '),
+            slots.error
+        )
+
+        // Handle different error types
+        switch (slots.error.type) {
+            case ErrorType.CLIENT_ERROR:
+                if (slots.error.status === 401) {
+                    setStorage({ unauthorized: true })
+                    return {
+                        ...req,
+                        status: Statuses.AUTHORIZATION_ERROR,
+                        status_message:
+                            'Problem z autoryzacją - nieautoryzowany dostęp',
+                    }
+                }
+                break
+            case ErrorType.SERVER_ERROR:
+                return {
+                    ...req,
+                    status: Statuses.ERROR,
+                    status_message:
+                        'Problem z serwerem - spróbuj ponownie później',
+                }
+            case ErrorType.HTML_ERROR:
+                return {
+                    ...req,
+                    status: Statuses.AUTHORIZATION_ERROR,
+                    status_message: 'Problem z autoryzacją - strona błędu',
+                }
+            case ErrorType.NETWORK:
+                return {
+                    ...req,
+                    status: Statuses.ERROR,
+                    status_message: 'Problem z połączeniem sieciowym',
+                }
+            default:
+                setStorage({ unauthorized: true })
+                return {
+                    ...req,
+                    status: Statuses.AUTHORIZATION_ERROR,
+                    status_message: 'Problem z autoryzacją',
+                }
         }
     }
     const htmlText = await slots.text()
