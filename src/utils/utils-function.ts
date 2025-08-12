@@ -500,7 +500,7 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function detectHtmlError(responseText: string): {
+export function detectHtmlError(responseText: string): {
     isError: boolean
     status?: number
     message?: string
@@ -536,7 +536,10 @@ function detectHtmlError(responseText: string): {
     return { isError: false }
 }
 
-function determineErrorType(status: number, responseText: string): ErrorType {
+export function determineErrorType(
+    status: number,
+    responseText: string
+): ErrorType {
     if (status >= 500) {
         return ErrorType.SERVER_ERROR
     } else if (status >= 400) {

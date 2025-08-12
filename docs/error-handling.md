@@ -128,6 +128,22 @@ The system automatically detects HTML error pages using patterns:
 - `Status: 401`
 - `Error 404`
 
+### Available helper functions:
+
+```typescript
+import { detectHtmlError, determineErrorType } from '../utils/utils-function';
+
+// Detect HTML errors in response text
+const htmlError = detectHtmlError(responseText);
+if (htmlError.isError) {
+    console.log('HTML Error detected:', htmlError.message);
+    console.log('Status:', htmlError.status);
+}
+
+// Determine error type based on status and response text
+const errorType = determineErrorType(httpStatus, responseText);
+```
+
 ## Usage Examples
 
 ### In baltichub.ts:
@@ -191,6 +207,38 @@ if (!slots.ok && 'error' in slots) {
                 status: Statuses.AUTHORIZATION_ERROR,
                 status_message: 'Problem z autoryzacją',
             }
+    }
+}
+
+### In baltichub.helper.ts:
+```typescript
+// Advanced HTML error handling in handleErrorResponse:
+} catch (e) {
+    // Handle non-JSON responses using new error handling system
+    if (parsedResponse.includes('<!DOCTYPE html>') || parsedResponse.includes('<html')) {
+        // Use the new HTML error detection system
+        const htmlError = detectHtmlError(parsedResponse)
+        const errorType = determineErrorType(0, parsedResponse)
+        
+        let errorMessage = 'Serwer ma problemy, proszę czekać'
+        let status = Statuses.ERROR
+        
+        // Determine specific error details
+        if (parsedResponse.includes('Error 500')) {
+            errorMessage = 'Błąd serwera (500) - spróbuj ponownie później'
+            status = Statuses.ERROR
+        } else if (parsedResponse.includes('Error 401')) {
+            errorMessage = 'Nieautoryzowany dostęp (401) - wymagane ponowne logowanie'
+            status = Statuses.AUTHORIZATION_ERROR
+        } else if (htmlError.isError && htmlError.message) {
+            errorMessage = `Błąd HTML: ${htmlError.message}`
+        }
+        
+        return {
+            ...req,
+            status,
+            status_message: errorMessage,
+        }
     }
 }
 ```
