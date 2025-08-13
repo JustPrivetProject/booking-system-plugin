@@ -6,8 +6,11 @@ import {
     isUserAuthenticated,
     tryClickLoginButton,
     isAppUnauthorized,
+    sendActionToBackground,
+    isAutoLoginEnabled,
 } from './utils/contentUtils'
 import { showCountdownModal } from './modals/countdownModal'
+import { showSessionExpireModal } from './modals/sesssionExpireModal'
 
 console.log('[content] Content script is loaded')
 
@@ -25,16 +28,21 @@ console.log('[content] Starting authorization check interval (60s)')
 
 setInterval(async () => {
     try {
+        const isAutoLoginEnabledResult = await isAutoLoginEnabled()
+        if (!isAutoLoginEnabledResult) return
+
         const isUnauthorized = await isAppUnauthorized()
 
         if (isUnauthorized) {
-            console.warn('[content] Unauthorized — reloading page')
-            location.reload()
+            console.warn(
+                '[content] Unauthorized — showing session expire modal'
+            )
+            showSessionExpireModal()
         }
     } catch (error) {
         console.warn('[content] Error in authorization check:', error)
     }
-}, 60_000)
+}, 65_000)
 
 waitElementAndSendChromeMessage('#toast-container', Actions.SHOW_ERROR, () => {
     return 'An error occurred!'
@@ -86,6 +94,7 @@ window.addEventListener('load', async () => {
     if (location.pathname === '/') {
         console.log('[content] Home page detected, showing countdown modal...')
         showCountdownModal()
+        return
     }
 
     if (location.pathname === '/login') {
@@ -93,5 +102,8 @@ window.addEventListener('load', async () => {
         setTimeout(() => {
             tryClickLoginButton()
         }, 1000)
+        return
     }
+
+    sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null)
 })

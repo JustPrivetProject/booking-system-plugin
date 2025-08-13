@@ -1,6 +1,10 @@
 import { Statuses } from '../data'
 import { RetryObject } from '../types/baltichub'
-import { consoleLog, consoleError } from './utils-function'
+import {
+    consoleLog,
+    detectHtmlError,
+    determineErrorType,
+} from './utils-function'
 
 export const parseSlotsIntoButtons = (htmlText: string) => {
     const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
@@ -44,51 +48,45 @@ export function handleErrorResponse(
     tvAppId: string,
     time: string[]
 ): RetryObject {
+    if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
+        consoleLog(
+            '❌ Retry failed, keeping in queue:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return req
+    }
+
+    if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
+        consoleLog(
+            '✅ The request was executed in another task:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return {
+            ...req,
+            status: Statuses.ANOTHER_TASK,
+            status_message: 'Zadanie zakończone w innym wątku',
+        }
+    }
+
+    if (parsedResponse.includes('ToMuchTransactionInSector')) {
+        consoleLog(
+            '⚠️ Too many transactions in sector, keeping in queue:',
+            tvAppId,
+            time.join(', '),
+            parsedResponse
+        )
+        return {
+            ...req,
+            status_message: 'Za duża ilość transakcji w sektorze',
+        }
+    }
+    let responseObj
     try {
-        const responseObj = JSON.parse(parsedResponse)
-
-        if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-            consoleLog(
-                '❌ Retry failed, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status_message: responseObj.error ?? req.status_message,
-            }
-        }
-
-        if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
-            consoleLog(
-                '✅ The request was executed in another task:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status: Statuses.ANOTHER_TASK,
-                status_message: 'Zadanie zakończone w innym wątku',
-            }
-        }
-
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('ToMuchTransactionInSector')
-        ) {
-            consoleLog(
-                '⚠️ Too many transactions in sector, keeping in queue:',
-                tvAppId,
-                time.join(', '),
-                parsedResponse
-            )
-            return {
-                ...req,
-                status_message: 'Za duża ilość transakcji w sektorze',
-            }
-        }
+        responseObj = JSON.parse(parsedResponse)
 
         if (responseObj.messageCode === 'NoSlotsAvailable') {
             consoleLog(
@@ -144,12 +142,74 @@ export function handleErrorResponse(
             status_message: responseObj.error || 'Nieznany błąd',
         }
     } catch (e) {
-        // Handle non-JSON responses
+        // Handle non-JSON responses using new error handling system
         consoleLog('❌ Unknown error (not JSON):', parsedResponse)
+
+        if (
+            parsedResponse.includes('<!DOCTYPE html>') ||
+            parsedResponse.includes('<html')
+        ) {
+            // Use the new HTML error detection system
+            const htmlError = detectHtmlError(parsedResponse)
+            const errorType = determineErrorType(0, parsedResponse) // 0 status since we don't have HTTP status here
+
+            let errorMessage = 'Serwer ma problemy, proszę czekać'
+            let status = Statuses.ERROR
+
+            // Determine specific error details
+            if (parsedResponse.includes('Error 500')) {
+                errorMessage = 'Błąd serwera (500) - spróbuj ponownie później'
+                status = Statuses.ERROR
+            } else if (parsedResponse.includes('Error 404')) {
+                errorMessage =
+                    'Nie znaleziono (404) - sprawdź poprawność danych'
+                status = Statuses.ERROR
+            } else if (parsedResponse.includes('Error 403')) {
+                errorMessage = 'Dostęp zabroniony (403) - brak uprawnień'
+                status = Statuses.AUTHORIZATION_ERROR
+            } else if (parsedResponse.includes('Error 401')) {
+                errorMessage =
+                    'Nieautoryzowany dostęp (401) - wymagane ponowne logowanie'
+                status = Statuses.AUTHORIZATION_ERROR
+            } else if (parsedResponse.includes('Error 400')) {
+                errorMessage =
+                    'Nieprawidłowe żądanie (400) - sprawdź dane wejściowe'
+                status = Statuses.ERROR
+            } else if (htmlError.isError && htmlError.message) {
+                errorMessage = `Błąd HTML: ${htmlError.message}`
+            }
+
+            // Try to extract additional error details from HTML
+            const errorMatch = parsedResponse.match(
+                /<h[12][^>]*>([^<]+)<\/h[12]>/i
+            )
+            if (errorMatch) {
+                const details = errorMatch[1].trim()
+                if (details && !errorMessage.includes(details)) {
+                    errorMessage += ` - ${details}`
+                }
+            }
+
+            consoleLog(
+                '❌ HTML Error Page received:',
+                tvAppId,
+                time.join(', '),
+                errorType,
+                errorMessage
+            )
+
+            return {
+                ...req,
+                status,
+                status_message: errorMessage,
+            }
+        }
+
+        // Handle other non-JSON errors
         return {
             ...req,
             status: Statuses.ERROR,
-            status_message: 'Nieznany błąd (niepoprawny format)',
+            status_message: 'Nieznany błąd (niepoprawny format odpowiedzi)',
         }
     }
 }

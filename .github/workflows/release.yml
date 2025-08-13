@@ -6,7 +6,6 @@ on:
         branches:
             - main # Production branch
             - dev # Development branch
-            - '**' # All other branches
         tags:
             - 'v*' # Manual releases by tags
         paths:
@@ -37,7 +36,7 @@ jobs:
         name: Test and Build
         if: |
             github.event_name == 'pull_request' || 
-            (github.event_name == 'push' && github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/'))
+            (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' && !startsWith(github.ref, 'refs/tags/'))
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -72,25 +71,12 @@ jobs:
                   fi
                   echo "✅ Version format is valid"
 
-            - name: Check for duplicate version
-              if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-              run: |
-                  VERSION=v$(node -p "require('./package.json').version")
-                  if gh release view $VERSION >/dev/null 2>&1; then
-                    echo "⚠️ Warning: Release $VERSION already exists"
-                    echo "Consider updating the version in package.json"
-                  else
-                    echo "✅ Version $VERSION is available for release"
-                  fi
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
     # Production release (main branch and tags)
     build-and-release:
         name: Production Release
         if: |
             (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
+            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev'))
         runs-on: ubuntu-latest
         environment: prod
         permissions:
@@ -205,14 +191,15 @@ jobs:
               run: |
                   VERSION=v$(node -p "require('./package.json').version")
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "dev_tag=${VERSION}-dev" >> $GITHUB_OUTPUT
                   echo "Dev release version: $VERSION"
 
             - name: Check if dev release should proceed
               id: check_dev_release
               run: |
-                  if gh release view ${{ steps.dev_version.outputs.version }} >/dev/null 2>&1; then
+                  if gh release view ${{ steps.dev_version.outputs.dev_tag }} >/dev/null 2>&1; then
                     echo "should_proceed=false" >> $GITHUB_OUTPUT
-                    echo "Dev release ${{ steps.dev_version.outputs.version }} already exists, skipping"
+                    echo "Dev release ${{ steps.dev_version.outputs.dev_tag }} already exists, skipping"
                   else
                     echo "should_proceed=true" >> $GITHUB_OUTPUT
                     echo "Proceeding with dev release"
@@ -245,13 +232,13 @@ jobs:
               run: |
                   git config user.name github-actions
                   git config user.email github-actions@github.com
-                  git tag ${{ steps.dev_version.outputs.version }}
-                  git push origin ${{ steps.dev_version.outputs.version }}
+                  git tag ${{ steps.dev_version.outputs.dev_tag }}
+                  git push origin ${{ steps.dev_version.outputs.dev_tag }}
 
             - name: Create Development Release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: ${{ steps.dev_version.outputs.version }}-dev
+                  tag_name: ${{ steps.dev_version.outputs.dev_tag }}
                   name: Dev Release ${{ steps.dev_version.outputs.version }}
                   files: extension-dev.zip
                   draft: false

@@ -380,6 +380,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true
     }
 
+    if (message.action === Actions.IS_AUTO_LOGIN_ENABLED) {
+        autoLoginService.isEnabled().then((isEnabled) => {
+            sendResponse({ success: true, isEnabled })
+        })
+        return true
+    }
+
     if (message.target === 'background') {
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
