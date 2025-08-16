@@ -54,6 +54,8 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
 
     let countdown = 60;
     let interval: number | undefined = undefined;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    let waitingForMinute = false;
 
     const timerSpan = document.getElementById('modal-timer');
     const desc = document.getElementById('modal-desc');

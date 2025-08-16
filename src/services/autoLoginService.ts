@@ -155,7 +155,7 @@ export const autoLoginService = {
                 credentials.password.length > 0
             );
         } catch (error) {
-            console.log('Failed to validate stored credentials:', error);
+            console.log('Failed to load auto-login credentials:', error);
             return false;
         }
     },
@@ -262,32 +262,25 @@ export const autoLoginService = {
                 return;
             }
 
-            // Try to decrypt and validate
+            // Try to load credentials to check if they're valid
             const credentials = await this.loadCredentials();
             if (!credentials) {
-                // If we can't load credentials, clear the data
                 console.log('Clearing corrupted auto-login data during migration');
                 await this.clearCredentials();
                 return;
             }
 
-            // Check for corruption indicators
-            const isCorrupted =
-                credentials.login.includes('□') ||
-                credentials.login.includes('\\') ||
-                credentials.login.length === 0 ||
-                credentials.password.length === 0;
-
-            if (isCorrupted) {
-                console.log('Detected corrupted data during migration, clearing...');
+            // Check if credentials are valid (not empty)
+            if (credentials.login.length === 0 || credentials.password.length === 0) {
+                console.log('Clearing corrupted auto-login data during migration');
                 await this.clearCredentials();
                 return;
             }
 
+            // Re-encrypt with current encryption method
             await this.saveCredentials(credentials);
         } catch (error) {
             console.log('Failed to migrate auto-login data:', error);
-            // Clear data on migration failure
             await this.clearCredentials();
         }
     },
