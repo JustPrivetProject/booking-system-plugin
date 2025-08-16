@@ -1,114 +1,116 @@
 # Error Handling System
 
-## Overview
+## 🎯 Overview
 
-The new error handling system in `fetchRequest` provides:
+The new error handling system in `fetchRequest` provides comprehensive error management with detailed analysis, retry mechanisms, logging, and HTML error detection.
 
-- **Detailed error analysis** - error type and HTTP status determination
-- **Retry mechanism** - automatic retry attempts for temporary errors
-- **Logging** - error logging to Supabase for analysis
-- **HTML detection** - detection of HTML error pages in responses
-
-## Error Types
+## 🔧 Error Types
 
 ```typescript
 enum ErrorType {
-    NETWORK = 'NETWORK',           // Network errors
+    NETWORK = 'NETWORK', // Network errors
     SERVER_ERROR = 'SERVER_ERROR', // Server errors (5xx)
     CLIENT_ERROR = 'CLIENT_ERROR', // Client errors (4xx)
-    HTML_ERROR = 'HTML_ERROR',     // HTML error pages
-    TIMEOUT = 'TIMEOUT',           // Timeouts
-    UNKNOWN = 'UNKNOWN'            // Unknown errors
+    HTML_ERROR = 'HTML_ERROR', // HTML error pages
+    TIMEOUT = 'TIMEOUT', // Timeouts
+    UNKNOWN = 'UNKNOWN', // Unknown errors
 }
 ```
 
-## Retry Mechanism
+## 🔄 Retry Mechanism
 
-### Default configuration:
+### Default Configuration
+
 ```typescript
 const DEFAULT_RETRY_CONFIG = {
-    maxAttempts: 3,    // Maximum attempts
-    baseDelay: 1000,   // Base delay (1 sec)
-    maxDelay: 10000    // Maximum delay (10 sec)
-};
+    maxAttempts: 3, // Maximum attempts
+    baseDelay: 1000, // Base delay (1 sec)
+    maxDelay: 10000, // Maximum delay (10 sec)
+}
 ```
 
-### Retryable statuses:
+### Retryable Statuses
+
 - 502 Bad Gateway
-- 503 Service Unavailable  
+- 503 Service Unavailable
 - 504 Gateway Timeout
 - 408 Request Timeout
 - 429 Too Many Requests
 
-### Exponential backoff:
+### Exponential Backoff
+
 - Attempt 1: 1 sec
 - Attempt 2: 2 sec
 - Attempt 3: 4 sec
 - Maximum: 10 sec
 
-## Usage
+## 🚀 Usage
 
-### Basic usage:
+### Basic Usage
+
 ```typescript
 const response = await fetchRequest('https://api.example.com/data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-});
+    body: JSON.stringify(data),
+})
 
 if (response.ok) {
-    const data = await response.json();
+    const data = await response.json()
 } else if ('error' in response) {
-    console.log('Error:', response.error);
+    console.log('Error:', response.error)
 }
 ```
 
-### With custom retry configuration:
+### With Custom Retry Configuration
+
 ```typescript
 const response = await fetchRequest('https://api.example.com/data', {
     method: 'GET',
     retryConfig: {
         maxAttempts: 5,
         baseDelay: 500,
-        maxDelay: 5000
-    }
-});
+        maxDelay: 5000,
+    },
+})
 ```
 
-## Error Handling
+## 🔍 Error Handling
 
-### Error type checking:
+### Error Type Checking
+
 ```typescript
 if (!response.ok && 'error' in response) {
     switch (response.error.type) {
         case ErrorType.NETWORK:
             // Network error
-            break;
+            break
         case ErrorType.SERVER_ERROR:
             // Server error
-            break;
+            break
         case ErrorType.HTML_ERROR:
             // HTML error page
-            break;
+            break
         case ErrorType.CLIENT_ERROR:
             // Client error
-            break;
+            break
     }
 }
 ```
 
-### Getting error details:
+### Getting Error Details
+
 ```typescript
 if (!response.ok && 'error' in response) {
-    const { type, status, message, attempt } = response.error;
-    console.log(`Error type: ${type}`);
-    console.log(`HTTP status: ${status}`);
-    console.log(`Message: ${message}`);
-    console.log(`Attempt: ${attempt}`);
+    const { type, status, message, attempt } = response.error
+    console.log(`Error type: ${type}`)
+    console.log(`HTTP status: ${status}`)
+    console.log(`Message: ${message}`)
+    console.log(`Attempt: ${attempt}`)
 }
 ```
 
-## Logging
+## 📝 Logging
 
 All critical errors (after all retry attempts) are automatically logged to Supabase:
 
@@ -119,7 +121,7 @@ All critical errors (after all retry attempts) are automatically logged to Supab
 - Response text
 - Additional data
 
-## HTML Error Detection
+## 🌐 HTML Error Detection
 
 The system automatically detects HTML error pages using patterns:
 
@@ -128,25 +130,26 @@ The system automatically detects HTML error pages using patterns:
 - `Status: 401`
 - `Error 404`
 
-### Available helper functions:
+### Available Helper Functions
 
 ```typescript
-import { detectHtmlError, determineErrorType } from '../utils/utils-function';
+import { detectHtmlError, determineErrorType } from '../utils/utils-function'
 
 // Detect HTML errors in response text
-const htmlError = detectHtmlError(responseText);
+const htmlError = detectHtmlError(responseText)
 if (htmlError.isError) {
-    console.log('HTML Error detected:', htmlError.message);
-    console.log('Status:', htmlError.status);
+    console.log('HTML Error detected:', htmlError.message)
+    console.log('Status:', htmlError.status)
 }
 
 // Determine error type based on status and response text
-const errorType = determineErrorType(httpStatus, responseText);
+const errorType = determineErrorType(httpStatus, responseText)
 ```
 
-## Usage Examples
+## 📋 Usage Examples
 
-### In baltichub.ts:
+### In baltichub.ts
+
 ```typescript
 export async function getSlots(date: string): Promise<Response | ErrorResponse> {
     const response = await fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
@@ -170,7 +173,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
 const slots = await getSlots(time[0])
 if (!slots.ok && 'error' in slots) {
     consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '), slots.error)
-    
+
     switch (slots.error.type) {
         case ErrorType.CLIENT_ERROR:
             if (slots.error.status === 401) {
@@ -209,8 +212,10 @@ if (!slots.ok && 'error' in slots) {
             }
     }
 }
+```
 
-### In baltichub.helper.ts:
+### In baltichub.helper.ts
+
 ```typescript
 // Advanced HTML error handling in handleErrorResponse:
 } catch (e) {
@@ -219,10 +224,10 @@ if (!slots.ok && 'error' in slots) {
         // Use the new HTML error detection system
         const htmlError = detectHtmlError(parsedResponse)
         const errorType = determineErrorType(0, parsedResponse)
-        
+
         let errorMessage = 'Serwer ma problemy, proszę czekać'
         let status = Statuses.ERROR
-        
+
         // Determine specific error details
         if (parsedResponse.includes('Error 500')) {
             errorMessage = 'Błąd serwera (500) - spróbuj ponownie później'
@@ -233,7 +238,7 @@ if (!slots.ok && 'error' in slots) {
         } else if (htmlError.isError && htmlError.message) {
             errorMessage = `Błąd HTML: ${htmlError.message}`
         }
-        
+
         return {
             ...req,
             status,
@@ -243,34 +248,58 @@ if (!slots.ok && 'error' in slots) {
 }
 ```
 
-## Testing
+## 🧪 Testing
 
 To test error handling, use the `testErrorHandling()` function:
 
 ```typescript
-import { testErrorHandling } from '../utils/utils-function';
+import { testErrorHandling } from '../utils/utils-function'
 
 // Run tests
-await testErrorHandling();
+await testErrorHandling()
 ```
 
-## Migration
+## 🔄 Migration
 
-### Old code:
+### Old Code
+
 ```typescript
-const response = await fetchRequest(url, options);
+const response = await fetchRequest(url, options)
 if (!response.ok) {
     // Error handling
 }
 ```
 
-### New code:
+### New Code
+
 ```typescript
-const response = await fetchRequest(url, options);
+const response = await fetchRequest(url, options)
 if (!response.ok && 'error' in response) {
     // Detailed error handling
-    console.log('Error type:', response.error.type);
-    console.log('Status:', response.error.status);
-    console.log('Message:', response.error.message);
+    console.log('Error type:', response.error.type)
+    console.log('Status:', response.error.status)
+    console.log('Message:', response.error.message)
 }
 ```
+
+## 📊 Benefits
+
+### Before
+- ❌ Basic error handling
+- ❌ No retry mechanism
+- ❌ Limited error information
+- ❌ No HTML error detection
+
+### After
+- ✅ Comprehensive error analysis
+- ✅ Automatic retry with exponential backoff
+- ✅ Detailed error information
+- ✅ HTML error page detection
+- ✅ Automatic logging to Supabase
+- ✅ Type-safe error handling
+
+## 🔗 Related Documents
+
+- [Testing Strategy](../testing/testing-strategy.md) - Error testing patterns
+- [Utils Refactoring](../architecture/utils-refactoring.md) - HTTP utilities organization
+- [Background Script Refactoring](../architecture/background-refactoring.md) - Error handling in background

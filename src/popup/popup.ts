@@ -1,10 +1,11 @@
 import './popup.css'
 import {
-    normalizeFormData,
     consoleLog,
     consoleError,
+    getOrCreateDeviceId,
     sortStatusesByPriority,
-} from '../utils/utils-function'
+    normalizeFormData,
+} from '../utils/index'
 import { createConfirmationModal } from './modals/confirmation.modal'
 import { Statuses, Actions } from '../data'
 import { RetryObjectArray } from '../types/baltichub'

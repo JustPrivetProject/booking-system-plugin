@@ -54,11 +54,11 @@ class ImageSlider {
     showSlide(index) {
         // Скрываем все слайды
         const slides = this.slider.querySelectorAll('.slide')
-        slides.forEach(slide => slide.classList.remove('active'))
+        slides.forEach((slide) => slide.classList.remove('active'))
 
         // Убираем активную точку
         const dots = this.dotsContainer.querySelectorAll('.dot')
-        dots.forEach(dot => dot.classList.remove('active'))
+        dots.forEach((dot) => dot.classList.remove('active'))
 
         // Показываем нужный слайд и активируем точку
         if (slides[index]) {
@@ -109,7 +109,7 @@ class ImageSlider {
 
     toggleFullscreen() {
         if (!document.fullscreenElement) {
-            this.modal.requestFullscreen().catch(err => {
+            this.modal.requestFullscreen().catch((err) => {
                 console.log('Ошибка перехода в полноэкранный режим:', err)
             })
         } else {
@@ -123,8 +123,12 @@ class ImageSlider {
         this.nextBtn.addEventListener('click', () => this.nextSlide())
 
         // Модальное окно
-        this.closeModal.addEventListener('click', () => this.closeModalHandler())
-        this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen())
+        this.closeModal.addEventListener('click', () =>
+            this.closeModalHandler()
+        )
+        this.fullscreenBtn.addEventListener('click', () =>
+            this.toggleFullscreen()
+        )
 
         // Закрытие модального окна по клику вне изображения
         this.modal.addEventListener('click', (e) => {

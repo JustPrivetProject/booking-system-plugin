@@ -2,9 +2,12 @@ import { Statuses } from '../data'
 import { RetryObject } from '../types/baltichub'
 import {
     consoleLog,
+    consoleError,
+    fetchRequest,
+    normalizeFormData,
     detectHtmlError,
     determineErrorType,
-} from './utils-function'
+} from './index'
 
 export const parseSlotsIntoButtons = (htmlText: string) => {
     const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
@@ -175,7 +178,7 @@ export function handleErrorResponse(
                 errorMessage =
                     'Nieprawidłowe żądanie (400) - sprawdź dane wejściowe'
                 status = Statuses.ERROR
-            } else if (htmlError.isError && htmlError.message) {
+            } else if (htmlError && htmlError.isError && htmlError.message) {
                 errorMessage = `Błąd HTML: ${htmlError.message}`
             }
 

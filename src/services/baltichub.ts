@@ -1,24 +1,24 @@
+import { RetryObject } from '../types/baltichub'
 import {
     consoleLog,
     consoleError,
     fetchRequest,
     normalizeFormData,
+    createFormData,
     parseDateTimeFromDMY,
     consoleLogWithoutSave,
     JSONstringify,
     formatDateToDMY,
     ErrorResponse,
     ErrorType,
-} from '../utils/utils-function'
+} from '../utils/index'
 import { Statuses } from '../data'
-import { createFormData } from '../utils/utils-function'
-import { RetryObject } from '../types/baltichub'
 import {
     parseSlotsIntoButtons,
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper'
-import { setStorage } from '../utils/storageControl.helper'
+import { setStorage } from '../utils'
 
 export async function getSlots(
     date: string
@@ -151,7 +151,7 @@ async function executeRequest(
     req: RetryObject,
     tvAppId: string,
     time: string[]
-): Promise<{ status: string; status_message: string }> {
+): Promise<RetryObject> {
     const formData = createFormData(req.body!.formData)
 
     const response = await fetchRequest(req.url, {
@@ -187,7 +187,6 @@ async function executeRequest(
     }
 
     return handleErrorResponse(req, parsedResponse, tvAppId, time)
-    // TODO: add action to update grid
 }
 
 /**
@@ -216,7 +215,7 @@ async function executeRequest(
 export async function processRequest(
     req: RetryObject,
     queue: RetryObject[]
-): Promise<{ status: string; status_message: string }> {
+): Promise<RetryObject> {
     let body = normalizeFormData(req.body).formData
     const tvAppId = body.TvAppId[0]
     const time = body.SlotStart[0].split(' ')

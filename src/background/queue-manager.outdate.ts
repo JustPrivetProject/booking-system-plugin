@@ -4,7 +4,7 @@ import {
     consoleLog,
     consoleError,
     consoleLogWithoutSave,
-} from '../utils/utils-function'
+} from '../utils/index'
 import { clearBadge, updateBadge } from '../utils/badge'
 import { authService } from '../services/authService'
 

@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient'
-import { ErrorType, HttpStatus } from '../utils/utils-function'
+import { ErrorType, HttpStatus } from '../utils/index'
 
 interface ErrorLog {
     error_message: string

@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient'
-import { getOrCreateDeviceId } from '../utils/deviceId'
+import { getOrCreateDeviceId } from '../utils'
 import { sessionService } from './sessionService'
 
 export interface AuthUser {

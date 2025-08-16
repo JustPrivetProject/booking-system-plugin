@@ -1,8 +1,4 @@
-import {
-    getStorage,
-    setStorage,
-    removeStorage,
-} from '../utils/storageControl.helper'
+import { getStorage, setStorage, removeStorage } from '../utils'
 import { authService } from './authService'
 
 export interface AutoLoginCredentials {
@@ -26,7 +22,7 @@ const CRYPTO_SECRET_KEY =
 
 // Validate that we have a proper secret key
 if (CRYPTO_SECRET_KEY === 'your-secret-key-here') {
-    console.warn(
+    console.log(
         'CRYPTO_SECRET_KEY is using default value. Please set a proper secret key in .env file'
     )
 }
@@ -50,7 +46,7 @@ function encrypt(text: string): string {
         const binaryString = String.fromCharCode(...encryptedBytes)
         return btoa(binaryString)
     } catch (error) {
-        console.warn('Encryption failed:', error)
+        console.log('Encryption failed:', error)
         return ''
     }
 }
@@ -79,7 +75,7 @@ function decrypt(encryptedText: string): string {
         const textDecoder = new TextDecoder('utf-8')
         return textDecoder.decode(decryptedBytes)
     } catch (error) {
-        console.warn('Failed to decrypt auto-login data:', error)
+        console.log('Failed to decrypt auto-login data:', error)
         return ''
     }
 }
@@ -118,7 +114,7 @@ export const autoLoginService = {
                 password: decrypt(autoLoginData.password),
             }
         } catch (error) {
-            console.warn('Failed to load auto-login credentials:', error)
+            console.log('Failed to load auto-login credentials:', error)
             return null
         }
     },
@@ -134,7 +130,7 @@ export const autoLoginService = {
                 | undefined
             return !!(autoLoginData && autoLoginData.enabled)
         } catch (error) {
-            console.warn('Failed to check auto-login status:', error)
+            console.log('Failed to check auto-login status:', error)
             return false
         }
     },
@@ -164,7 +160,7 @@ export const autoLoginService = {
                 credentials.password.length > 0
             )
         } catch (error) {
-            console.warn('Failed to validate stored credentials:', error)
+            console.log('Failed to validate stored credentials:', error)
             return false
         }
     },
@@ -176,13 +172,13 @@ export const autoLoginService = {
         try {
             const isValid = await this.validateStoredCredentials()
             if (!isValid) {
-                console.warn(
+                console.log(
                     'Detected corrupted auto-login credentials, clearing...'
                 )
                 await this.clearCredentials()
             }
         } catch (error) {
-            console.warn('Failed to check for corrupted credentials:', error)
+            console.log('Failed to check for corrupted credentials:', error)
             // If we can't even check, clear anyway to be safe
             await this.clearCredentials()
         }
@@ -199,7 +195,7 @@ export const autoLoginService = {
                 null
             )
         } catch (error) {
-            console.warn('Failed to get auto-login data:', error)
+            console.log('Failed to get auto-login data:', error)
             return null
         }
     },
@@ -234,7 +230,7 @@ export const autoLoginService = {
             )
             return !!user
         } catch (error) {
-            console.warn('Auto-login failed:', error)
+            console.log('Auto-login failed:', error)
             return false
         }
     },
@@ -250,7 +246,7 @@ export const autoLoginService = {
                 await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData })
             }
         } catch (error) {
-            console.warn('Failed to disable auto-login:', error)
+            console.log('Failed to disable auto-login:', error)
         }
     },
 
@@ -265,7 +261,7 @@ export const autoLoginService = {
                 await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData })
             }
         } catch (error) {
-            console.warn('Failed to enable auto-login:', error)
+            console.log('Failed to enable auto-login:', error)
         }
     },
 
@@ -283,7 +279,7 @@ export const autoLoginService = {
             const credentials = await this.loadCredentials()
             if (!credentials) {
                 // If we can't load credentials, clear the data
-                console.warn(
+                console.log(
                     'Clearing corrupted auto-login data during migration'
                 )
                 await this.clearCredentials()
@@ -298,7 +294,7 @@ export const autoLoginService = {
                 credentials.password.length === 0
 
             if (isCorrupted) {
-                console.warn(
+                console.log(
                     'Detected corrupted data during migration, clearing...'
                 )
                 await this.clearCredentials()
@@ -307,7 +303,7 @@ export const autoLoginService = {
 
             await this.saveCredentials(credentials)
         } catch (error) {
-            console.warn('Failed to migrate auto-login data:', error)
+            console.log('Failed to migrate auto-login data:', error)
             // Clear data on migration failure
             await this.clearCredentials()
         }
