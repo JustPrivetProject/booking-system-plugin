@@ -4,10 +4,7 @@
     "version": "2.1.9",
     "description": "Help to booking slot",
     "permissions": ["storage", "webRequest", "notifications", "tabs"],
-    "host_permissions": [
-        "https://ebrama.baltichub.com/*",
-        "https://*.supabase.co/*"
-    ],
+    "host_permissions": ["https://ebrama.baltichub.com/*", "https://*.supabase.co/*"],
     "icons": {
         "16": "128.png",
         "48": "128.png",

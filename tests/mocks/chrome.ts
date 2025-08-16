@@ -56,10 +56,10 @@ const chromeMock = {
         getAll: jest.fn(),
         getPermissionLevel: jest.fn(),
     },
-}
+};
 
 // Mock chrome globally
-;(global as any).chrome = chromeMock
+(global as any).chrome = chromeMock;
 
 // Export for use in tests
-export { chromeMock }
+export { chromeMock };

@@ -55,14 +55,14 @@
 ```typescript
 // New centralized state manager
 export class ExtensionStateManager {
-    private static instance: ExtensionStateManager
-    private state: ExtensionState
-    private subscribers: Map<string, (state: ExtensionState) => void>
+    private static instance: ExtensionStateManager;
+    private state: ExtensionState;
+    private subscribers: Map<string, (state: ExtensionState) => void>;
 
     // Reactive state management
-    subscribe(key: string, callback: (state: ExtensionState) => void): void
-    setState(updates: Partial<ExtensionState>): Promise<void>
-    getState(): ExtensionState
+    subscribe(key: string, callback: (state: ExtensionState) => void): void;
+    setState(updates: Partial<ExtensionState>): Promise<void>;
+    getState(): ExtensionState;
 }
 ```
 
@@ -71,9 +71,9 @@ export class ExtensionStateManager {
 ```typescript
 // services/DIContainer.ts
 export class DIContainer {
-    register<T>(token: string, factory: () => T): void
-    get<T>(token: string): T
-    resolve<T>(constructor: new (...args: any[]) => T): T
+    register<T>(token: string, factory: () => T): void;
+    get<T>(token: string): T;
+    resolve<T>(constructor: new (...args: any[]) => T): T;
 }
 ```
 
@@ -82,9 +82,9 @@ export class DIContainer {
 ```typescript
 // events/EventBus.ts
 export class EventBus {
-    on<T>(event: string, handler: (data: T) => void): void
-    emit<T>(event: string, data: T): void
-    off(event: string, handler: Function): void
+    on<T>(event: string, handler: (data: T) => void): void;
+    emit<T>(event: string, data: T): void;
+    off(event: string, handler: Function): void;
 }
 ```
 
@@ -95,7 +95,7 @@ export class EventBus {
 ```typescript
 // Before:
 class QueueManager {
-    static instance: QueueManager | null = null
+    static instance: QueueManager | null = null;
     constructor() {
         /* singleton logic */
     }
@@ -103,18 +103,15 @@ class QueueManager {
 
 // After:
 export interface IQueueManager {
-    addToQueue(item: RetryObject): Promise<RetryObject[]>
-    removeFromQueue(id: string): Promise<RetryObject[]>
-    updateQueueItem(
-        id: string,
-        updates: Partial<RetryObject>
-    ): Promise<RetryObject[]>
+    addToQueue(item: RetryObject): Promise<RetryObject[]>;
+    removeFromQueue(id: string): Promise<RetryObject[]>;
+    updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
 }
 
 export class QueueManager implements IQueueManager {
     constructor(
         private storage: IStorageService,
-        private logger: ILogger
+        private logger: ILogger,
     ) {}
 }
 ```
@@ -141,15 +138,15 @@ src/background/
 ```typescript
 // Centralized error handling
 export class ErrorManager {
-    private static handlers = new Map<ErrorType, ErrorHandler>()
+    private static handlers = new Map<ErrorType, ErrorHandler>();
 
     static handle(error: AppError): Promise<ErrorResult> {
-        const handler = this.handlers.get(error.type)
-        return handler ? handler.handle(error) : this.defaultHandler(error)
+        const handler = this.handlers.get(error.type);
+        return handler ? handler.handle(error) : this.defaultHandler(error);
     }
 
     static registerHandler(type: ErrorType, handler: ErrorHandler): void {
-        this.handlers.set(type, handler)
+        this.handlers.set(type, handler);
     }
 }
 ```
@@ -162,7 +159,7 @@ export class HttpClient {
     constructor(
         private config: HttpClientConfig,
         private interceptors: RequestInterceptor[],
-        private cache: ICacheService
+        private cache: ICacheService,
     ) {}
 
     async request<T>(config: RequestConfig): Promise<ApiResponse<T>> {
@@ -219,13 +216,13 @@ export class HttpClient {
 
 ### **📊 Success Metrics**
 
-| Category                 | Current State | Target | Improvement |
-| ------------------------- | ----------- | ------ | ----------- |
-| **Code Coverage**         | ~70%        | >90%   | +20%        |
-| **Bundle Size**           | ~2MB        | <1.5MB | -25%        |
-| **TypeScript Errors**     | 5-10        | 0      | -100%       |
-| **Cyclomatic Complexity** | 15-20       | <10    | -50%        |
-| **Test Performance**      | ~30s        | <15s   | -50%        |
+| Category                  | Current State | Target | Improvement |
+| ------------------------- | ------------- | ------ | ----------- |
+| **Code Coverage**         | ~70%          | >90%   | +20%        |
+| **Bundle Size**           | ~2MB          | <1.5MB | -25%        |
+| **TypeScript Errors**     | 5-10          | 0      | -100%       |
+| **Cyclomatic Complexity** | 15-20         | <10    | -50%        |
+| **Test Performance**      | ~30s          | <15s   | -50%        |
 
 ### **🔧 Tools and Technologies**
 

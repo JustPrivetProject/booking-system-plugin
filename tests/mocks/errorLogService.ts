@@ -5,6 +5,6 @@ export const errorLogServiceMock = {
     logAuthError: jest.fn(),
     logError: jest.fn(),
     logRequestError: jest.fn(),
-}
+};
 
-export default errorLogServiceMock
+export default errorLogServiceMock;

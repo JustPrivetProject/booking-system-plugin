@@ -1,16 +1,15 @@
-import { QueueManagerAdapter } from '../../services/queueManagerAdapter'
-import { authService } from '../../services/authService'
-import { sessionService } from '../../services/sessionService'
-import { autoLoginService } from '../../services/autoLoginService'
-import { errorLogService } from '../../services/errorLogService'
-import { Actions, Statuses } from '../../data'
-import {
-    RequestCacheHeaders,
+import { Actions, Statuses } from '../../data';
+import { authService } from '../../services/authService';
+import { autoLoginService } from '../../services/autoLoginService';
+import { getDriverNameAndContainer } from '../../services/baltichub';
+import { errorLogService } from '../../services/errorLogService';
+import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
+import { sessionService } from '../../services/sessionService';
+import type {
     RequestCacheHeaderBody,
-    RequestCacheBodes,
     RequestCacheBodyObject,
     RetryObject,
-} from '../../types/baltichub'
+} from '../../types/baltichub';
 import {
     consoleLog,
     consoleError,
@@ -22,15 +21,9 @@ import {
     getLogsFromSession,
     clearLogsInSession,
     getLocalStorageData,
-    JSONstringify,
     consoleLogWithoutSave,
-} from '../../utils'
-import {
-    getOrCreateDeviceId,
-    getStorage,
-    setStorage,
-} from '../../utils/storage'
-import { getDriverNameAndContainer } from '../../services/baltichub'
+} from '../../utils';
+import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
 
 export class MessageHandler {
     constructor(private queueManager: QueueManagerAdapter) {}
@@ -38,104 +31,102 @@ export class MessageHandler {
     handleMessage(
         message: any,
         sender: chrome.runtime.MessageSender,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): boolean {
         // Handle error and success booking actions
-        if (
-            message.action === Actions.SHOW_ERROR ||
-            message.action === Actions.SUCCEED_BOOKING
-        ) {
-            this.handleBookingAction(message, sendResponse)
-            return true
+        if (message.action === Actions.SHOW_ERROR || message.action === Actions.SUCCEED_BOOKING) {
+            this.handleBookingAction(message, sendResponse);
+            return true;
         }
 
         // Handle table parsing
         if (message.action === Actions.PARSED_TABLE) {
-            this.handleTableParsing(message, sendResponse)
-            return true
+            this.handleTableParsing(message, sendResponse);
+            return true;
         }
 
         // Handle authentication actions
         if (message.action === Actions.IS_AUTHENTICATED) {
-            this.handleAuthenticationCheck(sendResponse)
-            return true
+            this.handleAuthenticationCheck(sendResponse);
+            return true;
         }
 
         if (message.action === Actions.GET_AUTH_STATUS) {
-            this.handleAuthStatusCheck(sendResponse)
-            return true
+            this.handleAuthStatusCheck(sendResponse);
+            return true;
         }
 
         if (message.action === Actions.LOGIN_SUCCESS) {
-            this.handleLoginSuccess(message, sendResponse)
-            return true
+            this.handleLoginSuccess(message, sendResponse);
+            return true;
         }
 
         if (message.action === Actions.AUTO_LOGIN_ATTEMPT) {
-            this.handleAutoLoginAttempt(message, sendResponse)
-            return true
+            this.handleAutoLoginAttempt(message, sendResponse);
+            return true;
         }
 
         // Handle auto-login related actions
         if (message.action === Actions.LOAD_AUTO_LOGIN_CREDENTIALS) {
-            this.handleLoadAutoLoginCredentials(sendResponse)
-            return true
+            this.handleLoadAutoLoginCredentials(sendResponse);
+            return true;
         }
 
         if (message.action === Actions.IS_AUTO_LOGIN_ENABLED) {
-            this.handleAutoLoginEnabledCheck(sendResponse)
-            return true
+            this.handleAutoLoginEnabledCheck(sendResponse);
+            return true;
         }
 
         // Handle background-specific actions
         if (message.target === 'background') {
-            return this.handleBackgroundActions(message, sendResponse)
+            return this.handleBackgroundActions(message, sendResponse);
         }
 
-        return true
+        return true;
     }
 
     private async handleBookingAction(
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
-        consoleLog('Getting request from Cache...')
+        consoleLog('Getting request from Cache...');
 
         try {
-            const data = await getStorage('requestCacheHeaders')
-            const user = await authService.getCurrentUser()
+            const data = await getStorage('requestCacheHeaders');
+            const user = await authService.getCurrentUser();
 
             if (!user) {
-                consoleLog('User is not authenticated, cant add Container!')
-                sendResponse({ success: true, error: 'Not authorized' })
-                return
+                consoleLog('User is not authenticated, cant add Container!');
+                sendResponse({ success: true, error: 'Not authorized' });
+                return;
             }
 
             if (data.requestCacheHeaders) {
                 await this.processCachedRequest(
                     { requestCacheHeaders: data.requestCacheHeaders },
                     message,
-                    sendResponse
-                )
+                    sendResponse,
+                );
             }
         } catch (error) {
-            consoleError('Error in handleBookingAction:', error)
+            consoleError('Error in handleBookingAction:', error);
             sendResponse({
                 success: false,
                 error: 'Failed to process booking action',
-            })
+            });
         }
     }
 
     private async processCachedRequest(
         data: any,
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
-        let requestCacheHeaders: RequestCacheHeaderBody | null =
-            getLastProperty(data.requestCacheHeaders)
+        const requestCacheHeaders: RequestCacheHeaderBody | null = getLastProperty(
+            data.requestCacheHeaders,
+        );
 
-        let requestId = extractFirstId(data.requestCacheHeaders)!
+        const requestId = extractFirstId(data.requestCacheHeaders)!;
 
         try {
             const storageData = await getStorage([
@@ -143,32 +134,34 @@ export class MessageHandler {
                 'retryQueue',
                 'testEnv',
                 'tableData',
-            ])
+            ]);
 
-            let requestCacheBody: RequestCacheBodyObject | null =
-                getPropertyById(storageData.requestCacheBody || {}, requestId)
+            const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
+                storageData.requestCacheBody || {},
+                requestId,
+            );
 
             if (requestCacheBody) {
                 const retryObject = await this.createRetryObject(
                     requestCacheBody,
                     requestCacheHeaders!,
                     storageData,
-                    message.action
-                )
+                    message.action,
+                );
 
-                await this.queueManager.addToQueue(retryObject)
-                await cleanupCache()
+                await this.queueManager.addToQueue(retryObject);
+                await cleanupCache();
             } else {
-                consoleLog('No data in cache object')
+                consoleLog('No data in cache object');
             }
 
-            sendResponse({ success: true })
+            sendResponse({ success: true });
         } catch (error) {
-            consoleError('Error in processCachedRequest:', error)
+            consoleError('Error in processCachedRequest:', error);
             sendResponse({
                 success: false,
                 error: 'Failed to process cached request',
-            })
+            });
         }
     }
 
@@ -176,9 +169,9 @@ export class MessageHandler {
         requestCacheBody: RequestCacheBodyObject,
         requestCacheHeaders: RequestCacheHeaderBody,
         data: any,
-        action: string
+        action: string,
     ): Promise<RetryObject> {
-        const tableData = data.tableData
+        const tableData = data.tableData;
         const retryObject: RetryObject = {
             ...requestCacheBody,
             id: crypto.randomUUID(),
@@ -189,232 +182,203 @@ export class MessageHandler {
             status: '',
             status_message: '',
             tvAppId: '',
-        }
+        };
 
-        const requestBody = normalizeFormData(requestCacheBody.body)
-        const tvAppId = requestBody.formData.TvAppId[0]
+        const requestBody = normalizeFormData(requestCacheBody.body);
+        const tvAppId = requestBody.formData.TvAppId[0];
 
-        const driverAndContainer = (await getDriverNameAndContainer(
-            tvAppId,
-            data.retryQueue
-        )) || {
+        const driverAndContainer = (await getDriverNameAndContainer(tvAppId, data.retryQueue)) || {
             driverName: '',
             containerNumber: '',
-        }
+        };
 
-        retryObject.headersCache = requestCacheHeaders.headers
-        retryObject.tvAppId = tvAppId
-        retryObject.startSlot = requestBody.formData.SlotStart[0]
-        retryObject.endSlot = requestBody.formData.SlotEnd[0]
-        retryObject.driverName = driverAndContainer.driverName || ''
-        retryObject.containerNumber = driverAndContainer.containerNumber || ''
+        retryObject.headersCache = requestCacheHeaders.headers;
+        retryObject.tvAppId = tvAppId;
+        retryObject.startSlot = requestBody.formData.SlotStart[0];
+        retryObject.endSlot = requestBody.formData.SlotEnd[0];
+        retryObject.driverName = driverAndContainer.driverName || '';
+        retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
         if (tableData) {
-            consoleLog('Getting table data...')
+            consoleLog('Getting table data...');
             const row = tableData.find((row: string[]) =>
-                row.includes(driverAndContainer.containerNumber)
-            )
+                row.includes(driverAndContainer.containerNumber),
+            );
 
-            consoleLog('Row: ', row)
+            consoleLog('Row: ', row);
             if (row) {
-                const currentSlot = `${row[tableData[0].indexOf('Wybrana data')]} ${row[tableData[0].indexOf('Start')]}`
-                consoleLog('Getting current slot time... :', currentSlot)
-                retryObject.currentSlot = currentSlot
+                const currentSlot = `${row[tableData[0].indexOf('Wybrana data')]} ${row[tableData[0].indexOf('Start')]}`;
+                consoleLog('Getting current slot time... :', currentSlot);
+                retryObject.currentSlot = currentSlot;
             }
         }
 
         switch (action) {
             case Actions.SHOW_ERROR:
-                retryObject.status = Statuses.IN_PROGRESS
-                retryObject.status_message = 'Zadanie jest w trakcie realizacji'
-                break
+                retryObject.status = Statuses.IN_PROGRESS;
+                retryObject.status_message = 'Zadanie jest w trakcie realizacji';
+                break;
             case Actions.SUCCEED_BOOKING:
-                retryObject.status = Statuses.SUCCESS
-                retryObject.status_message = 'Zadanie zakończone sukcesem'
-                break
+                retryObject.status = Statuses.SUCCESS;
+                retryObject.status_message = 'Zadanie zakończone sukcesem';
+                break;
             default:
-                retryObject.status = Statuses.ERROR
-                retryObject.status_message = 'Nieznane działanie'
-                break
+                retryObject.status = Statuses.ERROR;
+                retryObject.status_message = 'Nieznane działanie';
+                break;
         }
 
-        return retryObject
+        return retryObject;
     }
 
     private async handleTableParsing(
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
         try {
-            await setStorage({ tableData: message.message })
-            consoleLog('Table saved in the storage', message.message)
-            sendResponse({ success: true })
+            await setStorage({ tableData: message.message });
+            consoleLog('Table saved in the storage', message.message);
+            sendResponse({ success: true });
         } catch (error) {
-            consoleError('Error saving table data:', error)
-            sendResponse({ success: false, error: 'Failed to save table data' })
+            consoleError('Error saving table data:', error);
+            sendResponse({ success: false, error: 'Failed to save table data' });
         }
     }
 
-    private handleAuthenticationCheck(
-        sendResponse: (response?: any) => void
-    ): void {
+    private handleAuthenticationCheck(sendResponse: (response?: any) => void): void {
         sessionService
             .isAuthenticated()
-            .then((isAuth) => {
-                consoleLogWithoutSave(
-                    '[BG] Responding isAuthenticated:',
-                    isAuth
-                )
-                sendResponse({ isAuthenticated: isAuth })
+            .then(isAuth => {
+                consoleLogWithoutSave('[BG] Responding isAuthenticated:', isAuth);
+                sendResponse({ isAuthenticated: isAuth });
             })
-            .catch((e) => {
-                consoleLog('[BG] Error in isAuthenticated:', e)
-                sendResponse({ isAuthenticated: false })
-            })
+            .catch(e => {
+                consoleLog('[BG] Error in isAuthenticated:', e);
+                sendResponse({ isAuthenticated: false });
+            });
     }
 
-    private handleAuthStatusCheck(
-        sendResponse: (response?: any) => void
-    ): void {
+    private handleAuthStatusCheck(sendResponse: (response?: any) => void): void {
         getStorage('unauthorized')
             .then(({ unauthorized }) => {
-                const isUnauthorized = !!unauthorized
-                sendResponse({ unauthorized: isUnauthorized })
+                const isUnauthorized = !!unauthorized;
+                sendResponse({ unauthorized: isUnauthorized });
             })
-            .catch((error) => {
-                consoleError('[background] Error getting auth status:', error)
-                sendResponse({ unauthorized: false })
-            })
+            .catch(error => {
+                consoleError('[background] Error getting auth status:', error);
+                sendResponse({ unauthorized: false });
+            });
     }
 
     private async handleLoginSuccess(
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
-        const { success } = message.message || {}
-        consoleLog('[background] LOGIN_SUCCESS:', success)
+        const { success } = message.message || {};
+        consoleLog('[background] LOGIN_SUCCESS:', success);
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false })
-                consoleLog(
-                    '[background] Manual login successful - Auth restored'
-                )
-                sendResponse({ success: true })
+                await setStorage({ unauthorized: false });
+                consoleLog('[background] Manual login successful - Auth restored');
+                sendResponse({ success: true });
             } catch (error) {
-                consoleError(
-                    '[background] Error setting unauthorized status:',
-                    error
-                )
+                consoleError('[background] Error setting unauthorized status:', error);
                 sendResponse({
                     success: false,
                     error: 'Failed to update auth status',
-                })
+                });
             }
         } else {
-            consoleLog('[background] Manual login attempt (not yet successful)')
-            sendResponse({ success: false })
+            consoleLog('[background] Manual login attempt (not yet successful)');
+            sendResponse({ success: false });
         }
     }
 
     private async handleAutoLoginAttempt(
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
-        const { success } = message.message || {}
+        const { success } = message.message || {};
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false })
-                consoleLog('[background] Auto-login successful - Auth restored')
-                sendResponse({ success: true, autoLogin: true })
+                await setStorage({ unauthorized: false });
+                consoleLog('[background] Auto-login successful - Auth restored');
+                sendResponse({ success: true, autoLogin: true });
             } catch (error) {
-                consoleError(
-                    '[background] Error setting unauthorized status:',
-                    error
-                )
+                consoleError('[background] Error setting unauthorized status:', error);
                 sendResponse({
                     success: false,
                     autoLogin: true,
                     error: 'Failed to update auth status',
-                })
+                });
             }
         } else {
-            consoleLog('[background] Auto-login attempt (not yet successful)')
-            sendResponse({ success: false, autoLogin: true })
+            consoleLog('[background] Auto-login attempt (not yet successful)');
+            sendResponse({ success: false, autoLogin: true });
         }
     }
 
-    private handleLoadAutoLoginCredentials(
-        sendResponse: (response?: any) => void
-    ): void {
+    private handleLoadAutoLoginCredentials(sendResponse: (response?: any) => void): void {
         autoLoginService
             .loadCredentials()
-            .then((credentials) => {
+            .then(credentials => {
                 if (credentials) {
                     const isLoginValid =
                         typeof credentials.login === 'string' &&
                         credentials.login.length > 0 &&
                         !credentials.login.includes('□') &&
-                        !credentials.login.includes('\\')
+                        !credentials.login.includes('\\');
 
                     const isPasswordValid =
-                        typeof credentials.password === 'string' &&
-                        credentials.password.length > 0
+                        typeof credentials.password === 'string' && credentials.password.length > 0;
 
                     if (isLoginValid && isPasswordValid) {
-                        consoleLog('[background] Auto-login credentials loaded')
+                        consoleLog('[background] Auto-login credentials loaded');
                         sendResponse({
                             success: true,
                             credentials: {
                                 login: credentials.login,
                                 password: credentials.password,
                             },
-                        })
+                        });
                     } else {
                         consoleLog(
-                            '[background] Detected corrupted auto-login credentials, clearing...'
-                        )
-                        autoLoginService.clearCredentials()
-                        sendResponse({ success: false, credentials: null })
+                            '[background] Detected corrupted auto-login credentials, clearing...',
+                        );
+                        autoLoginService.clearCredentials();
+                        sendResponse({ success: false, credentials: null });
                     }
                 } else {
-                    consoleLog('[background] No auto-login credentials found')
-                    sendResponse({ success: false, credentials: null })
+                    consoleLog('[background] No auto-login credentials found');
+                    sendResponse({ success: false, credentials: null });
                 }
             })
-            .catch((error) => {
-                consoleLog(
-                    '[background] Error loading auto-login credentials:',
-                    error
-                )
-                autoLoginService.clearCredentials()
-                sendResponse({ success: false, error: error.message })
-            })
+            .catch(error => {
+                consoleLog('[background] Error loading auto-login credentials:', error);
+                autoLoginService.clearCredentials();
+                sendResponse({ success: false, error: error.message });
+            });
     }
 
-    private handleAutoLoginEnabledCheck(
-        sendResponse: (response?: any) => void
-    ): void {
-        autoLoginService.isEnabled().then((isEnabled) => {
-            sendResponse({ success: true, isEnabled })
-        })
+    private handleAutoLoginEnabledCheck(sendResponse: (response?: any) => void): void {
+        autoLoginService.isEnabled().then(isEnabled => {
+            sendResponse({ success: true, isEnabled });
+        });
     }
 
-    private handleBackgroundActions(
-        message: any,
-        sendResponse: (response?: any) => void
-    ): boolean {
+    private handleBackgroundActions(message: any, sendResponse: (response?: any) => void): boolean {
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
                 this.queueManager
                     .removeFromQueue(message.data.id)
                     .then(() => sendResponse({ success: true }))
-                    .catch((error) => {
-                        consoleError('Error removing request:', error)
-                        sendResponse({ success: false, error: error.message })
-                    })
-                return true
+                    .catch(error => {
+                        consoleError('Error removing request:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
 
             case Actions.UPDATE_REQUEST_STATUS:
                 this.queueManager
@@ -423,70 +387,66 @@ export class MessageHandler {
                         status_message: message.data.status_message,
                     })
                     .then(() => sendResponse({ success: true }))
-                    .catch((error) => {
-                        consoleError('Error updating request status:', error)
-                        sendResponse({ success: false, error: error.message })
-                    })
-                return true
+                    .catch(error => {
+                        consoleError('Error updating request status:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
 
             case Actions.SEND_LOGS:
-                this.handleSendLogs(message, sendResponse)
-                return true
+                this.handleSendLogs(message, sendResponse);
+                return true;
 
             default:
-                consoleLog('Unknown action:', message.action)
-                sendResponse({ success: false })
-                return true
+                consoleLog('Unknown action:', message.action);
+                sendResponse({ success: false });
+                return true;
         }
     }
 
     private async handleSendLogs(
         message: any,
-        sendResponse: (response?: any) => void
+        sendResponse: (response?: any) => void,
     ): Promise<void> {
-        const user = await authService.getCurrentUser()
+        const user = await authService.getCurrentUser();
 
         if (!user) {
-            consoleLog('User is not authenticated, cant sent Logs')
+            consoleLog('User is not authenticated, cant sent Logs');
             sendResponse({
                 success: true,
                 error: 'Not authorized',
-            })
-            return
+            });
+            return;
         }
 
         try {
-            consoleLog('Sending logs to Supabase...')
-            let localData = null
+            consoleLog('Sending logs to Supabase...');
+            let localData = null;
             if (process.env.NODE_ENV === 'development') {
-                localData = await getLocalStorageData()
+                localData = await getLocalStorageData();
             }
 
-            const logs = await getLogsFromSession()
+            const logs = await getLogsFromSession();
 
-            let userId: string | null = null
-            const user = await authService.getCurrentUser()
+            let userId: string | null = null;
+            const user = await authService.getCurrentUser();
             if (user && user.id) {
-                userId = user.id
+                userId = user.id;
             } else {
-                userId = await getOrCreateDeviceId()
+                userId = await getOrCreateDeviceId();
             }
-            const description = message.data?.description || null
+            const description = message.data?.description || null;
 
             if (logs && logs.length > 0) {
-                await errorLogService.sendLogs([logs], userId, description, [
-                    localData,
-                ])
-                await clearLogsInSession()
+                await errorLogService.sendLogs([logs], userId, description, [localData]);
+                await clearLogsInSession();
             }
-            sendResponse({ success: true })
+            sendResponse({ success: true });
         } catch (error) {
-            consoleError(`${Actions.SEND_LOGS} error:`, error)
+            consoleError(`${Actions.SEND_LOGS} error:`, error);
             const errorMsg =
-                error instanceof Error && error.message
-                    ? error.message
-                    : String(error)
-            sendResponse({ success: false, error: errorMsg })
+                error instanceof Error && error.message ? error.message : String(error);
+            sendResponse({ success: false, error: errorMsg });
         }
     }
 }

@@ -39,6 +39,7 @@ If you have any questions or need support, contact us at:
 ## Documentation
 
 📚 **Technical Documentation**:
+
 - [Background Script Refactoring](docs/background-refactoring.md) - Modular architecture for background script with **complete unit test coverage**
 - [QueueManager Refactoring](docs/queue-manager-refactoring-summary.md) - Queue management improvements
 - [Testing Strategy](docs/testing-strategy.md) - Comprehensive testing approach and best practices

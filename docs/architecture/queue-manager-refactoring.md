@@ -21,17 +21,13 @@ Instead of creating new services, the new QueueManager uses existing utilities:
 
 ```typescript
 // Storage - using existing storageControl.helper.ts
-import { getStorage, setStorage } from '../utils/storageControl.helper'
+import { getStorage, setStorage } from '../utils/storageControl.helper';
 
 // Logging - using existing functions from utils-function.ts
-import {
-    consoleLog,
-    consoleError,
-    consoleLogWithoutSave,
-} from '../utils/utils-function'
+import { consoleLog, consoleError, consoleLogWithoutSave } from '../utils/utils-function';
 
 // Badge - using existing badge.ts
-import { updateBadge, clearBadge } from '../utils/badge'
+import { updateBadge, clearBadge } from '../utils/badge';
 ```
 
 ### Interfaces and Types
@@ -39,22 +35,19 @@ import { updateBadge, clearBadge } from '../utils/badge'
 ```typescript
 // src/types/queue.ts
 export interface IQueueManager {
-    addToQueue(item: RetryObject): Promise<RetryObject[]>
-    removeFromQueue(id: string): Promise<RetryObject[]>
-    updateQueueItem(
-        id: string,
-        updates: Partial<RetryObject>
-    ): Promise<RetryObject[]>
-    getQueue(): Promise<RetryObject[]>
+    addToQueue(item: RetryObject): Promise<RetryObject[]>;
+    removeFromQueue(id: string): Promise<RetryObject[]>;
+    updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
+    getQueue(): Promise<RetryObject[]>;
     startProcessing(
         processRequest: ProcessRequestFunction,
-        options?: ProcessingOptions
-    ): Promise<void>
-    stopProcessing(): void
+        options?: ProcessingOptions,
+    ): Promise<void>;
+    stopProcessing(): void;
 }
 
 export interface IAuthService {
-    isAuthenticated(): Promise<boolean>
+    isAuthenticated(): Promise<boolean>;
 }
 ```
 
@@ -80,37 +73,37 @@ Use adapter for backward compatibility:
 
 ```typescript
 // Old code continues to work
-import QueueManager from '../background/queue-manager'
-const queueManager = QueueManager.getInstance()
+import QueueManager from '../background/queue-manager';
+const queueManager = QueueManager.getInstance();
 
 // New code uses adapter
-import { QueueManagerAdapter } from '../services/queueManagerAdapter'
-const queueManager = QueueManagerAdapter.getInstance()
+import { QueueManagerAdapter } from '../services/queueManagerAdapter';
+const queueManager = QueueManagerAdapter.getInstance();
 ```
 
 ### Option 2: Direct Migration
 
 ```typescript
 // Old way
-import QueueManager from '../background/queue-manager'
-const queueManager = QueueManager.getInstance()
+import QueueManager from '../background/queue-manager';
+const queueManager = QueueManager.getInstance();
 
 // New way
-import { QueueManagerFactory } from '../services/queueManagerFactory'
+import { QueueManagerFactory } from '../services/queueManagerFactory';
 const queueManager = QueueManagerFactory.create({
     storageKey: 'retryQueue',
     enableLogging: true,
-})
+});
 ```
 
 ### Option 3: With Custom Services
 
 ```typescript
-import { QueueManager } from '../services/queueManager'
+import { QueueManager } from '../services/queueManager';
 
 const queueManager = new QueueManager(authService, {
     storageKey: 'customQueue',
-})
+});
 ```
 
 ## 🧪 Testing
@@ -118,35 +111,35 @@ const queueManager = new QueueManager(authService, {
 ### Unit Tests
 
 ```typescript
-import { QueueManager } from '../services/queueManager'
+import { QueueManager } from '../services/queueManager';
 
 describe('QueueManager', () => {
-    let queueManager: QueueManager
-    let mockAuthService: { isAuthenticated: jest.Mock }
+    let queueManager: QueueManager;
+    let mockAuthService: { isAuthenticated: jest.Mock };
 
     beforeEach(() => {
         mockAuthService = {
             isAuthenticated: jest.fn().mockResolvedValue(true),
-        }
+        };
 
         queueManager = new QueueManager(mockAuthService, {
             storageKey: 'testQueue',
-        })
-    })
-})
+        });
+    });
+});
 ```
 
 ### Integration Tests
 
 ```typescript
-import { QueueManagerFactory } from '../services/queueManagerFactory'
+import { QueueManagerFactory } from '../services/queueManagerFactory';
 
 describe('QueueManager Integration', () => {
     it('should process queue items correctly', async () => {
-        const queueManager = QueueManagerFactory.create()
+        const queueManager = QueueManagerFactory.create();
         // Test integration scenarios
-    })
-})
+    });
+});
 ```
 
 ## 📊 New Features
@@ -155,14 +148,14 @@ describe('QueueManager Integration', () => {
 
 ```typescript
 // Get processing state
-const state = queueManager.getProcessingState()
-console.log('Is processing:', state.isProcessing)
-console.log('Processed count:', state.processedCount)
+const state = queueManager.getProcessingState();
+console.log('Is processing:', state.isProcessing);
+console.log('Processed count:', state.processedCount);
 
 // Get statistics
-const stats = await queueManager.getStatistics()
-console.log('Total items:', stats.totalItems)
-console.log('Success rate:', stats.successItems / stats.totalItems)
+const stats = await queueManager.getStatistics();
+console.log('Total items:', stats.totalItems);
+console.log('Success rate:', stats.successItems / stats.totalItems);
 ```
 
 ### Event Handling
@@ -171,11 +164,11 @@ console.log('Success rate:', stats.successItems / stats.totalItems)
 const queueManager = QueueManagerFactory.create(
     {},
     {
-        onItemAdded: (item) => console.log('Item added:', item),
+        onItemAdded: item => console.log('Item added:', item),
         onProcessingStarted: () => console.log('Processing started'),
-        onProcessingError: (error) => console.error('Processing error:', error),
-    }
-)
+        onProcessingError: error => console.error('Processing error:', error),
+    },
+);
 ```
 
 ### Configuration
@@ -186,7 +179,7 @@ const queueManager = QueueManagerFactory.create({
     retryDelay: 2000,
     batchSize: 20,
     enableLogging: true,
-})
+});
 ```
 
 **Configuration Options:**

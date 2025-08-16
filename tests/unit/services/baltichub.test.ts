@@ -1,9 +1,5 @@
-import {
-    getSlots,
-    getEditForm,
-    getDriverNameAndContainer,
-} from '../../../src/services/baltichub'
-import { RetryObject } from '../../../src/types/baltichub'
+import { getSlots, getEditForm, getDriverNameAndContainer } from '../../../src/services/baltichub';
+import { RetryObject } from '../../../src/types/baltichub';
 
 // Mock utils functions
 jest.mock('../../../src/utils', () => ({
@@ -11,40 +7,37 @@ jest.mock('../../../src/utils', () => ({
     consoleLog: jest.fn(),
     consoleLogWithoutSave: jest.fn(),
     formatDateToDMY: jest.fn(),
-    JSONstringify: jest.fn((obj) => JSON.stringify(obj)),
-}))
+    JSONstringify: jest.fn(obj => JSON.stringify(obj)),
+}));
 
 // Mock helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({
     parseSlotsIntoButtons: jest.fn(),
     handleErrorResponse: jest.fn(),
     isTaskCompletedInAnotherQueue: jest.fn(),
-}))
+}));
 
 // Mock storage helper
 jest.mock('../../../src/utils/storage', () => ({
     setStorage: jest.fn(),
-}))
+}));
 
 describe('Baltichub Service', () => {
     beforeEach(() => {
-        jest.clearAllMocks()
-    })
+        jest.clearAllMocks();
+    });
 
     describe('getSlots', () => {
         it('should fetch slots for given date', async () => {
-            const {
-                fetchRequest,
-                formatDateToDMY,
-            } = require('../../../src/utils')
-            const mockResponse = { ok: true, data: 'slots data' }
+            const { fetchRequest, formatDateToDMY } = require('../../../src/utils');
+            const mockResponse = { ok: true, data: 'slots data' };
 
-            fetchRequest.mockResolvedValue(mockResponse)
-            formatDateToDMY.mockReturnValue('25.12.2024')
+            fetchRequest.mockResolvedValue(mockResponse);
+            formatDateToDMY.mockReturnValue('25.12.2024');
 
-            const result = await getSlots('25.12.2024')
+            const result = await getSlots('25.12.2024');
 
-            expect(formatDateToDMY).toHaveBeenCalled()
+            expect(formatDateToDMY).toHaveBeenCalled();
             expect(fetchRequest).toHaveBeenCalledWith(
                 'https://ebrama.baltichub.com/Home/GetSlots',
                 {
@@ -56,35 +49,31 @@ describe('Baltichub Service', () => {
                         Accept: '*/*',
                     },
                     body: JSON.stringify({ date: '25.12.2024', type: 1 }),
-                }
-            )
-            expect(result).toEqual(mockResponse)
-        })
+                },
+            );
+            expect(result).toEqual(mockResponse);
+        });
 
         it('should handle fetch error', async () => {
-            const {
-                fetchRequest,
-            } = require('../../../src/utils')
-            const mockError = { ok: false, error: { message: 'Network error' } }
+            const { fetchRequest } = require('../../../src/utils');
+            const mockError = { ok: false, error: { message: 'Network error' } };
 
-            fetchRequest.mockResolvedValue(mockError)
+            fetchRequest.mockResolvedValue(mockError);
 
-            const result = await getSlots('25.12.2024')
+            const result = await getSlots('25.12.2024');
 
-            expect(result).toEqual(mockError)
-        })
-    })
+            expect(result).toEqual(mockError);
+        });
+    });
 
     describe('getEditForm', () => {
         it('should fetch edit form for tvAppId', async () => {
-            const {
-                fetchRequest,
-            } = require('../../../src/utils')
-            const mockResponse = { ok: true, data: 'form data' }
+            const { fetchRequest } = require('../../../src/utils');
+            const mockResponse = { ok: true, data: 'form data' };
 
-            fetchRequest.mockResolvedValue(mockResponse)
+            fetchRequest.mockResolvedValue(mockResponse);
 
-            const result = await getEditForm('tv-app-123')
+            const result = await getEditForm('tv-app-123');
 
             expect(fetchRequest).toHaveBeenCalledWith(
                 'https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=tv-app-123',
@@ -98,17 +87,15 @@ describe('Baltichub Service', () => {
                         'X-Extension-Request': 'JustPrivetProject',
                     },
                     credentials: 'include',
-                }
-            )
-            expect(result).toEqual(mockResponse)
-        })
-    })
+                },
+            );
+            expect(result).toEqual(mockResponse);
+        });
+    });
 
     describe('getDriverNameAndContainer', () => {
         it('should return cached data if tvAppId exists in retryQueue', async () => {
-            const {
-                fetchRequest,
-            } = require('../../../src/utils')
+            const { fetchRequest } = require('../../../src/utils');
             const retryQueue: RetryObject[] = [
                 {
                     tvAppId: 'tv-app-123',
@@ -125,24 +112,19 @@ describe('Baltichub Service', () => {
                     timestamp: Date.now(),
                     url: 'https://example.com',
                 },
-            ]
+            ];
 
-            const result = await getDriverNameAndContainer(
-                'tv-app-123',
-                retryQueue
-            )
+            const result = await getDriverNameAndContainer('tv-app-123', retryQueue);
 
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
-            })
-            expect(fetchRequest).not.toHaveBeenCalled()
-        })
+            });
+            expect(fetchRequest).not.toHaveBeenCalled();
+        });
 
         it('should fetch and parse data if tvAppId not in retryQueue', async () => {
-            const {
-                fetchRequest,
-            } = require('../../../src/utils')
+            const { fetchRequest } = require('../../../src/utils');
             const mockResponse = {
                 ok: true,
                 text: jest.fn().mockResolvedValue(`
@@ -151,33 +133,31 @@ describe('Baltichub Service', () => {
           </select>
           <script>"ContainerId":"MSNU2991953"</script>
         `),
-            }
+            };
 
-            fetchRequest.mockResolvedValue(mockResponse)
+            fetchRequest.mockResolvedValue(mockResponse);
 
-            const result = await getDriverNameAndContainer('tv-app-123', [])
+            const result = await getDriverNameAndContainer('tv-app-123', []);
 
-            expect(fetchRequest).toHaveBeenCalled()
+            expect(fetchRequest).toHaveBeenCalled();
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
-            })
-        })
+            });
+        });
 
         it('should handle fetch error gracefully', async () => {
-            const {
-                fetchRequest,
-            } = require('../../../src/utils')
-            const mockError = { ok: false, error: { message: 'Fetch failed' } }
+            const { fetchRequest } = require('../../../src/utils');
+            const mockError = { ok: false, error: { message: 'Fetch failed' } };
 
-            fetchRequest.mockResolvedValue(mockError)
+            fetchRequest.mockResolvedValue(mockError);
 
-            const result = await getDriverNameAndContainer('tv-app-123', [])
+            const result = await getDriverNameAndContainer('tv-app-123', []);
 
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
-            })
-        })
-    })
-})
+            });
+        });
+    });
+});

@@ -37,25 +37,21 @@ src/services/
 
 ```typescript
 // Instead of new StorageService
-import { getStorage, setStorage } from '../utils/storageControl.helper'
+import { getStorage, setStorage } from '../utils/storageControl.helper';
 ```
 
 ### Logging:
 
 ```typescript
 // Instead of new LoggerService
-import {
-    consoleLog,
-    consoleError,
-    consoleLogWithoutSave,
-} from '../utils/utils-function'
+import { consoleLog, consoleError, consoleLogWithoutSave } from '../utils/utils-function';
 ```
 
 ### Badge:
 
 ```typescript
 // Instead of new BadgeService
-import { updateBadge, clearBadge } from '../utils/badge'
+import { updateBadge, clearBadge } from '../utils/badge';
 ```
 
 ## 🚀 How to Use
@@ -64,22 +60,22 @@ import { updateBadge, clearBadge } from '../utils/badge'
 
 ```typescript
 // Old way
-import QueueManager from '../background/queue-manager'
-const queueManager = QueueManager.getInstance()
+import QueueManager from '../background/queue-manager';
+const queueManager = QueueManager.getInstance();
 
 // New way
-import { QueueManagerAdapter } from '../services/queueManagerAdapter'
-const queueManager = QueueManagerAdapter.getInstance()
+import { QueueManagerAdapter } from '../services/queueManagerAdapter';
+const queueManager = QueueManagerAdapter.getInstance();
 ```
 
 ### Direct Usage:
 
 ```typescript
-import { QueueManagerFactory } from '../services/queueManagerFactory'
+import { QueueManagerFactory } from '../services/queueManagerFactory';
 const queueManager = QueueManagerFactory.create({
     storageKey: 'retryQueue',
     enableLogging: true,
-})
+});
 ```
 
 ## 📊 Advantages
@@ -98,9 +94,9 @@ const queueManager = QueueManagerFactory.create({
 // Easy to test with mock objects
 const mockAuthService = {
     isAuthenticated: jest.fn().mockResolvedValue(true),
-}
+};
 
-const queueManager = new QueueManager(mockAuthService)
+const queueManager = new QueueManager(mockAuthService);
 ```
 
 ## ✅ Result

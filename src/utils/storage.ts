@@ -1,4 +1,4 @@
-import { consoleLog, consoleError } from './logging'
+import { consoleLog, consoleError } from './logging';
 
 /**
  * Получает значение из chrome.storage.local
@@ -6,15 +6,13 @@ import { consoleLog, consoleError } from './logging'
  * @returns {Promise<object>}
  */
 export function getStorage<T extends string | string[]>(
-    keys: T
+    keys: T,
 ): Promise<{ [K in T extends string ? T : T[number]]: any }> {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(keys, (result) => {
-            return resolve(
-                result as { [K in T extends string ? T : T[number]]: any }
-            )
-        })
-    })
+    return new Promise(resolve => {
+        chrome.storage.local.get(keys, result => {
+            return resolve(result as { [K in T extends string ? T : T[number]]: any });
+        });
+    });
 }
 
 /**
@@ -23,11 +21,11 @@ export function getStorage<T extends string | string[]>(
  * @returns {Promise<void>}
  */
 export function setStorage(data: object): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>(resolve => {
         chrome.storage.local.set(data, () => {
-            resolve()
-        })
-    })
+            resolve();
+        });
+    });
 }
 
 /**
@@ -37,13 +35,13 @@ export function setStorage(data: object): Promise<void> {
  */
 export function onStorageChange(
     key: string,
-    callback: (newValue: any, oldValue: any) => void
+    callback: (newValue: any, oldValue: any) => void,
 ): void {
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'local' && changes[key]) {
-            callback(changes[key].newValue, changes[key].oldValue)
+            callback(changes[key].newValue, changes[key].oldValue);
         }
-    })
+    });
 }
 
 /**
@@ -52,11 +50,11 @@ export function onStorageChange(
  * @returns {Promise<void>}
  */
 export function removeStorage(keys: string | string[]): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>(resolve => {
         chrome.storage.local.remove(keys, () => {
-            resolve()
-        })
-    })
+            resolve();
+        });
+    });
 }
 
 /**
@@ -66,23 +64,23 @@ export function removeStorage(keys: string | string[]): Promise<void> {
 export async function getOrCreateDeviceId(): Promise<string> {
     try {
         // Try to get existing device ID from storage
-        const result = await getStorage('deviceId')
+        const result = await getStorage('deviceId');
 
         if (result.deviceId) {
-            return result.deviceId
+            return result.deviceId;
         }
 
         // Generate new device ID if none exists
-        const newDeviceId = crypto.randomUUID()
+        const newDeviceId = crypto.randomUUID();
 
         // Save to storage
-        await setStorage({ deviceId: newDeviceId })
+        await setStorage({ deviceId: newDeviceId });
 
-        return newDeviceId
+        return newDeviceId;
     } catch (error) {
-        consoleLog('Error getting or creating device ID:', error)
+        consoleLog('Error getting or creating device ID:', error);
         // Fallback: generate temporary ID
-        return crypto.randomUUID()
+        return crypto.randomUUID();
     }
 }
 
@@ -91,16 +89,16 @@ export async function getOrCreateDeviceId(): Promise<string> {
  * @returns {Promise<boolean>} Успешность операции
  */
 export async function cleanupCache(): Promise<boolean> {
-    consoleLog('Cleaning up cache...')
+    consoleLog('Cleaning up cache...');
     try {
         await setStorage({
             requestCacheBody: {},
             requestCacheHeaders: {},
-        })
-        return true
+        });
+        return true;
     } catch (error) {
-        consoleLog('Error cleaning up cache:', error)
-        return false
+        consoleLog('Error cleaning up cache:', error);
+        return false;
     }
 }
 
@@ -109,11 +107,11 @@ export async function cleanupCache(): Promise<boolean> {
  * @returns {Promise<any>} Все данные из хранилища
  */
 export async function getLocalStorageData(): Promise<any> {
-    return new Promise<any>((resolve) => {
-        chrome.storage.local.get(null, (data) => {
-            resolve(data)
-        })
-    })
+    return new Promise<any>(resolve => {
+        chrome.storage.local.get(null, data => {
+            resolve(data);
+        });
+    });
 }
 
 /**
@@ -123,11 +121,11 @@ export async function getLocalStorageData(): Promise<any> {
  */
 export async function getStorageValue<T>(key: string): Promise<T | null> {
     try {
-        const result = await getStorage(key)
-        return result[key] || null
+        const result = await getStorage(key);
+        return result[key] || null;
     } catch (error) {
-        consoleError(`Error getting storage value for key "${key}":`, error)
-        return null
+        consoleError(`Error getting storage value for key "${key}":`, error);
+        return null;
     }
 }
 
@@ -137,16 +135,13 @@ export async function getStorageValue<T>(key: string): Promise<T | null> {
  * @param {any} value — значение
  * @returns {Promise<boolean>} Успешность операции
  */
-export async function setStorageValue(
-    key: string,
-    value: any
-): Promise<boolean> {
+export async function setStorageValue(key: string, value: any): Promise<boolean> {
     try {
-        await setStorage({ [key]: value })
-        return true
+        await setStorage({ [key]: value });
+        return true;
     } catch (error) {
-        consoleError(`Error setting storage value for key "${key}":`, error)
-        return false
+        consoleError(`Error setting storage value for key "${key}":`, error);
+        return false;
     }
 }
 
@@ -157,11 +152,11 @@ export async function setStorageValue(
  */
 export async function hasStorageKey(key: string): Promise<boolean> {
     try {
-        const result = await getStorage(key)
-        return key in result && result[key] !== undefined
+        const result = await getStorage(key);
+        return key in result && result[key] !== undefined;
     } catch (error) {
-        consoleError(`Error checking storage key "${key}":`, error)
-        return false
+        consoleError(`Error checking storage key "${key}":`, error);
+        return false;
     }
 }
 
@@ -171,11 +166,11 @@ export async function hasStorageKey(key: string): Promise<boolean> {
  */
 export async function getStorageSize(): Promise<number> {
     try {
-        const data = await getLocalStorageData()
-        const jsonString = JSON.stringify(data)
-        return new Blob([jsonString]).size
+        const data = await getLocalStorageData();
+        const jsonString = JSON.stringify(data);
+        return new Blob([jsonString]).size;
     } catch (error) {
-        consoleError('Error getting storage size:', error)
-        return 0
+        consoleError('Error getting storage size:', error);
+        return 0;
     }
 }

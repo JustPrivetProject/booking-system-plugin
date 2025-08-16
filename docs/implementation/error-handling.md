@@ -26,7 +26,7 @@ const DEFAULT_RETRY_CONFIG = {
     maxAttempts: 3, // Maximum attempts
     baseDelay: 1000, // Base delay (1 sec)
     maxDelay: 10000, // Maximum delay (10 sec)
-}
+};
 ```
 
 ### Retryable Statuses
@@ -53,12 +53,12 @@ const response = await fetchRequest('https://api.example.com/data', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
-})
+});
 
 if (response.ok) {
-    const data = await response.json()
+    const data = await response.json();
 } else if ('error' in response) {
-    console.log('Error:', response.error)
+    console.log('Error:', response.error);
 }
 ```
 
@@ -72,7 +72,7 @@ const response = await fetchRequest('https://api.example.com/data', {
         baseDelay: 500,
         maxDelay: 5000,
     },
-})
+});
 ```
 
 ## 🔍 Error Handling
@@ -84,16 +84,16 @@ if (!response.ok && 'error' in response) {
     switch (response.error.type) {
         case ErrorType.NETWORK:
             // Network error
-            break
+            break;
         case ErrorType.SERVER_ERROR:
             // Server error
-            break
+            break;
         case ErrorType.HTML_ERROR:
             // HTML error page
-            break
+            break;
         case ErrorType.CLIENT_ERROR:
             // Client error
-            break
+            break;
     }
 }
 ```
@@ -102,11 +102,11 @@ if (!response.ok && 'error' in response) {
 
 ```typescript
 if (!response.ok && 'error' in response) {
-    const { type, status, message, attempt } = response.error
-    console.log(`Error type: ${type}`)
-    console.log(`HTTP status: ${status}`)
-    console.log(`Message: ${message}`)
-    console.log(`Attempt: ${attempt}`)
+    const { type, status, message, attempt } = response.error;
+    console.log(`Error type: ${type}`);
+    console.log(`HTTP status: ${status}`);
+    console.log(`Message: ${message}`);
+    console.log(`Attempt: ${attempt}`);
 }
 ```
 
@@ -133,17 +133,17 @@ The system automatically detects HTML error pages using patterns:
 ### Available Helper Functions
 
 ```typescript
-import { detectHtmlError, determineErrorType } from '../utils/utils-function'
+import { detectHtmlError, determineErrorType } from '../utils/utils-function';
 
 // Detect HTML errors in response text
-const htmlError = detectHtmlError(responseText)
+const htmlError = detectHtmlError(responseText);
 if (htmlError.isError) {
-    console.log('HTML Error detected:', htmlError.message)
-    console.log('Status:', htmlError.status)
+    console.log('HTML Error detected:', htmlError.message);
+    console.log('Status:', htmlError.status);
 }
 
 // Determine error type based on status and response text
-const errorType = determineErrorType(httpStatus, responseText)
+const errorType = determineErrorType(httpStatus, responseText);
 ```
 
 ## 📋 Usage Examples
@@ -158,7 +158,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
             'Content-Type': 'application/json; charset=UTF-8',
             'X-Requested-With': 'XMLHttpRequest',
         },
-        body: JSON.stringify({ date, type: 1 })
+        body: JSON.stringify({ date, type: 1 }),
     });
 
     if (!response.ok && 'error' in response) {
@@ -170,46 +170,46 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
 }
 
 // Advanced error handling in processRequest:
-const slots = await getSlots(time[0])
+const slots = await getSlots(time[0]);
 if (!slots.ok && 'error' in slots) {
-    consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '), slots.error)
+    consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '), slots.error);
 
     switch (slots.error.type) {
         case ErrorType.CLIENT_ERROR:
             if (slots.error.status === 401) {
-                setStorage({ unauthorized: true })
+                setStorage({ unauthorized: true });
                 return {
                     ...req,
                     status: Statuses.AUTHORIZATION_ERROR,
                     status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
-                }
+                };
             }
-            break
+            break;
         case ErrorType.SERVER_ERROR:
             return {
                 ...req,
                 status: Statuses.ERROR,
                 status_message: 'Problem z serwerem - spróbuj ponownie później',
-            }
+            };
         case ErrorType.HTML_ERROR:
             return {
                 ...req,
                 status: Statuses.AUTHORIZATION_ERROR,
                 status_message: 'Problem z autoryzacją - strona błędu',
-            }
+            };
         case ErrorType.NETWORK:
             return {
                 ...req,
                 status: Statuses.ERROR,
                 status_message: 'Problem z połączeniem sieciowym',
-            }
+            };
         default:
-            setStorage({ unauthorized: true })
+            setStorage({ unauthorized: true });
             return {
                 ...req,
                 status: Statuses.AUTHORIZATION_ERROR,
                 status_message: 'Problem z autoryzacją',
-            }
+            };
     }
 }
 ```
@@ -253,10 +253,10 @@ if (!slots.ok && 'error' in slots) {
 To test error handling, use the `testErrorHandling()` function:
 
 ```typescript
-import { testErrorHandling } from '../utils/utils-function'
+import { testErrorHandling } from '../utils/utils-function';
 
 // Run tests
-await testErrorHandling()
+await testErrorHandling();
 ```
 
 ## 🔄 Migration
@@ -264,7 +264,7 @@ await testErrorHandling()
 ### Old Code
 
 ```typescript
-const response = await fetchRequest(url, options)
+const response = await fetchRequest(url, options);
 if (!response.ok) {
     // Error handling
 }
@@ -273,24 +273,26 @@ if (!response.ok) {
 ### New Code
 
 ```typescript
-const response = await fetchRequest(url, options)
+const response = await fetchRequest(url, options);
 if (!response.ok && 'error' in response) {
     // Detailed error handling
-    console.log('Error type:', response.error.type)
-    console.log('Status:', response.error.status)
-    console.log('Message:', response.error.message)
+    console.log('Error type:', response.error.type);
+    console.log('Status:', response.error.status);
+    console.log('Message:', response.error.message);
 }
 ```
 
 ## 📊 Benefits
 
 ### Before
+
 - ❌ Basic error handling
 - ❌ No retry mechanism
 - ❌ Limited error information
 - ❌ No HTML error detection
 
 ### After
+
 - ✅ Comprehensive error analysis
 - ✅ Automatic retry with exponential backoff
 - ✅ Detailed error information

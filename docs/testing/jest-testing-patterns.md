@@ -38,6 +38,7 @@ class ServiceTestHelper {
 ```
 
 **Application:**
+
 - Complex tests with multiple mocks
 - Repeated setup operations
 - Integration tests
@@ -49,35 +50,35 @@ class ServiceTestHelper {
 ```typescript
 // Define types for mocks
 type MockService = {
-    getData: jest.MockedFunction<(id: string) => Promise<Data>>
-    saveData: jest.MockedFunction<(data: Data) => Promise<void>>
-    deleteData: jest.MockedFunction<(id: string) => Promise<boolean>>
-}
+    getData: jest.MockedFunction<(id: string) => Promise<Data>>;
+    saveData: jest.MockedFunction<(data: Data) => Promise<void>>;
+    deleteData: jest.MockedFunction<(id: string) => Promise<boolean>>;
+};
 
 type MockStorage = {
-    get: jest.MockedFunction<(key: string) => Promise<any>>
-    set: jest.MockedFunction<(key: string, value: any) => Promise<void>>
-    remove: jest.MockedFunction<(key: string) => Promise<void>>
-}
+    get: jest.MockedFunction<(key: string) => Promise<any>>;
+    set: jest.MockedFunction<(key: string, value: any) => Promise<void>>;
+    remove: jest.MockedFunction<(key: string) => Promise<void>>;
+};
 
 // Use in tests
 describe('Service Tests', () => {
-    let mockService: MockService
-    let mockStorage: MockStorage
+    let mockService: MockService;
+    let mockStorage: MockStorage;
 
     beforeEach(() => {
         mockService = {
             getData: jest.fn(),
             saveData: jest.fn(),
             deleteData: jest.fn(),
-        }
+        };
         mockStorage = {
             get: jest.fn(),
             set: jest.fn(),
             remove: jest.fn(),
-        }
-    })
-})
+        };
+    });
+});
 ```
 
 ### 3. Test Data Constants Pattern
@@ -97,19 +98,19 @@ const TEST_USERS = {
         name: '',
         email: 'invalid-email',
     },
-} as const
+} as const;
 
 const TEST_RESPONSES = {
     SUCCESS: { success: true, data: 'test-data' },
     ERROR: { success: false, error: 'test-error' },
     EMPTY: { success: true, data: null },
-} as const
+} as const;
 
 const TEST_ERRORS = {
     NETWORK: new Error('Network error'),
     VALIDATION: new Error('Validation failed'),
     TIMEOUT: new Error('Request timeout'),
-} as const
+} as const;
 ```
 
 ### 4. Arrange-Act-Assert Pattern
@@ -120,19 +121,19 @@ const TEST_ERRORS = {
 describe('UserService', () => {
     it('should create user successfully', async () => {
         // Arrange
-        const userData = TEST_USERS.VALID
-        mockService.createUser.mockResolvedValue(userData)
-        mockStorage.set.mockResolvedValue(undefined)
+        const userData = TEST_USERS.VALID;
+        mockService.createUser.mockResolvedValue(userData);
+        mockStorage.set.mockResolvedValue(undefined);
 
         // Act
-        const result = await userService.createUser(userData)
+        const result = await userService.createUser(userData);
 
         // Assert
-        expect(result).toEqual(userData)
-        expect(mockService.createUser).toHaveBeenCalledWith(userData)
-        expect(mockStorage.set).toHaveBeenCalledWith('user', userData)
-    })
-})
+        expect(result).toEqual(userData);
+        expect(mockService.createUser).toHaveBeenCalledWith(userData);
+        expect(mockStorage.set).toHaveBeenCalledWith('user', userData);
+    });
+});
 ```
 
 ### 5. Error Testing Pattern
@@ -143,28 +144,28 @@ describe('UserService', () => {
 describe('Error Handling', () => {
     it('should handle network errors gracefully', async () => {
         // Arrange
-        const networkError = TEST_ERRORS.NETWORK
-        mockService.getData.mockRejectedValue(networkError)
+        const networkError = TEST_ERRORS.NETWORK;
+        mockService.getData.mockRejectedValue(networkError);
 
         // Act & Assert
-        await expect(userService.getUserData('user-1')).rejects.toThrow('Network error')
-        expect(mockStorage.get).not.toHaveBeenCalled()
-    })
+        await expect(userService.getUserData('user-1')).rejects.toThrow('Network error');
+        expect(mockStorage.get).not.toHaveBeenCalled();
+    });
 
     it('should retry on temporary failures', async () => {
         // Arrange
         mockService.getData
             .mockRejectedValueOnce(TEST_ERRORS.NETWORK)
-            .mockResolvedValueOnce(TEST_USERS.VALID)
+            .mockResolvedValueOnce(TEST_USERS.VALID);
 
         // Act
-        const result = await userService.getUserDataWithRetry('user-1')
+        const result = await userService.getUserDataWithRetry('user-1');
 
         // Assert
-        expect(result).toEqual(TEST_USERS.VALID)
-        expect(mockService.getData).toHaveBeenCalledTimes(2)
-    })
-})
+        expect(result).toEqual(TEST_USERS.VALID);
+        expect(mockService.getData).toHaveBeenCalledTimes(2);
+    });
+});
 ```
 
 ### 6. Async Testing Pattern
@@ -179,28 +180,28 @@ describe('Async Operations', () => {
             userService.getUserData('user-1'),
             userService.getUserData('user-2'),
             userService.getUserData('user-3'),
-        ]
+        ];
 
         // Act
-        const results = await Promise.all(promises)
+        const results = await Promise.all(promises);
 
         // Assert
-        expect(results).toHaveLength(3)
-        expect(mockService.getData).toHaveBeenCalledTimes(3)
-    })
+        expect(results).toHaveLength(3);
+        expect(mockService.getData).toHaveBeenCalledTimes(3);
+    });
 
     it('should timeout long-running operations', async () => {
         // Arrange
-        mockService.getData.mockImplementation(() => 
-            new Promise(resolve => setTimeout(resolve, 5000))
-        )
+        mockService.getData.mockImplementation(
+            () => new Promise(resolve => setTimeout(resolve, 5000)),
+        );
 
         // Act & Assert
-        await expect(
-            userService.getUserDataWithTimeout('user-1', 1000)
-        ).rejects.toThrow('Operation timeout')
-    })
-})
+        await expect(userService.getUserDataWithTimeout('user-1', 1000)).rejects.toThrow(
+            'Operation timeout',
+        );
+    });
+});
 ```
 
 ### 7. State Management Testing Pattern
@@ -211,30 +212,30 @@ describe('Async Operations', () => {
 describe('State Management', () => {
     it('should maintain consistent state across operations', async () => {
         // Arrange
-        const initialState = { users: [], loading: false }
-        const updatedState = { users: [TEST_USERS.VALID], loading: false }
+        const initialState = { users: [], loading: false };
+        const updatedState = { users: [TEST_USERS.VALID], loading: false };
 
         // Act
-        await userService.loadUsers()
-        const finalState = userService.getState()
+        await userService.loadUsers();
+        const finalState = userService.getState();
 
         // Assert
-        expect(finalState).toEqual(updatedState)
-        expect(finalState.users).toContain(TEST_USERS.VALID)
-    })
+        expect(finalState).toEqual(updatedState);
+        expect(finalState.users).toContain(TEST_USERS.VALID);
+    });
 
     it('should reset state when clearing data', async () => {
         // Arrange
-        await userService.loadUsers()
-        expect(userService.getState().users).toHaveLength(1)
+        await userService.loadUsers();
+        expect(userService.getState().users).toHaveLength(1);
 
         // Act
-        await userService.clearData()
+        await userService.clearData();
 
         // Assert
-        expect(userService.getState().users).toHaveLength(0)
-    })
-})
+        expect(userService.getState().users).toHaveLength(0);
+    });
+});
 ```
 
 ### 8. Integration Testing Pattern
@@ -245,24 +246,24 @@ describe('State Management', () => {
 describe('Integration Scenarios', () => {
     it('should handle complete user workflow', async () => {
         // 1. Create user
-        const user = await userService.createUser(TEST_USERS.VALID)
-        expect(user).toEqual(TEST_USERS.VALID)
+        const user = await userService.createUser(TEST_USERS.VALID);
+        expect(user).toEqual(TEST_USERS.VALID);
 
         // 2. Update user
-        const updatedUser = { ...user, name: 'Updated Name' }
-        await userService.updateUser(user.id, updatedUser)
+        const updatedUser = { ...user, name: 'Updated Name' };
+        await userService.updateUser(user.id, updatedUser);
 
         // 3. Verify update
-        const retrievedUser = await userService.getUserData(user.id)
-        expect(retrievedUser.name).toBe('Updated Name')
+        const retrievedUser = await userService.getUserData(user.id);
+        expect(retrievedUser.name).toBe('Updated Name');
 
         // 4. Delete user
-        await userService.deleteUser(user.id)
+        await userService.deleteUser(user.id);
 
         // 5. Verify deletion
-        await expect(userService.getUserData(user.id)).rejects.toThrow('User not found')
-    })
-})
+        await expect(userService.getUserData(user.id)).rejects.toThrow('User not found');
+    });
+});
 ```
 
 ## 🔧 Specialized Patterns
@@ -271,29 +272,31 @@ describe('Integration Scenarios', () => {
 
 ```typescript
 class ChromeExtensionTestHelper {
-    private chromeMock: ChromeMock
+    private chromeMock: ChromeMock;
 
     constructor() {
-        this.chromeMock = (global as any).chrome
+        this.chromeMock = (global as any).chrome;
     }
 
     setupChromeAPI(): void {
         this.chromeMock.action.setBadgeText = jest.fn((details, callback) => {
             if (this.chromeMock.runtime.lastError) {
-                callback()
+                callback();
             } else {
-                callback()
+                callback();
             }
-        })
-        this.chromeMock.runtime.lastError = null
+        });
+        this.chromeMock.runtime.lastError = null;
     }
 
     simulateChromeError(error: Error): void {
-        this.chromeMock.runtime.lastError = error
+        this.chromeMock.runtime.lastError = error;
     }
 
     expectBadgeUpdate(expectedText: string): void {
-        expect(this.chromeMock.action.setBadgeText).toHaveBeenCalledWith({ text: expectedText })
+        expect(this.chromeMock.action.setBadgeText).toHaveBeenCalledWith({
+            text: expectedText,
+        });
     }
 }
 ```
@@ -302,11 +305,11 @@ class ChromeExtensionTestHelper {
 
 ```typescript
 class APITestHelper {
-    private mockFetch: jest.MockedFunction<typeof fetch>
+    private mockFetch: jest.MockedFunction<typeof fetch>;
 
     constructor() {
-        this.mockFetch = jest.fn()
-        global.fetch = this.mockFetch
+        this.mockFetch = jest.fn();
+        global.fetch = this.mockFetch;
     }
 
     mockSuccessfulResponse(data: any): void {
@@ -314,7 +317,7 @@ class APITestHelper {
             ok: true,
             json: () => Promise.resolve(data),
             text: () => Promise.resolve(JSON.stringify(data)),
-        } as Response)
+        } as Response);
     }
 
     mockErrorResponse(status: number, message: string): void {
@@ -324,11 +327,11 @@ class APITestHelper {
             statusText: message,
             json: () => Promise.resolve({ error: message }),
             text: () => Promise.resolve(message),
-        } as Response)
+        } as Response);
     }
 
     expectAPICall(url: string, options?: RequestInit): void {
-        expect(this.mockFetch).toHaveBeenCalledWith(url, options)
+        expect(this.mockFetch).toHaveBeenCalledWith(url, options);
     }
 }
 ```
@@ -368,14 +371,14 @@ class StorageTestHelper {
 
 ```typescript
 // ✅ Good names
-it('should return user data when valid ID provided', async () => {})
-it('should throw error when user not found', async () => {})
-it('should update badge with highest priority status', async () => {})
+it('should return user data when valid ID provided', async () => {});
+it('should throw error when user not found', async () => {});
+it('should update badge with highest priority status', async () => {});
 
 // ❌ Bad names
-it('should work', async () => {})
-it('test 1', async () => {})
-it('does something', async () => {})
+it('should work', async () => {});
+it('test 1', async () => {});
+it('does something', async () => {});
 ```
 
 ### 2. Test Organization
@@ -384,18 +387,18 @@ it('does something', async () => {})
 describe('UserService', () => {
     describe('getUserData', () => {
         describe('when user exists', () => {
-            it('should return user data', async () => {})
-        })
+            it('should return user data', async () => {});
+        });
 
         describe('when user does not exist', () => {
-            it('should throw error', async () => {})
-        })
+            it('should throw error', async () => {});
+        });
 
         describe('when network fails', () => {
-            it('should retry operation', async () => {})
-        })
-    })
-})
+            it('should retry operation', async () => {});
+        });
+    });
+});
 ```
 
 ### 3. Mock Management
@@ -403,31 +406,31 @@ describe('UserService', () => {
 ```typescript
 beforeEach(() => {
     // Setup mocks
-    jest.clearAllMocks()
-    mockService.getData.mockReset()
-    mockStorage.get.mockReset()
-})
+    jest.clearAllMocks();
+    mockService.getData.mockReset();
+    mockStorage.get.mockReset();
+});
 
 afterEach(() => {
     // Cleanup after tests
-    jest.restoreAllMocks()
-})
+    jest.restoreAllMocks();
+});
 ```
 
 ### 4. Call Verification
 
 ```typescript
 // Check call count
-expect(mockFunction).toHaveBeenCalledTimes(2)
+expect(mockFunction).toHaveBeenCalledTimes(2);
 
 // Check arguments
-expect(mockFunction).toHaveBeenCalledWith('expected-arg')
+expect(mockFunction).toHaveBeenCalledWith('expected-arg');
 
 // Check last call
-expect(mockFunction).toHaveBeenLastCalledWith('last-arg')
+expect(mockFunction).toHaveBeenLastCalledWith('last-arg');
 
 // Check no calls
-expect(mockFunction).not.toHaveBeenCalled()
+expect(mockFunction).not.toHaveBeenCalled();
 ```
 
 ## 🚀 Application Recommendations
@@ -443,17 +446,17 @@ expect(mockFunction).not.toHaveBeenCalled()
 
 ```typescript
 describe('ComplexService', () => {
-    let testHelper: ServiceTestHelper
-    let chromeHelper: ChromeExtensionTestHelper
+    let testHelper: ServiceTestHelper;
+    let chromeHelper: ChromeExtensionTestHelper;
 
     beforeEach(() => {
-        testHelper = new ServiceTestHelper()
-        chromeHelper = new ChromeExtensionTestHelper()
-        
-        testHelper.setupMocks()
-        chromeHelper.setupChromeAPI()
-    })
-})
+        testHelper = new ServiceTestHelper();
+        chromeHelper = new ChromeExtensionTestHelper();
+
+        testHelper.setupMocks();
+        chromeHelper.setupChromeAPI();
+    });
+});
 ```
 
 ### 3. Scaling
@@ -466,6 +469,7 @@ describe('ComplexService', () => {
 ## 🎯 Conclusion
 
 Using these patterns ensures:
+
 - **Readability** of tests
 - **Code reuse**
 - **Type safety** in TypeScript

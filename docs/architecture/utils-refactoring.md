@@ -95,11 +95,7 @@ Convenient entry point for importing all utilities.
 ### Before (Old Import)
 
 ```typescript
-import {
-    consoleLog,
-    fetchRequest,
-    normalizeFormData,
-} from '../utils/utils-function'
+import { consoleLog, fetchRequest, normalizeFormData } from '../utils/utils-function';
 ```
 
 ### After (New Import Options)
@@ -107,25 +103,21 @@ import {
 #### Option 1: Use specific modules (Recommended)
 
 ```typescript
-import { consoleLog } from '../utils/logging'
-import { fetchRequest } from '../utils/http'
-import { normalizeFormData } from '../utils/data-helpers'
+import { consoleLog } from '../utils/logging';
+import { fetchRequest } from '../utils/http';
+import { normalizeFormData } from '../utils/data-helpers';
 ```
 
 #### Option 2: Use index file
 
 ```typescript
-import { consoleLog, fetchRequest, normalizeFormData } from '../utils'
+import { consoleLog, fetchRequest, normalizeFormData } from '../utils';
 ```
 
 #### Option 3: Use legacy file (Still works)
 
 ```typescript
-import {
-    consoleLog,
-    fetchRequest,
-    normalizeFormData,
-} from '../utils/utils-function'
+import { consoleLog, fetchRequest, normalizeFormData } from '../utils/utils-function';
 ```
 
 ## ✅ Benefits

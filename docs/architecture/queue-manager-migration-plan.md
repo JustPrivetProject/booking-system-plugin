@@ -38,12 +38,12 @@ Based on the analysis, the old `QueueManager` is used in the following locations
 
 ```typescript
 // OLD
-import QueueManager from './queue-manager'
-const queueManager = QueueManager.getInstance()
+import QueueManager from './queue-manager';
+const queueManager = QueueManager.getInstance();
 
 // NEW
-import { QueueManagerAdapter } from '../services/queueManagerAdapter'
-const queueManager = QueueManagerAdapter.getInstance()
+import { QueueManagerAdapter } from '../services/queueManagerAdapter';
+const queueManager = QueueManagerAdapter.getInstance();
 ```
 
 **Files to update:**
@@ -62,11 +62,11 @@ const queueManager = QueueManagerAdapter.getInstance()
 
 ```typescript
 // Add to popup.ts
-import { QueueManagerAdapter } from '../services/queueManagerAdapter'
+import { QueueManagerAdapter } from '../services/queueManagerAdapter';
 
 // Replace direct storage access with QueueManager methods
-const queueManager = QueueManagerAdapter.getInstance()
-const queue = await queueManager.getQueue()
+const queueManager = QueueManagerAdapter.getInstance();
+const queue = await queueManager.getQueue();
 ```
 
 **Files to update:**
@@ -88,8 +88,8 @@ const queue = await queueManager.getQueue()
 // Update function signature to accept QueueManager instance
 export async function getDriverNameAndContainer(
     tvAppId: string,
-    queueManager: IQueueManager
-): Promise<{ driverName: string; containerNumber: string } | null>
+    queueManager: IQueueManager,
+): Promise<{ driverName: string; containerNumber: string } | null>;
 ```
 
 **Files to update:**
@@ -105,14 +105,14 @@ export async function getDriverNameAndContainer(
 
     ```typescript
     // Replace line 1
-    import { QueueManagerAdapter } from '../services/queueManagerAdapter'
+    import { QueueManagerAdapter } from '../services/queueManagerAdapter';
     ```
 
 2. **Replace QueueManager.getInstance() calls**
 
     ```typescript
     // Lines 42, 143, 492
-    const queueManager = QueueManagerAdapter.getInstance()
+    const queueManager = QueueManagerAdapter.getInstance();
     ```
 
 3. **Test background functionality**
@@ -125,7 +125,7 @@ export async function getDriverNameAndContainer(
 1. **Add QueueManager import to popup.ts**
 
     ```typescript
-    import { QueueManagerAdapter } from '../services/queueManagerAdapter'
+    import { QueueManagerAdapter } from '../services/queueManagerAdapter';
     ```
 
 2. **Replace direct storage access**
@@ -133,12 +133,12 @@ export async function getDriverNameAndContainer(
     ```typescript
     // OLD (lines 176-178)
     const { retryQueue } = await new Promise<{
-        retryQueue: RetryObjectArray
-    }>((resolve) => chrome.storage.local.get({ retryQueue: [] }, resolve))
+        retryQueue: RetryObjectArray;
+    }>(resolve => chrome.storage.local.get({ retryQueue: [] }, resolve));
 
     // NEW
-    const queueManager = QueueManagerAdapter.getInstance()
-    const retryQueue = await queueManager.getQueue()
+    const queueManager = QueueManagerAdapter.getInstance();
+    const retryQueue = await queueManager.getQueue();
     ```
 
 3. **Update storage change listener**
@@ -155,7 +155,7 @@ export async function getDriverNameAndContainer(
 4. **Update statistics and cleanup functions**
     ```typescript
     // Lines 788-791, 816-819
-    const queue = await queueManager.getQueue()
+    const queue = await queueManager.getQueue();
     ```
 
 ### Step 3: Service Updates (Priority 3)
@@ -163,19 +163,13 @@ export async function getDriverNameAndContainer(
 1. **Update baltichub.ts function signature**
 
     ```typescript
-    export async function getDriverNameAndContainer(
-        tvAppId: string,
-        queueManager: IQueueManager
-    )
+    export async function getDriverNameAndContainer(tvAppId: string, queueManager: IQueueManager);
     ```
 
 2. **Update function calls in background/index.ts**
     ```typescript
     // Line 193
-    const driverAndContainer = await getDriverNameAndContainer(
-        tvAppId,
-        queueManager
-    )
+    const driverAndContainer = await getDriverNameAndContainer(tvAppId, queueManager);
     ```
 
 ## 🧪 Testing Strategy

@@ -5,7 +5,7 @@ jest.mock('../../../src/services/supabaseClient', () => ({
             insert: jest.fn(),
         })),
     },
-}))
+}));
 
 // Mock errorLogService
 jest.mock('../../../src/services/errorLogService', () => ({
@@ -13,19 +13,19 @@ jest.mock('../../../src/services/errorLogService', () => ({
         logError: jest.fn(),
         logRequestError: jest.fn(),
     },
-}))
+}));
 
 import {
     fetchRequest,
     detectHtmlError,
     determineErrorType,
     testErrorHandling,
-} from '../../../src/utils/http'
+} from '../../../src/utils/http';
 
 // Mock logging
 jest.mock('../../../src/utils/logging', () => ({
     consoleLog: jest.fn(),
-}))
+}));
 
 // Mock data types
 jest.mock('../../../src/data', () => ({
@@ -49,14 +49,14 @@ jest.mock('../../../src/data', () => ({
         maxDelay: 10000,
     },
     RETRYABLE_STATUSES: [502, 503, 504],
-}))
+}));
 
 describe('HTTP Functions', () => {
     beforeEach(() => {
-        jest.clearAllMocks()
+        jest.clearAllMocks();
         // Reset fetch mock
-        ;(global as any).fetch = jest.fn()
-    })
+        (global as any).fetch = jest.fn();
+    });
 
     describe('fetchRequest', () => {
         it('should make successful request', async () => {
@@ -76,11 +76,11 @@ describe('HTTP Functions', () => {
                     keys: jest.fn(),
                     values: jest.fn(),
                 },
-            }
+            };
 
-            ;(global as any).fetch.mockResolvedValue(mockResponse)
+            (global as any).fetch.mockResolvedValue(mockResponse);
 
-            const result = await fetchRequest('https://api.test.com')
+            const result = await fetchRequest('https://api.test.com');
 
             expect((global as any).fetch).toHaveBeenCalledWith(
                 'https://api.test.com',
@@ -91,27 +91,27 @@ describe('HTTP Functions', () => {
                         Expires: '0',
                     }),
                     credentials: 'include',
-                })
-            )
+                }),
+            );
 
-            expect(result.ok).toBe(true)
+            expect(result.ok).toBe(true);
             if (result.ok) {
-                expect(result.status).toBe(200)
-                expect(result.statusText).toBe('OK')
+                expect(result.status).toBe(200);
+                expect(result.statusText).toBe('OK');
             }
-        })
+        });
 
         it('should handle network errors', async () => {
-            ;(global as any).fetch.mockRejectedValue(new Error('Network error'))
+            (global as any).fetch.mockRejectedValue(new Error('Network error'));
 
-            const result = await fetchRequest('https://api.test.com')
+            const result = await fetchRequest('https://api.test.com');
 
-            expect(result.ok).toBe(false)
+            expect(result.ok).toBe(false);
             if (!result.ok && 'error' in result) {
-                expect(result.error.type).toBe('NETWORK')
-                expect(result.error.message).toContain('Network error')
+                expect(result.error.type).toBe('NETWORK');
+                expect(result.error.message).toContain('Network error');
             }
-        })
+        });
 
         it('should handle HTTP 404 errors', async () => {
             const mockResponse = {
@@ -130,18 +130,18 @@ describe('HTTP Functions', () => {
                     keys: jest.fn(),
                     values: jest.fn(),
                 },
-            }
+            };
 
-            ;(global as any).fetch.mockResolvedValue(mockResponse)
+            (global as any).fetch.mockResolvedValue(mockResponse);
 
-            const result = await fetchRequest('https://api.test.com')
+            const result = await fetchRequest('https://api.test.com');
 
-            expect(result.ok).toBe(false)
+            expect(result.ok).toBe(false);
             if (!result.ok && 'error' in result) {
-                expect(result.error.type).toBe('CLIENT_ERROR')
-                expect(result.error.status).toBe(404)
+                expect(result.error.type).toBe('CLIENT_ERROR');
+                expect(result.error.status).toBe(404);
             }
-        })
+        });
 
         it('should handle HTTP 500 errors', async () => {
             const mockResponse = {
@@ -160,18 +160,18 @@ describe('HTTP Functions', () => {
                     keys: jest.fn(),
                     values: jest.fn(),
                 },
-            }
+            };
 
-            ;(global as any).fetch.mockResolvedValue(mockResponse)
+            (global as any).fetch.mockResolvedValue(mockResponse);
 
-            const result = await fetchRequest('https://api.test.com')
+            const result = await fetchRequest('https://api.test.com');
 
-            expect(result.ok).toBe(false)
+            expect(result.ok).toBe(false);
             if (!result.ok && 'error' in result) {
-                expect(result.error.type).toBe('SERVER_ERROR')
-                expect(result.error.status).toBe(500)
+                expect(result.error.type).toBe('SERVER_ERROR');
+                expect(result.error.status).toBe(500);
             }
-        })
+        });
 
         it('should retry on retryable errors', async () => {
             const mockResponse = {
@@ -190,18 +190,18 @@ describe('HTTP Functions', () => {
                     keys: jest.fn(),
                     values: jest.fn(),
                 },
-            }
+            };
 
-            ;(global as any).fetch.mockResolvedValue(mockResponse)
+            (global as any).fetch.mockResolvedValue(mockResponse);
 
             const result = await fetchRequest('https://api.test.com', {
                 retryConfig: { maxAttempts: 2, baseDelay: 10, maxDelay: 100 },
-            })
+            });
 
             // Should be called multiple times due to retries
-            expect((global as any).fetch).toHaveBeenCalledTimes(2)
-            expect(result.ok).toBe(false)
-        })
+            expect((global as any).fetch).toHaveBeenCalledTimes(2);
+            expect(result.ok).toBe(false);
+        });
 
         it('should handle custom headers', async () => {
             const mockResponse = {
@@ -220,16 +220,16 @@ describe('HTTP Functions', () => {
                     keys: jest.fn(),
                     values: jest.fn(),
                 },
-            }
+            };
 
-            ;(global as any).fetch.mockResolvedValue(mockResponse)
+            (global as any).fetch.mockResolvedValue(mockResponse);
 
             await fetchRequest('https://api.test.com', {
                 headers: {
                     Authorization: 'Bearer token',
                     'Content-Type': 'application/json',
                 },
-            })
+            });
 
             expect((global as any).fetch).toHaveBeenCalledWith(
                 'https://api.test.com',
@@ -241,96 +241,94 @@ describe('HTTP Functions', () => {
                         Pragma: 'no-cache',
                         Expires: '0',
                     }),
-                })
-            )
-        })
-    })
+                }),
+            );
+        });
+    });
 
     describe('detectHtmlError', () => {
         it('should detect HTML error with status code in title', () => {
             const htmlContent =
-                '<html><head><title>404 Not Found</title></head><body>Page not found</body></html>'
-            const result = detectHtmlError(htmlContent)
+                '<html><head><title>404 Not Found</title></head><body>Page not found</body></html>';
+            const result = detectHtmlError(htmlContent);
 
-            expect(result.isError).toBe(true)
-            expect(result.status).toBe(404)
-            expect(result.message).toContain('HTML Error Page Detected')
-        })
+            expect(result.isError).toBe(true);
+            expect(result.status).toBe(404);
+            expect(result.message).toContain('HTML Error Page Detected');
+        });
 
         it('should detect HTML error with status code in h1', () => {
-            const htmlContent =
-                '<html><body><h1>500 Internal Server Error</h1></body></html>'
-            const result = detectHtmlError(htmlContent)
+            const htmlContent = '<html><body><h1>500 Internal Server Error</h1></body></html>';
+            const result = detectHtmlError(htmlContent);
 
-            expect(result.isError).toBe(true)
-            expect(result.status).toBe(500)
-            expect(result.message).toContain('HTML Error Page Detected')
-        })
+            expect(result.isError).toBe(true);
+            expect(result.status).toBe(500);
+            expect(result.message).toContain('HTML Error Page Detected');
+        });
 
         it('should detect HTML error with status text', () => {
-            const htmlContent =
-                '<html><body>Status: 403 Forbidden</body></html>'
-            const result = detectHtmlError(htmlContent)
+            const htmlContent = '<html><body>Status: 403 Forbidden</body></html>';
+            const result = detectHtmlError(htmlContent);
 
-            expect(result.isError).toBe(true)
-            expect(result.status).toBe(403)
-            expect(result.message).toContain('HTML Error Page Detected')
-        })
+            expect(result.isError).toBe(true);
+            expect(result.status).toBe(403);
+            expect(result.message).toContain('HTML Error Page Detected');
+        });
 
         it('should detect HTML error without status code', () => {
             const htmlContent =
-                '<html><body><h1>Error</h1><p>Something went wrong</p></body></html>'
-            const result = detectHtmlError(htmlContent)
+                '<html><body><h1>Error</h1><p>Something went wrong</p></body></html>';
+            const result = detectHtmlError(htmlContent);
 
-            expect(result.isError).toBe(true)
-            expect(result.status).toBeUndefined()
-            expect(result.message).toContain('HTML Error Page Detected')
-        })
+            expect(result.isError).toBe(true);
+            expect(result.status).toBeUndefined();
+            expect(result.message).toContain('HTML Error Page Detected');
+        });
 
         it('should not detect error in normal HTML', () => {
             const htmlContent =
-                '<html><body><h1>Welcome</h1><p>This is a normal page</p></body></html>'
-            const result = detectHtmlError(htmlContent)
+                '<html><body><h1>Welcome</h1><p>This is a normal page</p></body></html>';
+            const result = detectHtmlError(htmlContent);
 
-            expect(result.isError).toBe(false)
-        })
+            expect(result.isError).toBe(false);
+        });
 
         it('should handle empty response', () => {
-            const result = detectHtmlError('')
-            expect(result.isError).toBe(false)
-        })
-    })
+            const result = detectHtmlError('');
+            expect(result.isError).toBe(false);
+        });
+    });
 
     describe('determineErrorType', () => {
         it('should return SERVER_ERROR for 5xx status codes', () => {
-            expect(determineErrorType(500, '')).toBe('SERVER_ERROR')
-            expect(determineErrorType(502, '')).toBe('SERVER_ERROR')
-            expect(determineErrorType(503, '')).toBe('SERVER_ERROR')
-        })
+            expect(determineErrorType(500, '')).toBe('SERVER_ERROR');
+            expect(determineErrorType(502, '')).toBe('SERVER_ERROR');
+            expect(determineErrorType(503, '')).toBe('SERVER_ERROR');
+        });
 
         it('should return CLIENT_ERROR for 4xx status codes', () => {
-            expect(determineErrorType(400, '')).toBe('CLIENT_ERROR')
-            expect(determineErrorType(404, '')).toBe('CLIENT_ERROR')
-            expect(determineErrorType(403, '')).toBe('CLIENT_ERROR')
-        })
+            expect(determineErrorType(400, '')).toBe('CLIENT_ERROR');
+            expect(determineErrorType(404, '')).toBe('CLIENT_ERROR');
+            expect(determineErrorType(403, '')).toBe('CLIENT_ERROR');
+        });
 
         it('should return HTML_ERROR for HTML error pages', () => {
-            const htmlError = '<html><title>404 Not Found</title></html>'
-            expect(determineErrorType(200, htmlError)).toBe('HTML_ERROR')
-        })
+            const htmlError = '<html><title>404 Not Found</title></html>';
+            expect(determineErrorType(200, htmlError)).toBe('HTML_ERROR');
+        });
 
         it('should return UNKNOWN for other cases', () => {
-            expect(determineErrorType(300, '')).toBe('UNKNOWN')
-            expect(determineErrorType(100, '')).toBe('UNKNOWN')
-        })
-    })
+            expect(determineErrorType(300, '')).toBe('UNKNOWN');
+            expect(determineErrorType(100, '')).toBe('UNKNOWN');
+        });
+    });
 
     describe('testErrorHandling', () => {
         it('should run error handling tests', async () => {
             // Mock fetch to return different responses for different URLs
-            ;(global as any).fetch.mockImplementation((url: string) => {
+            (global as any).fetch.mockImplementation((url: string) => {
                 if (url.includes('non-existent-url')) {
-                    return Promise.reject(new Error('Network error'))
+                    return Promise.reject(new Error('Network error'));
                 } else if (url.includes('httpstat.us/404')) {
                     return Promise.resolve({
                         ok: false,
@@ -338,7 +336,7 @@ describe('HTTP Functions', () => {
                         statusText: 'Not Found',
                         text: () => Promise.resolve('Not found'),
                         headers: { get: jest.fn() },
-                    })
+                    });
                 } else if (url.includes('httpstat.us/502')) {
                     return Promise.resolve({
                         ok: false,
@@ -346,31 +344,31 @@ describe('HTTP Functions', () => {
                         statusText: 'Bad Gateway',
                         text: () => Promise.resolve('Bad Gateway'),
                         headers: { get: jest.fn() },
-                    })
+                    });
                 }
                 return Promise.resolve({
                     ok: true,
                     status: 200,
                     text: () => Promise.resolve('Success'),
                     headers: { get: jest.fn() },
-                })
-            })
+                });
+            });
 
-            await testErrorHandling()
+            await testErrorHandling();
 
             // Verify that fetch was called for each test case
             expect((global as any).fetch).toHaveBeenCalledWith(
                 'https://non-existent-url-12345.com/test',
-                expect.any(Object)
-            )
+                expect.any(Object),
+            );
             expect((global as any).fetch).toHaveBeenCalledWith(
                 'https://httpstat.us/404',
-                expect.any(Object)
-            )
+                expect.any(Object),
+            );
             expect((global as any).fetch).toHaveBeenCalledWith(
                 'https://httpstat.us/502',
-                expect.any(Object)
-            )
-        })
-    })
-})
+                expect.any(Object),
+            );
+        });
+    });
+});

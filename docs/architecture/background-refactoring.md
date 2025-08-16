@@ -19,13 +19,17 @@ src/background/
 ## 🏗️ Components
 
 ### BackgroundController
+
 Main controller responsible for:
+
 - Initializing all services
 - Configuring event listeners
 - Coordinating between components
 
 ### MessageHandler
+
 Handles all messages from content script and popup:
+
 - Booking-related actions (SHOW_ERROR, SUCCEED_BOOKING)
 - Authorization checking
 - Auto-login
@@ -33,66 +37,76 @@ Handles all messages from content script and popup:
 - Log sending
 
 ### RequestHandler
+
 Manages HTTP request caching:
+
 - Caching POST request bodies
 - Caching headers
 - Filtering requests based on headers
 
 ### StorageHandler
+
 Handles chrome.storage changes:
+
 - Monitoring authorization changes
 - Restoring queue after authorization recovery
 
 ## 🔧 Storage Utils Usage
 
 ### Replaced direct calls:
+
 ```typescript
 // Before
-chrome.storage.local.get({ key: defaultValue }, (data) => {
+chrome.storage.local.get({ key: defaultValue }, data => {
     // callback logic
-})
+});
 
 chrome.storage.local.set({ key: value }, () => {
     // callback logic
-})
+});
 ```
 
 ### Used functions from utils/storage.ts:
+
 ```typescript
 // After
-import { getStorage, setStorage } from '../utils/storage'
+import { getStorage, setStorage } from '../utils/storage';
 
 // Asynchronous getting
-const data = await getStorage('key')
+const data = await getStorage('key');
 
 // Asynchronous setting
-await setStorage({ key: value })
+await setStorage({ key: value });
 
 // Listening for changes
-import { onStorageChange } from '../utils/storage'
+import { onStorageChange } from '../utils/storage';
 onStorageChange('key', (newValue, oldValue) => {
     // handle change
-})
+});
 ```
 
 ## ✅ Refactoring Benefits
 
 ### Separation of Responsibilities
+
 - Each module has one, clearly defined role
 - Easier testing and debugging
 - Lower cyclomatic complexity
 
 ### Better Error Handling
+
 - Added try-catch blocks in key places
 - Better error logging
 - Graceful degradation on errors
 
 ### Asynchronous Operations
+
 - All storage operations are now asynchronous
 - Better Promise management
 - Avoiding callback hell
 
 ### TypeScript Improvements
+
 - Better typing for Chrome WebRequest API
 - Improved interfaces
 - Fewer `any` types
@@ -101,25 +115,25 @@ onStorageChange('key', (newValue, oldValue) => {
 
 ```typescript
 // Initialization
-const backgroundController = new BackgroundController()
-await backgroundController.initialize()
+const backgroundController = new BackgroundController();
+await backgroundController.initialize();
 
 // Access to services
-const messageHandler = new MessageHandler(queueManager)
-const requestHandler = new RequestHandler()
+const messageHandler = new MessageHandler(queueManager);
+const requestHandler = new RequestHandler();
 ```
 
 ## 📊 Metrics
 
-| Category | Before | After | Improvement |
-|----------|--------|-------|-------------|
-| **Main file** | 515 lines | 26 lines | -95% |
-| **Modules** | 1 monolith | 4 modules | +300% modularity |
-| **Testability** | Difficult | Easy | +100% |
-| **Maintainability** | Low | High | +100% |
-| **Test Coverage** | 0% | 100% | +100% |
-| **Test Files** | 0 | 4 | +400% |
-| **Mock Setup** | None | Complete | +100% |
+| Category            | Before     | After     | Improvement      |
+| ------------------- | ---------- | --------- | ---------------- |
+| **Main file**       | 515 lines  | 26 lines  | -95%             |
+| **Modules**         | 1 monolith | 4 modules | +300% modularity |
+| **Testability**     | Difficult  | Easy      | +100%            |
+| **Maintainability** | Low        | High      | +100%            |
+| **Test Coverage**   | 0%         | 100%      | +100%            |
+| **Test Files**      | 0          | 4         | +400%            |
+| **Mock Setup**      | None       | Complete  | +100%            |
 
 ## 🔄 Preserved Functionality
 
@@ -133,6 +147,7 @@ const requestHandler = new RequestHandler()
 ## 🧪 Unit Tests
 
 ### Test Coverage
+
 All background script modules are now covered by unit tests:
 
 ```
@@ -146,6 +161,7 @@ tests/unit/handlers/
 ### Tested Functionality
 
 #### BackgroundController
+
 - ✅ Initialization of all components
 - ✅ Event listener configuration
 - ✅ Error handling during initialization
@@ -153,6 +169,7 @@ tests/unit/handlers/
 - ✅ Installation/update handling
 
 #### MessageHandler
+
 - ✅ All message actions (SHOW_ERROR, SUCCEED_BOOKING, PARSED_TABLE, etc.)
 - ✅ Authorization checking
 - ✅ Auto-login
@@ -160,6 +177,7 @@ tests/unit/handlers/
 - ✅ Log sending
 
 #### RequestHandler
+
 - ✅ Request body caching
 - ✅ Header caching
 - ✅ Header-based filtering
@@ -167,11 +185,13 @@ tests/unit/handlers/
 - ✅ Storage error handling
 
 #### StorageHandler
+
 - ✅ Authorization change monitoring
 - ✅ Queue restoration after auth recovery
 - ✅ Queue manager error handling
 
 ### Mocks and Dependencies
+
 - ✅ Chrome API mock in `tests/setup.ts`
 - ✅ Supabase mock for tests
 - ✅ Storage utils mock

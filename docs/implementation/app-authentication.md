@@ -156,12 +156,12 @@ graph TD
 ```typescript
 describe('Auto-Login Service', () => {
     it('should encrypt and decrypt credentials correctly', () => {
-        const credentials = { username: 'test', password: 'password' }
-        const encrypted = encryptCredentials(credentials)
-        const decrypted = decryptCredentials(encrypted)
-        expect(decrypted).toEqual(credentials)
-    })
-})
+        const credentials = { username: 'test', password: 'password' };
+        const encrypted = encryptCredentials(credentials);
+        const decrypted = decryptCredentials(encrypted);
+        expect(decrypted).toEqual(credentials);
+    });
+});
 ```
 
 ### Integration Tests
@@ -173,8 +173,8 @@ describe('Authentication Flow', () => {
         // 2. Trigger auto-login
         // 3. Verify queue restoration
         // 4. Check auth status
-    })
-})
+    });
+});
 ```
 
 ## 🚀 Usage Examples
@@ -184,12 +184,12 @@ describe('Authentication Flow', () => {
 ```typescript
 // Check authentication status
 const isUnauthorized = await chrome.runtime.sendMessage({
-    action: 'GET_AUTH_STATUS'
-})
+    action: 'GET_AUTH_STATUS',
+});
 
 if (isUnauthorized) {
     // Show countdown modal or reload page
-    showCountdownModal()
+    showCountdownModal();
 }
 ```
 
@@ -199,10 +199,10 @@ if (isUnauthorized) {
 // Handle auth status requests
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'GET_AUTH_STATUS') {
-        const { unauthorized } = await getStorage('unauthorized')
-        sendResponse(unauthorized)
+        const { unauthorized } = await getStorage('unauthorized');
+        sendResponse(unauthorized);
     }
-})
+});
 ```
 
 ### Popup
@@ -210,19 +210,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 ```typescript
 // Save auto-login credentials
 const saveCredentials = async (username: string, password: string) => {
-    const encrypted = encryptCredentials({ username, password })
-    await setStorage({ autoLoginData: encrypted })
-}
+    const encrypted = encryptCredentials({ username, password });
+    await setStorage({ autoLoginData: encrypted });
+};
 ```
 
 ## 📊 Benefits
 
 ### Before
+
 - ❌ Manual re-authentication required
 - ❌ Lost queue items on session expiry
 - ❌ Poor user experience
 
 ### After
+
 - ✅ Automatic session recovery
 - ✅ Queue restoration after re-auth
 - ✅ Seamless user experience

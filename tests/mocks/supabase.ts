@@ -13,12 +13,12 @@ export const supabaseMock = {
         eq: jest.fn(),
         single: jest.fn(),
     })),
-}
+};
 
 // Mock createClient function
-export const createClient = jest.fn(() => supabaseMock)
+export const createClient = jest.fn(() => supabaseMock);
 
 // Export for use in tests
 export default {
     createClient,
-}
+};

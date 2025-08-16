@@ -1,32 +1,21 @@
-import { Statuses } from '../data'
-import { RetryObject } from '../types/baltichub'
-import {
-    consoleLog,
-    consoleError,
-    fetchRequest,
-    normalizeFormData,
-    detectHtmlError,
-    determineErrorType,
-} from './index'
+import { Statuses } from '../data';
+import type { RetryObject } from '../types/baltichub';
+
+import { consoleLog, detectHtmlError, determineErrorType } from './index';
 
 export const parseSlotsIntoButtons = (htmlText: string) => {
-    const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs
-    const buttons = [...htmlText.matchAll(buttonRegex)].map((match) => {
-        const buttonHTML = match[0] // The entire matched <button>...</button> tag
-        const text = match[1].trim() // The text inside the button
-        const disabled = /disabled/i.test(buttonHTML) // Check for the presence of the disabled attribute
+    const buttonRegex = /<button[^>]*>(.*?)<\/button>/gs;
+    const buttons = [...htmlText.matchAll(buttonRegex)].map(match => {
+        const buttonHTML = match[0]; // The entire matched <button>...</button> tag
+        const text = match[1].trim(); // The text inside the button
+        const disabled = /disabled/i.test(buttonHTML); // Check for the presence of the disabled attribute
 
-        return { text, disabled }
-    })
-    return buttons
-}
-export function isTaskCompletedInAnotherQueue(
-    req: RetryObject,
-    queue: RetryObject[]
-) {
-    return queue.some(
-        (task) => task.tvAppId === req.tvAppId && task.status === 'success'
-    )
+        return { text, disabled };
+    });
+    return buttons;
+};
+export function isTaskCompletedInAnotherQueue(req: RetryObject, queue: RetryObject[]) {
+    return queue.some(task => task.tvAppId === req.tvAppId && task.status === 'success');
 }
 
 /**
@@ -49,16 +38,11 @@ export function handleErrorResponse(
     req: RetryObject,
     parsedResponse: string,
     tvAppId: string,
-    time: string[]
+    time: string[],
 ): RetryObject {
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-        consoleLog(
-            '❌ Retry failed, keeping in queue:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse
-        )
-        return req
+        consoleLog('❌ Retry failed, keeping in queue:', tvAppId, time.join(', '), parsedResponse);
+        return req;
     }
 
     if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
@@ -66,13 +50,13 @@ export function handleErrorResponse(
             '✅ The request was executed in another task:',
             tvAppId,
             time.join(', '),
-            parsedResponse
-        )
+            parsedResponse,
+        );
         return {
             ...req,
             status: Statuses.ANOTHER_TASK,
             status_message: 'Zadanie zakończone w innym wątku',
-        }
+        };
     }
 
     if (parsedResponse.includes('ToMuchTransactionInSector')) {
@@ -80,116 +64,102 @@ export function handleErrorResponse(
             '⚠️ Too many transactions in sector, keeping in queue:',
             tvAppId,
             time.join(', '),
-            parsedResponse
-        )
+            parsedResponse,
+        );
         return {
             ...req,
             status_message: 'Za duża ilość transakcji w sektorze',
-        }
+        };
     }
-    let responseObj
+    let responseObj;
     try {
-        responseObj = JSON.parse(parsedResponse)
+        responseObj = JSON.parse(parsedResponse);
 
         if (responseObj.messageCode === 'NoSlotsAvailable') {
             consoleLog(
                 '⚠️ No slots available, keeping in queue:',
                 tvAppId,
                 time.join(', '),
-                parsedResponse
-            )
-            return req
+                parsedResponse,
+            );
+            return req;
         }
 
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('FE_0091')
-        ) {
+        if (responseObj.messageCode && responseObj.messageCode.includes('FE_0091')) {
             consoleLog(
                 '⚠️Awizacja edytowana przez innego użytkownika:',
                 tvAppId,
                 time.join(', '),
-                parsedResponse
-            )
+                parsedResponse,
+            );
             return {
                 ...req,
                 status: Statuses.ANOTHER_TASK,
                 status_message:
                     'Awizacja edytowana przez innego użytkownika. Otwórz okno ponownie w celu aktualizacji awizacji',
-            }
+            };
         }
 
-        if (
-            responseObj.messageCode &&
-            responseObj.messageCode.includes('VBS_0072')
-        ) {
+        if (responseObj.messageCode && responseObj.messageCode.includes('VBS_0072')) {
             consoleLog(
                 '⚠️Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
                 tvAppId,
                 time.join(', '),
-                parsedResponse
-            )
+                parsedResponse,
+            );
             return {
                 ...req,
                 status: Statuses.ERROR,
                 status_message:
                     'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
-            }
+            };
         }
 
         // Handle unknown JSON error
-        consoleLog('❌ Unknown error occurred:', parsedResponse)
+        consoleLog('❌ Unknown error occurred:', parsedResponse);
         return {
             ...req,
             status: Statuses.ERROR,
             status_message: responseObj.error || 'Nieznany błąd',
-        }
+        };
     } catch (e) {
         // Handle non-JSON responses using new error handling system
-        consoleLog('❌ Unknown error (not JSON):', parsedResponse)
+        consoleLog('❌ Unknown error (not JSON):', parsedResponse);
 
-        if (
-            parsedResponse.includes('<!DOCTYPE html>') ||
-            parsedResponse.includes('<html')
-        ) {
+        if (parsedResponse.includes('<!DOCTYPE html>') || parsedResponse.includes('<html')) {
             // Use the new HTML error detection system
-            const htmlError = detectHtmlError(parsedResponse)
-            const errorType = determineErrorType(0, parsedResponse) // 0 status since we don't have HTTP status here
+            const htmlError = detectHtmlError(parsedResponse);
+            const errorType = determineErrorType(0, parsedResponse); // 0 status since we don't have HTTP status here
 
-            let errorMessage = 'Serwer ma problemy, proszę czekać'
-            let status = Statuses.ERROR
+            let errorMessage = 'Serwer ma problemy, proszę czekać';
+            let status = Statuses.ERROR;
 
             // Determine specific error details
             if (parsedResponse.includes('Error 500')) {
-                errorMessage = 'Błąd serwera (500) - spróbuj ponownie później'
-                status = Statuses.ERROR
+                errorMessage = 'Błąd serwera (500) - spróbuj ponownie później';
+                status = Statuses.ERROR;
             } else if (parsedResponse.includes('Error 404')) {
-                errorMessage =
-                    'Nie znaleziono (404) - sprawdź poprawność danych'
-                status = Statuses.ERROR
+                errorMessage = 'Nie znaleziono (404) - sprawdź poprawność danych';
+                status = Statuses.ERROR;
             } else if (parsedResponse.includes('Error 403')) {
-                errorMessage = 'Dostęp zabroniony (403) - brak uprawnień'
-                status = Statuses.AUTHORIZATION_ERROR
+                errorMessage = 'Dostęp zabroniony (403) - brak uprawnień';
+                status = Statuses.AUTHORIZATION_ERROR;
             } else if (parsedResponse.includes('Error 401')) {
-                errorMessage =
-                    'Nieautoryzowany dostęp (401) - wymagane ponowne logowanie'
-                status = Statuses.AUTHORIZATION_ERROR
+                errorMessage = 'Nieautoryzowany dostęp (401) - wymagane ponowne logowanie';
+                status = Statuses.AUTHORIZATION_ERROR;
             } else if (parsedResponse.includes('Error 400')) {
-                errorMessage =
-                    'Nieprawidłowe żądanie (400) - sprawdź dane wejściowe'
-                status = Statuses.ERROR
+                errorMessage = 'Nieprawidłowe żądanie (400) - sprawdź dane wejściowe';
+                status = Statuses.ERROR;
             } else if (htmlError && htmlError.isError && htmlError.message) {
-                errorMessage = `Błąd HTML: ${htmlError.message}`
+                errorMessage = `Błąd HTML: ${htmlError.message}`;
             }
 
             // Try to extract additional error details from HTML
-            const errorMatch = parsedResponse.match(
-                /<h[12][^>]*>([^<]+)<\/h[12]>/i
-            )
+            const errorMatch = parsedResponse.match(/<h[12][^>]*>([^<]+)<\/h[12]>/i);
             if (errorMatch) {
-                const details = errorMatch[1].trim()
+                const details = errorMatch[1].trim();
                 if (details && !errorMessage.includes(details)) {
-                    errorMessage += ` - ${details}`
+                    errorMessage += ` - ${details}`;
                 }
             }
 
@@ -198,14 +168,14 @@ export function handleErrorResponse(
                 tvAppId,
                 time.join(', '),
                 errorType,
-                errorMessage
-            )
+                errorMessage,
+            );
 
             return {
                 ...req,
                 status,
                 status_message: errorMessage,
-            }
+            };
         }
 
         // Handle other non-JSON errors
@@ -213,6 +183,6 @@ export function handleErrorResponse(
             ...req,
             status: Statuses.ERROR,
             status_message: 'Nieznany błąd (niepoprawny format odpowiedzi)',
-        }
+        };
     }
 }

@@ -6,7 +6,7 @@ export const Statuses = {
     AUTHORIZATION_ERROR: 'authorization-error',
     ERROR: 'error',
     EXPIRED: 'expired',
-}
+};
 
 export const Actions = {
     SHOW_ERROR: 'showError',
@@ -22,7 +22,7 @@ export const Actions = {
     AUTO_LOGIN_ATTEMPT: 'AUTO_LOGIN_ATTEMPT',
     LOAD_AUTO_LOGIN_CREDENTIALS: 'LOAD_AUTO_LOGIN_CREDENTIALS',
     IS_AUTO_LOGIN_ENABLED: 'IS_AUTO_LOGIN_ENABLED',
-}
+};
 
 export const StatusesPriority = [
     Statuses.ERROR, // High priority
@@ -32,7 +32,7 @@ export const StatusesPriority = [
     Statuses.ANOTHER_TASK, // Low priority
     Statuses.IN_PROGRESS, // In progress
     Statuses.PAUSED, // Lowest priority
-]
+];
 
 export const StatusIconMap: Record<string, string> = {
     [Statuses.ERROR]: '❌',
@@ -42,7 +42,7 @@ export const StatusIconMap: Record<string, string> = {
     [Statuses.IN_PROGRESS]: '▶️',
     [Statuses.PAUSED]: '⏸️',
     [Statuses.EXPIRED]: '❌',
-}
+};
 
 // HTTP and Error handling constants
 export enum ErrorType {
@@ -75,25 +75,25 @@ export enum HttpStatus {
 }
 
 export interface RetryConfig {
-    maxAttempts: number
-    baseDelay: number
-    maxDelay: number
+    maxAttempts: number;
+    baseDelay: number;
+    maxDelay: number;
 }
 
 export interface ErrorResponse {
-    ok: false
+    ok: false;
     error: {
-        type: ErrorType
-        status?: number
-        message: string
-        originalError?: Error
-        attempt?: number
-    }
-    text: () => Promise<string>
+        type: ErrorType;
+        status?: number;
+        message: string;
+        originalError?: Error;
+        attempt?: number;
+    };
+    text: () => Promise<string>;
 }
 
 export interface FetchRequestOptions extends RequestInit {
-    retryConfig?: RetryConfig
+    retryConfig?: RetryConfig;
 }
 
 // Default retry configuration
@@ -101,7 +101,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
     maxAttempts: 3,
     baseDelay: 1000, // 1 second
     maxDelay: 10000, // 10 seconds
-}
+};
 
 // Retryable status codes
 export const RETRYABLE_STATUSES = [
@@ -110,7 +110,7 @@ export const RETRYABLE_STATUSES = [
     HttpStatus.GATEWAY_TIMEOUT,
     HttpStatus.REQUEST_TIMEOUT,
     HttpStatus.TOO_MANY_REQUESTS,
-]
+];
 
 // Logging configuration
-export const LOGS_LENGTH = 300
+export const LOGS_LENGTH = 300;

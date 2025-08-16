@@ -1,16 +1,13 @@
-const path = require('path')
-const CopyPlugin = require('copy-webpack-plugin')
-const HtmlWebpackPlugin = require('html-webpack-plugin')
-const Dotenv = require('dotenv-webpack')
+const path = require('path');
+const CopyPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const Dotenv = require('dotenv-webpack');
+const ESLintPlugin = require('eslint-webpack-plugin');
 
-module.exports = (env) => {
-    const isProduction = env.production === true
-    const manifestPath = isProduction
-        ? 'public/manifest.json'
-        : 'public/manifest-dev.json'
-    const iconPath = isProduction
-        ? 'public/icon-144x144.png'
-        : 'public/icon-144x144-dev.png'
+module.exports = env => {
+    const isProduction = env.production === true;
+    const manifestPath = isProduction ? 'public/manifest.json' : 'public/manifest-dev.json';
+    const iconPath = isProduction ? 'public/icon-144x144.png' : 'public/icon-144x144-dev.png';
 
     return {
         mode: isProduction ? 'production' : 'development',
@@ -54,6 +51,14 @@ module.exports = (env) => {
 
         // Плагины
         plugins: [
+            // ESLint plugin for webpack
+            new ESLintPlugin({
+                extensions: ['ts', 'tsx'],
+                exclude: ['node_modules', 'dist'],
+                failOnError: isProduction,
+                failOnWarning: isProduction,
+            }),
+
             // Копируем манифест и прочие статики
             new CopyPlugin({
                 patterns: [
@@ -61,10 +66,7 @@ module.exports = (env) => {
                         from: 'public',
                         to: '.',
                         globOptions: {
-                            ignore: [
-                                '**/icon-144x144*.png',
-                                '**/manifest*.json',
-                            ],
+                            ignore: ['**/icon-144x144*.png', '**/manifest*.json'],
                         },
                         noErrorOnMissing: true,
                     },
@@ -102,5 +104,5 @@ module.exports = (env) => {
                 process: false,
             },
         },
-    }
-}
+    };
+};
