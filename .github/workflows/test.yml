@@ -26,8 +26,6 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            checks: write
-            pull-requests: write
 
         steps:
             - name: Checkout code
@@ -58,19 +56,20 @@ jobs:
 
             - name: Generate test report
               uses: dorny/test-reporter@v1
-              if: (success() || failure()) && github.event_name != 'workflow_call'
+              if: success() || failure()
               with:
                   name: Jest Tests
                   path: coverage/junit.xml
                   reporter: jest-junit
-                  fail-on-error: true
+                  fail-on-error: ${{ github.event_name != 'workflow_call' }}
                   path-replace-backslashes: false
                   list-suites: all
                   list-tests: all
                   max-annotations: 10
-                  fail-on-empty: true
-                  only-summary: false
+                  fail-on-empty: ${{ github.event_name != 'workflow_call' }}
+                  only-summary: ${{ github.event_name == 'workflow_call' }}
                   token: ${{ secrets.GITHUB_TOKEN }}
+              continue-on-error: ${{ github.event_name == 'workflow_call' }}
 
             - name: Comment PR with coverage
               if: github.event_name == 'pull_request'

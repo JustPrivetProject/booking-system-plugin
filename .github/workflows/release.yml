@@ -51,6 +51,8 @@ jobs:
             (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev'))
         permissions:
             contents: read
+            checks: write
+            pull-requests: write
         uses: ./.github/workflows/test.yml
 
     # Production release (main branch and tags)
@@ -157,6 +159,8 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         permissions:
             contents: read
+            checks: write
+            pull-requests: write
         uses: ./.github/workflows/test.yml
 
     # Development environment (dev branch)
