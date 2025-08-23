@@ -1,17 +1,14 @@
-export function showEmailConfirmationModal(
-    email: string,
-    onClose?: () => void
-) {
+export function showEmailConfirmationModal(email: string, onClose?: () => void) {
     // Сохраняем и увеличиваем высоту body
-    const initialBodyHeight = document.body.style.height
-    document.body.style.height = '180px'
+    const initialBodyHeight = document.body.style.height;
+    document.body.style.height = '180px';
 
-    let confirmMsg = document.getElementById('emailConfirmMsg')
+    let confirmMsg = document.getElementById('emailConfirmMsg');
     if (!confirmMsg) {
-        confirmMsg = document.createElement('div')
-        confirmMsg.id = 'emailConfirmMsg'
-        confirmMsg.className = 'email-confirm-message'
-        document.body.appendChild(confirmMsg)
+        confirmMsg = document.createElement('div');
+        confirmMsg.id = 'emailConfirmMsg';
+        confirmMsg.className = 'email-confirm-message';
+        document.body.appendChild(confirmMsg);
     }
 
     confirmMsg.innerHTML = `
@@ -22,34 +19,34 @@ export function showEmailConfirmationModal(
             <p class="email-address">${email}</p>
             <button id="backToLoginBtn" class="confirm-btn">OK</button>
         </div>
-    `
+    `;
 
-    addSimpleStyles()
+    addSimpleStyles();
 
-    confirmMsg.classList.add('show')
+    confirmMsg.classList.add('show');
 
     function hideConfirmMsg() {
-        confirmMsg?.classList.remove('show')
-        if (onClose) onClose() // СРАЗУ возвращаем UI
+        confirmMsg?.classList.remove('show');
+        if (onClose) onClose(); // СРАЗУ возвращаем UI
         setTimeout(() => {
-            confirmMsg?.remove()
-            document.body.style.height = initialBodyHeight
-        }, 250)
+            confirmMsg?.remove();
+            document.body.style.height = initialBodyHeight;
+        }, 250);
     }
 
-    const backBtn = document.getElementById('backToLoginBtn')
+    const backBtn = document.getElementById('backToLoginBtn');
     if (backBtn) {
-        backBtn.addEventListener('click', hideConfirmMsg)
+        backBtn.addEventListener('click', hideConfirmMsg);
     }
 
-    setTimeout(hideConfirmMsg, 15000)
+    setTimeout(hideConfirmMsg, 15000);
 }
 
 function addSimpleStyles() {
-    if (document.getElementById('simpleConfirmStyles')) return
+    if (document.getElementById('simpleConfirmStyles')) return;
 
-    const style = document.createElement('style')
-    style.id = 'simpleConfirmStyles'
+    const style = document.createElement('style');
+    style.id = 'simpleConfirmStyles';
     style.textContent = `
         .email-confirm-message {
             position: fixed;
@@ -111,6 +108,6 @@ function addSimpleStyles() {
             box-shadow: 0 4px 16px rgba(0,170,204,0.13);
             transform: translateY(-2px) scale(1.04);
         }
-    `
-    document.head.appendChild(style)
+    `;
+    document.head.appendChild(style);
 }
