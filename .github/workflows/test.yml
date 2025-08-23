@@ -23,11 +23,6 @@ jobs:
         name: Run Tests and Coverage
         runs-on: ubuntu-latest
 
-        permissions:
-            contents: read
-            checks: write
-            pull-requests: write
-
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -57,7 +52,7 @@ jobs:
 
             - name: Generate test report
               uses: dorny/test-reporter@v1
-              if: success() || failure()
+              if: (success() || failure()) && github.event_name != 'workflow_call'
               with:
                   name: Jest Tests
                   path: coverage/junit.xml
