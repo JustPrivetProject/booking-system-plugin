@@ -1,8 +1,9 @@
 name: Tests and Code Coverage
 
 on:
+    # Only on feature branches (not main/dev)
     push:
-        branches: [main, dev, refactoring_v3]
+        branches-ignore: [main, dev]
         paths:
             - 'src/**'
             - 'tests/**'
@@ -11,16 +12,8 @@ on:
             - 'jest.config.js'
             - 'tsconfig.json'
             - 'tsconfig.test.json'
-    pull_request:
-        branches: [main, dev, refactoring_v3]
-        paths:
-            - 'src/**'
-            - 'tests/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'jest.config.js'
-            - 'tsconfig.json'
-            - 'tsconfig.test.json'
+    # Allow manual trigger and reuse from other workflows
+    workflow_call:
 
 env:
     NODE_VERSION: '20'

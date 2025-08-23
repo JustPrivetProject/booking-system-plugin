@@ -94,6 +94,7 @@ npm run ci:lint        # CI-friendly lint (format check + errors only)
 - **CI/CD Pipeline**: Only ESLint **errors** block the build process
 - **Local Development**: Use `npm run lint` to see all warnings and errors
 - **Pre-commit**: Hooks fix and check only errors (warnings allowed)
+- **Webpack Builds**: Show warnings in console but don't fail on them
 - **Strict Mode**: Use `npm run lint:check` for zero-warning policy when needed
 
 ## CI/CD Pipeline

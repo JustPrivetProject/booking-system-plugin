@@ -55,8 +55,9 @@ module.exports = env => {
             new ESLintPlugin({
                 extensions: ['ts', 'tsx'],
                 exclude: ['node_modules', 'dist'],
-                failOnError: isProduction,
-                failOnWarning: isProduction,
+                failOnError: true,
+                failOnWarning: false,
+                quiet: false, // Show warnings in console but don't fail build
             }),
 
             // Копируем манифест и прочие статики

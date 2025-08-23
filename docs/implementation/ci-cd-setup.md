@@ -11,8 +11,8 @@ The project uses GitHub Actions for automated testing, code coverage reporting, 
 ### 1. Test Workflow (`.github/workflows/test.yml`)
 
 **Triggers:**
-- Push to `main`, `dev`, `refactoring_v3` branches
-- Pull requests to these branches
+- Push to feature branches (excludes `main`, `dev`)
+- Called by other workflows via `workflow_call`
 - Changes to source code, tests, or configuration files
 
 **Jobs:**
@@ -30,12 +30,20 @@ The project uses GitHub Actions for automated testing, code coverage reporting, 
 ### 2. Release Workflow (`.github/workflows/release.yml`)
 
 **Triggers:**
+- Pull requests to `main` and `dev` branches
 - Push to `main` branch (production releases)
-- Push to `dev` branch (development releases)
+- Push to `dev` branch (development releases)  
 - Manual tag creation
 
+**Jobs:**
+- **test-pull-request**: Runs tests for PR validation
+- **test-production**: Runs tests before production releases
+- **test-development**: Runs tests before development releases
+- **build-and-release**: Creates production releases
+- **build-and-release-dev**: Creates development releases
+
 **Dependencies:**
-- All releases depend on successful test workflow completion
+- All releases depend on successful test completion
 - Ensures no releases without passing tests
 
 **Environments:**
