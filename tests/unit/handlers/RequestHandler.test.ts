@@ -1,6 +1,6 @@
 import { RequestHandler } from '../../../src/background/handlers/RequestHandler';
 import { getStorage, setStorage } from '../../../src/utils/storage';
-import { consoleLog, JSONstringify } from '../../../src/utils';
+import { consoleLog } from '../../../src/utils';
 
 // Mock dependencies
 jest.mock('../../../src/utils/storage');
@@ -379,7 +379,7 @@ describe('RequestHandler', () => {
             expect(consoleLog).toHaveBeenCalledWith(
                 '✅ Cached Request Headers:',
                 'test-request-1',
-                expect.any(Object),
+                expect.any(String),
             );
         });
 

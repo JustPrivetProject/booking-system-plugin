@@ -1,4 +1,4 @@
-import { Statuses } from '../data';
+import { Statuses, Messages, urls } from '../data';
 import type { RetryObject } from '../types/baltichub';
 import { setStorage } from '../utils';
 import {
@@ -24,7 +24,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
     const [day, month, year] = date.split('.').map(Number);
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const dateAfterTransfer = formatDateToDMY(newDate);
-    return fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
+    return fetchRequest(urls.getSlots, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
@@ -37,7 +37,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
 }
 
 export async function getEditForm(tvAppId: string): Promise<Response | ErrorResponse> {
-    return fetchRequest(`https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`, {
+    return fetchRequest(`${urls.editTvAppModal}?tvAppId=${tvAppId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
@@ -166,7 +166,7 @@ async function executeRequest(
         return {
             ...req,
             status: Statuses.SUCCESS,
-            status_message: 'Zadanie zakończone sukcesem',
+            status_message: Messages.SUCCESS,
         };
     }
 
@@ -204,12 +204,12 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
     const currentTimeSlot = new Date(req.currentSlot);
     const currentTIme = new Date();
 
-    if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
+    if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTIme) {
         consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
         return {
             ...req,
             status: Statuses.EXPIRED,
-            status_message: 'Czas zakończenia slotu już minął',
+            status_message: Messages.EXPIRED,
         };
     }
 
@@ -218,8 +218,7 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
         return {
             ...req,
             status: Statuses.EXPIRED,
-            status_message:
-                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+            status_message: Messages.AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL,
         };
     }
 
@@ -234,7 +233,7 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
     const slots = await getSlots(time[0]);
     // Check Authorization
     if (!slots.ok && 'error' in slots) {
-        consoleLog('❌ Problem with authorization:', tvAppId, time.join(', '), slots.error);
+        consoleLog('❌ Problem with request:', tvAppId, time.join(', '), slots.error);
 
         // Handle different error types
         switch (slots.error.type) {
@@ -251,7 +250,7 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
             case ErrorType.SERVER_ERROR:
                 return {
                     ...req,
-                    status: Statuses.ERROR,
+                    status: Statuses.NETWORK_ERROR,
                     status_message: 'Problem z serwerem - spróbuj ponownie później',
                 };
             case ErrorType.HTML_ERROR:
@@ -263,15 +262,14 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
             case ErrorType.NETWORK:
                 return {
                     ...req,
-                    status: Statuses.ERROR,
+                    status: Statuses.AUTHORIZATION_ERROR,
                     status_message: 'Problem z połączeniem sieciowym',
                 };
             default:
-                setStorage({ unauthorized: true });
                 return {
                     ...req,
-                    status: Statuses.AUTHORIZATION_ERROR,
-                    status_message: 'Problem z autoryzacją',
+                    status: Statuses.NETWORK_ERROR,
+                    status_message: Messages.UNKNOWN,
                 };
         }
     }

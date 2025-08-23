@@ -1,4 +1,4 @@
-import { Actions, Statuses } from '../../data';
+import { Actions, Statuses, Messages, TABLE_DATA_NAMES } from '../../data';
 import { authService } from '../../services/authService';
 import { autoLoginService } from '../../services/autoLoginService';
 import { getDriverNameAndContainer } from '../../services/baltichub';
@@ -207,24 +207,32 @@ export class MessageHandler {
 
             consoleLog('Row: ', row);
             if (row) {
-                const currentSlot = `${row[tableData[0].indexOf('Wybrana data')]} ${row[tableData[0].indexOf('Start')]}`;
+                const currentSlot = `${row[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${row[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
                 consoleLog('Getting current slot time... :', currentSlot);
                 retryObject.currentSlot = currentSlot;
+            }
+            // Cam be more than one container number in the row
+            if (row) {
+                const containerNumber =
+                    row[tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER)];
+                if (containerNumber) {
+                    retryObject.containerNumber = containerNumber;
+                }
             }
         }
 
         switch (action) {
             case Actions.SHOW_ERROR:
                 retryObject.status = Statuses.IN_PROGRESS;
-                retryObject.status_message = 'Zadanie jest w trakcie realizacji';
+                retryObject.status_message = Messages.IN_PROGRESS;
                 break;
             case Actions.SUCCEED_BOOKING:
                 retryObject.status = Statuses.SUCCESS;
-                retryObject.status_message = 'Zadanie zakończone sukcesem';
+                retryObject.status_message = Messages.SUCCESS;
                 break;
             default:
                 retryObject.status = Statuses.ERROR;
-                retryObject.status_message = 'Nieznane działanie';
+                retryObject.status_message = Messages.ERROR;
                 break;
         }
 

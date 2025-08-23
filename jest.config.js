@@ -1,7 +1,7 @@
 module.exports = {
     preset: 'ts-jest',
     testEnvironment: 'jsdom',
-    roots: ['<rootDir>/src', '<rootDir>/tests'],
+    roots: ['<rootDir>/src', '<rootDir>/tests/unit'],
     testMatch: ['**/__tests__/**/*.+(ts|tsx|js)', '**/*.(test|spec).+(ts|tsx|js)'],
     transform: {
         '^.+\\.(ts|tsx)$': [
@@ -23,11 +23,19 @@ module.exports = {
         '!src/**/*.config.ts',
     ],
     coverageDirectory: 'coverage',
-    coverageReporters: ['text', 'lcov', 'html'],
-    setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+    coverageReporters: ['text', 'lcov', 'html', 'json-summary'],
+    coverageThreshold: {
+        global: {
+            branches: 40,
+            functions: 40,
+            lines: 40,
+            statements: 40,
+        },
+    },
+    setupFilesAfterEnv: ['<rootDir>/tests/unit/setup.ts'],
     moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
-        '^@supabase/supabase-js$': '<rootDir>/tests/mocks/supabase.ts',
+        '^@supabase/supabase-js$': '<rootDir>/tests/unit/mocks/supabase.ts',
     },
     testPathIgnorePatterns: ['/node_modules/', '/dist/'],
     injectGlobals: true,
@@ -38,4 +46,21 @@ module.exports = {
     collectCoverage: false,
     testTimeout: 10000,
     maxWorkers: '50%',
+
+    // Reporters for CI/CD
+    reporters: [
+        'default',
+        [
+            'jest-junit',
+            {
+                outputDirectory: 'coverage',
+                outputName: 'junit.xml',
+                ancestorSeparator: ' › ',
+                uniqueOutputName: 'false',
+                suiteNameTemplate: '{filepath}',
+                classNameTemplate: '{classname}',
+                titleTemplate: '{title}',
+            },
+        ],
+    ],
 };

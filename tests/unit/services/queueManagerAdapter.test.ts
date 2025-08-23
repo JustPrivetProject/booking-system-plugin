@@ -29,7 +29,7 @@ describe('QueueManagerAdapter', () => {
     const testRetryObject: RetryObject = {
         id: 'test-id',
         url: 'https://api.example.com/endpoint',
-        body: { raw: [{ bytes: new Uint8Array([1, 2, 3]) }] },
+        body: { raw: [{ bytes: new Uint8Array([1, 2, 3]).buffer }] },
         headersCache: [{ name: 'Content-Type', value: 'application/json' }],
         driverName: 'test-driver',
         containerNumber: 'MSNU2991953',

@@ -15,13 +15,6 @@ import {
 
 console.log('[content] Content script is loaded');
 
-// Check if extension is available
-if (!chrome.runtime || !chrome.runtime.sendMessage) {
-    console.warn('[content] Chrome runtime not available - extension may not be loaded');
-} else {
-    console.log('[content] Chrome runtime available');
-}
-
 // Start authorization check interval
 console.log('[content] Starting authorization check interval (60s)');
 

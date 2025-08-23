@@ -1,11 +1,12 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "types": ["jest", "node", "chrome"],
+        "types": ["jest", "node", "chrome", "@playwright/test"],
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
-        "strict": false
+        "strict": false,
+        "moduleResolution": "node"
     },
-    "include": ["tests/**/*"],
+    "include": ["tests/**/*", "playwright.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

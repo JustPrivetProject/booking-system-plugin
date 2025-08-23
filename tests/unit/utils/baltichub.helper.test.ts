@@ -167,7 +167,7 @@ describe('Baltichub Helper Functions', () => {
         });
 
         it('should handle ToMuchTransactionInSector error', () => {
-            const parsedResponse = 'ToMuchTransactionInSector';
+            const parsedResponse = 'YbqToMuchTransactionInSector';
             const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
 
             expect(result.status_message).toBe('Za duża ilość transakcji w sektorze');
@@ -221,7 +221,7 @@ describe('Baltichub Helper Functions', () => {
             const parsedResponse = '<!DOCTYPE html><html><h1>Error 500</h1></html>';
             const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
 
-            expect(result.status).toBe(Statuses.ERROR);
+            expect(result.status).toBe(Statuses.NETWORK_ERROR);
             expect(result.status_message).toBe(
                 'Błąd serwera (500) - spróbuj ponownie później - Error 500',
             );

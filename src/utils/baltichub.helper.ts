@@ -1,4 +1,4 @@
-import { Statuses } from '../data';
+import { Messages, Statuses } from '../data';
 import type { RetryObject } from '../types/baltichub';
 
 import { consoleLog, detectHtmlError, determineErrorType } from './index';
@@ -14,6 +14,14 @@ export const parseSlotsIntoButtons = (htmlText: string) => {
     });
     return buttons;
 };
+
+/**
+ * Checks if a task has been completed in another queue.
+ *
+ * @param {RetryObject} req - The request object to check.
+ * @param {RetryObject[]} queue - The queue of tasks to check.
+ * @returns {boolean} - True if the task has been completed in another queue, false otherwise.
+ */
 export function isTaskCompletedInAnotherQueue(req: RetryObject, queue: RetryObject[]) {
     return queue.some(task => task.tvAppId === req.tvAppId && task.status === 'success');
 }
@@ -55,11 +63,11 @@ export function handleErrorResponse(
         return {
             ...req,
             status: Statuses.ANOTHER_TASK,
-            status_message: 'Zadanie zakończone w innym wątku',
+            status_message: Messages.ANOTHER_TASK,
         };
     }
 
-    if (parsedResponse.includes('ToMuchTransactionInSector')) {
+    if (parsedResponse.includes('YbqToMuchTransactionInSector')) {
         consoleLog(
             '⚠️ Too many transactions in sector, keeping in queue:',
             tvAppId,
@@ -68,7 +76,7 @@ export function handleErrorResponse(
         );
         return {
             ...req,
-            status_message: 'Za duża ilość transakcji w sektorze',
+            status_message: Messages.TOO_MANY_TRANSACTIONS_IN_SECTOR,
         };
     }
     let responseObj;
@@ -95,8 +103,7 @@ export function handleErrorResponse(
             return {
                 ...req,
                 status: Statuses.ANOTHER_TASK,
-                status_message:
-                    'Awizacja edytowana przez innego użytkownika. Otwórz okno ponownie w celu aktualizacji awizacji',
+                status_message: Messages.AWIZACJA_EDYTOWANA_PRZEZ_INN_UZYTKOWNIKA,
             };
         }
 
@@ -110,8 +117,7 @@ export function handleErrorResponse(
             return {
                 ...req,
                 status: Statuses.ERROR,
-                status_message:
-                    'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+                status_message: Messages.AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL,
             };
         }
 
@@ -132,12 +138,12 @@ export function handleErrorResponse(
             const errorType = determineErrorType(0, parsedResponse); // 0 status since we don't have HTTP status here
 
             let errorMessage = 'Serwer ma problemy, proszę czekać';
-            let status = Statuses.ERROR;
+            let status = Statuses.NETWORK_ERROR;
 
             // Determine specific error details
             if (parsedResponse.includes('Error 500')) {
                 errorMessage = 'Błąd serwera (500) - spróbuj ponownie później';
-                status = Statuses.ERROR;
+                status = Statuses.NETWORK_ERROR;
             } else if (parsedResponse.includes('Error 404')) {
                 errorMessage = 'Nie znaleziono (404) - sprawdź poprawność danych';
                 status = Statuses.ERROR;
@@ -182,7 +188,7 @@ export function handleErrorResponse(
         return {
             ...req,
             status: Statuses.ERROR,
-            status_message: 'Nieznany błąd (niepoprawny format odpowiedzi)',
+            status_message: Messages.UNKNOWN,
         };
     }
 }

@@ -21,36 +21,96 @@ npm run dev            # Watch mode for development
 
 ## Testing
 
-The project includes comprehensive testing setup with Jest:
+[![Tests](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/test.yml/badge.svg)](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/test.yml)
+[![codecov](https://codecov.io/gh/JustPrivetProject/booking-system-plugin/branch/main/graph/badge.svg)](https://codecov.io/gh/JustPrivetProject/booking-system-plugin)
+
+The project includes comprehensive testing setup with Jest and CI/CD integration:
 
 ```bash
 npm test               # Run all tests
 npm run test:watch     # Run tests in watch mode
 npm run test:coverage  # Run tests with coverage report
-npm run test:unit      # Run only unit tests
-npm run test:integration # Run only integration tests
+npm run test:quiet     # Run tests silently
 ```
+
+### Coverage Requirements
+
+This project maintains the following minimum coverage requirements:
+
+- **Lines**: 40% minimum
+- **Functions**: 40% minimum
+- **Branches**: 40% minimum
+- **Statements**: 40% minimum
 
 ### Test Structure
 
 - **Unit Tests** (`tests/unit/`): Test individual functions and components
-- **Integration Tests** (`tests/integration/`): Test component interactions
+- **Integration Tests** (`tests/unit/integration/`): Test component interactions
 - **E2E Tests** (`tests/e2e/`): Test complete user workflows
-- **Mocks** (`tests/mocks/`): Mock implementations for external dependencies
+- **Mocks** (`tests/unit/mocks/`): Mock implementations for external dependencies
 
-### Test Coverage
+### Automated Testing
+
+- ✅ **CI/CD Integration**: Tests run automatically on every PR and push
+- 📊 **Coverage Reporting**: Detailed coverage reports with Codecov
+- 🔍 **Quality Gates**: Minimum coverage thresholds enforced
+- 📝 **PR Comments**: Automatic coverage reports in pull requests
+
+### Test Coverage Areas
 
 - Core utility functions (fetch, logging, date formatting)
 - Authentication service (Supabase integration)
 - Baltichub API service (port booking operations)
 - Session management
 - Error handling and retry mechanisms
+- Background script handlers
+- Queue management system
 
 ## Code Quality
 
+[![Build](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/release.yml/badge.svg)](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/release.yml)
+
 ```bash
+npm run lint           # Run ESLint
+npm run lint:fix       # Fix ESLint issues automatically
+npm run lint:check     # Check ESLint with zero warnings policy
 npm run format         # Format code with Prettier
+npm run format:check   # Check formatting without changes
+npm run check-all      # Run all quality checks
 ```
+
+### Quality Assurance
+
+- 🔍 **Static Analysis**: ESLint with TypeScript support
+- 🎨 **Code Formatting**: Prettier for consistent code style
+- 🔄 **Pre-commit Hooks**: Automatic linting and formatting before commits
+- ✅ **Automated Testing**: Full test suite with CI/CD integration
+- 📊 **Code Coverage**: Minimum 40% coverage requirement enforced
+
+## CI/CD Pipeline
+
+The project uses GitHub Actions for automated testing and deployment:
+
+### Workflows
+
+1. **Test Workflow** (`.github/workflows/test.yml`)
+    - Runs on every push and pull request
+    - Executes full test suite with coverage
+    - Uploads coverage reports to Codecov
+    - Validates minimum coverage thresholds
+
+2. **Release Workflow** (`.github/workflows/release.yml`)
+    - Automatic releases from `main` and `dev` branches
+    - Depends on successful test completion
+    - Creates extension packages for distribution
+
+### Branch Protection
+
+- `main` and `dev` branches require passing tests
+- Pull requests must pass all quality checks
+- Coverage reports automatically posted to PRs
+
+For detailed CI/CD setup instructions, see [docs/implementation/ci-cd-setup.md](docs/implementation/ci-cd-setup.md).
 
 ## Architecture
 

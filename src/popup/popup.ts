@@ -128,6 +128,7 @@ function getStatusIcon(status: string) {
     if (status === Statuses.PAUSED) return 'pause_circle';
     if (status === Statuses.AUTHORIZATION_ERROR) return 'report';
     if (status === Statuses.EXPIRED) return 'hourglass_disabled';
+    if (status === Statuses.NETWORK_ERROR) return 'report';
     return 'report';
 }
 
@@ -149,6 +150,7 @@ function isPlayDisabled(status: string) {
 
 function isPauseDisabled(status: string) {
     if (status === Statuses.PAUSED || status === Statuses.AUTHORIZATION_ERROR) return 'disabled';
+    if (status === Statuses.NETWORK_ERROR) return 'disabled';
     return isDisabled(status);
 }
 

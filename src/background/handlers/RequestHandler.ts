@@ -105,7 +105,11 @@ export class RequestHandler {
             };
 
             await setStorage({ requestCacheHeaders: cacheHeaders });
-            consoleLog('✅ Cached Request Headers:', details.requestId, cacheHeaders);
+            consoleLog(
+                '✅ Cached Request Headers:',
+                details.requestId,
+                JSONstringify(cacheHeaders),
+            );
         } catch (error) {
             consoleLog('Error caching request headers:', error);
         }

@@ -1,10 +1,9 @@
-import { getSlots, getEditForm, getDriverNameAndContainer } from '../../src/services/baltichub';
-import { authService } from '../../src/services/authService';
-import { sessionService } from '../../src/services/sessionService';
-import { RetryObject } from '../../src/types/baltichub';
+import { getSlots, getEditForm, getDriverNameAndContainer } from '../../../src/services/baltichub';
+import { authService } from '../../../src/services/authService';
+import { sessionService } from '../../../src/services/sessionService';
 
 // Mock all external dependencies
-jest.mock('../../src/services/supabaseClient', () => ({
+jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
         auth: {
             signUp: jest.fn(),
@@ -20,12 +19,11 @@ jest.mock('../../src/services/supabaseClient', () => ({
     },
 }));
 
-// Mock deviceId utility
-jest.mock('../../src/utils/storage', () => ({
+jest.mock('../../../src/utils/storage', () => ({
     getOrCreateDeviceId: jest.fn().mockResolvedValue('test-device-id'),
 }));
 
-jest.mock('../../src/utils', () => ({
+jest.mock('../../../src/utils', () => ({
     fetchRequest: jest.fn(),
     consoleLog: jest.fn(),
     consoleLogWithoutSave: jest.fn(),
@@ -70,42 +68,38 @@ function createMockHtmlResponse(ok: boolean, htmlContent: string, status: number
     }
 }
 
-jest.mock('../../src/utils/baltichub.helper', () => ({
+jest.mock('../../../src/utils/baltichub.helper', () => ({
     parseSlotsIntoButtons: jest.fn(),
     handleErrorResponse: jest.fn(),
     isTaskCompletedInAnotherQueue: jest.fn(),
 }));
 
-jest.mock('../../src/services/sessionService', () => ({
+// Storage functions are now included in the main utils mock above
+
+jest.mock('../../../src/services/sessionService', () => ({
     sessionService: {
         saveSession: jest.fn(),
         clearSession: jest.fn(),
     },
 }));
 
-describe('Baltichub Integration Tests', () => {
+describe('E2E Booking Flow Tests', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    describe('Complete Booking Flow', () => {
-        it('should handle complete booking process with authentication', async () => {
-            // Setup mocks
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils');
+    describe('Complete User Journey', () => {
+        it('should complete full booking process from login to slot booking', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
 
             // Mock authentication
-            const mockUser = {
-                id: 'user-123',
-                email: 'test@example.com',
-            };
-
             mockSupabase.auth.signInWithPassword.mockResolvedValue({
-                data: { user: mockUser },
+                data: { user: { id: 'user-123', email: 'test@example.com' } },
                 error: null,
             });
 
@@ -136,7 +130,7 @@ describe('Baltichub Integration Tests', () => {
                 .mockResolvedValueOnce(mockSlotsResponse) // getSlots
                 .mockResolvedValueOnce(mockEditFormResponse); // getEditForm
 
-            // Execute booking flow
+            // Complete user journey
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
@@ -148,10 +142,9 @@ describe('Baltichub Integration Tests', () => {
             expect(driverInfo.containerNumber).toBe('MSNU2991953');
         });
 
-        it('should handle authentication failure and retry', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+        it('should handle authentication failure and user retry', async () => {
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -190,10 +183,10 @@ describe('Baltichub Integration Tests', () => {
             expect(result).toBeTruthy();
         });
 
-        it('should handle network errors and retry mechanism', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+        it('should handle network issues and recovery', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -216,22 +209,16 @@ describe('Baltichub Integration Tests', () => {
             });
 
             // Mock successful API response
-            fetchRequest.mockResolvedValue(createMockResponse(true, 'slots data'));
+            fetchRequest.mockResolvedValue(createMockResponse(true, 'response data'));
 
-            // Call the function
             const result = await getSlots('25.12.2024');
-
-            // Then check the results
             expect(result.ok).toBe(true);
-            expect(fetchRequest).toHaveBeenCalledTimes(1);
         });
-    });
 
-    describe('Session Management Integration', () => {
-        it('should maintain session across multiple API calls', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+        it('should handle concurrent booking attempts', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -260,10 +247,12 @@ describe('Baltichub Integration Tests', () => {
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
-            // Make multiple API calls
-            const slots1 = await getSlots('25.12.2024');
-            const slots2 = await getSlots('26.12.2024');
-            const editForm = await getEditForm('tv-app-123');
+            // Make concurrent API calls
+            const [slots1, slots2, editForm] = await Promise.all([
+                getSlots('25.12.2024'),
+                getSlots('26.12.2024'),
+                getEditForm('tv-app-123'),
+            ]);
 
             expect(slots1.ok).toBe(true);
             expect(slots2.ok).toBe(true);
@@ -271,11 +260,11 @@ describe('Baltichub Integration Tests', () => {
         });
     });
 
-    describe('Error Handling Integration', () => {
-        it('should handle cascading errors gracefully', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+    describe('Error Recovery Scenarios', () => {
+        it('should recover from session expiration', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -297,17 +286,22 @@ describe('Baltichub Integration Tests', () => {
                 }),
             });
 
-            // Mock API failure
-            fetchRequest.mockResolvedValue(createMockResponse(false, { message: 'API Error' }));
+            // Mock API responses
+            fetchRequest.mockResolvedValue(createMockResponse(true, 'response data'));
 
-            // Login should succeed
+            // Login and make API call
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
-            // API call should fail gracefully
-            const result = await getDriverNameAndContainer('tv-app-123', []);
-            expect(result.driverName).toBe('');
-            expect(result.containerNumber).toBe('');
+            const slotsResult = await getSlots('25.12.2024');
+            expect(slotsResult.ok).toBe(true);
+
+            // Simulate session expiration and re-authentication
+            await sessionService.clearSession();
+
+            // Should be able to continue with new session
+            const newSlotsResult = await getSlots('27.12.2024');
+            expect(newSlotsResult.ok).toBe(true);
         });
     });
 });

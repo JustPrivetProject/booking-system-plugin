@@ -1,9 +1,7 @@
-import { getSlots, getEditForm, getDriverNameAndContainer } from '../../src/services/baltichub';
-import { authService } from '../../src/services/authService';
-import { sessionService } from '../../src/services/sessionService';
-
+import { getSlots, getEditForm, getDriverNameAndContainer } from '../../../src/services/baltichub';
+import { authService } from '../../../src/services/authService';
 // Mock all external dependencies
-jest.mock('../../src/services/supabaseClient', () => ({
+jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
         auth: {
             signUp: jest.fn(),
@@ -19,11 +17,12 @@ jest.mock('../../src/services/supabaseClient', () => ({
     },
 }));
 
-jest.mock('../../src/utils/storage', () => ({
+// Mock deviceId utility
+jest.mock('../../../src/utils/storage', () => ({
     getOrCreateDeviceId: jest.fn().mockResolvedValue('test-device-id'),
 }));
 
-jest.mock('../../src/utils', () => ({
+jest.mock('../../../src/utils', () => ({
     fetchRequest: jest.fn(),
     consoleLog: jest.fn(),
     consoleLogWithoutSave: jest.fn(),
@@ -68,38 +67,42 @@ function createMockHtmlResponse(ok: boolean, htmlContent: string, status: number
     }
 }
 
-jest.mock('../../src/utils/baltichub.helper', () => ({
+jest.mock('../../../src/utils/baltichub.helper', () => ({
     parseSlotsIntoButtons: jest.fn(),
     handleErrorResponse: jest.fn(),
     isTaskCompletedInAnotherQueue: jest.fn(),
 }));
 
-// Storage functions are now included in the main utils mock above
-
-jest.mock('../../src/services/sessionService', () => ({
+jest.mock('../../../src/services/sessionService', () => ({
     sessionService: {
         saveSession: jest.fn(),
         clearSession: jest.fn(),
     },
 }));
 
-describe('E2E Booking Flow Tests', () => {
+describe('Baltichub Integration Tests', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    describe('Complete User Journey', () => {
-        it('should complete full booking process from login to slot booking', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils');
+    describe('Complete Booking Flow', () => {
+        it('should handle complete booking process with authentication', async () => {
+            // Setup mocks
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
 
             // Mock authentication
+            const mockUser = {
+                id: 'user-123',
+                email: 'test@example.com',
+            };
+
             mockSupabase.auth.signInWithPassword.mockResolvedValue({
-                data: { user: { id: 'user-123', email: 'test@example.com' } },
+                data: { user: mockUser },
                 error: null,
             });
 
@@ -130,7 +133,7 @@ describe('E2E Booking Flow Tests', () => {
                 .mockResolvedValueOnce(mockSlotsResponse) // getSlots
                 .mockResolvedValueOnce(mockEditFormResponse); // getEditForm
 
-            // Complete user journey
+            // Execute booking flow
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
@@ -142,9 +145,10 @@ describe('E2E Booking Flow Tests', () => {
             expect(driverInfo.containerNumber).toBe('MSNU2991953');
         });
 
-        it('should handle authentication failure and user retry', async () => {
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+        it('should handle authentication failure and retry', async () => {
+            const { fetchRequest: _fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -183,10 +187,10 @@ describe('E2E Booking Flow Tests', () => {
             expect(result).toBeTruthy();
         });
 
-        it('should handle network issues and recovery', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+        it('should handle network errors and retry mechanism', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -209,16 +213,22 @@ describe('E2E Booking Flow Tests', () => {
             });
 
             // Mock successful API response
-            fetchRequest.mockResolvedValue(createMockResponse(true, 'response data'));
+            fetchRequest.mockResolvedValue(createMockResponse(true, 'slots data'));
 
+            // Call the function
             const result = await getSlots('25.12.2024');
-            expect(result.ok).toBe(true);
-        });
 
-        it('should handle concurrent booking attempts', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+            // Then check the results
+            expect(result.ok).toBe(true);
+            expect(fetchRequest).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('Session Management Integration', () => {
+        it('should maintain session across multiple API calls', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -247,12 +257,10 @@ describe('E2E Booking Flow Tests', () => {
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
-            // Make concurrent API calls
-            const [slots1, slots2, editForm] = await Promise.all([
-                getSlots('25.12.2024'),
-                getSlots('26.12.2024'),
-                getEditForm('tv-app-123'),
-            ]);
+            // Make multiple API calls
+            const slots1 = await getSlots('25.12.2024');
+            const slots2 = await getSlots('26.12.2024');
+            const editForm = await getEditForm('tv-app-123');
 
             expect(slots1.ok).toBe(true);
             expect(slots2.ok).toBe(true);
@@ -260,11 +268,11 @@ describe('E2E Booking Flow Tests', () => {
         });
     });
 
-    describe('Error Recovery Scenarios', () => {
-        it('should recover from session expiration', async () => {
-            const { fetchRequest } = require('../../src/utils');
-            const mockSupabase = require('../../src/services/supabaseClient').supabase;
-            const { getOrCreateDeviceId } = require('../../src/utils/storage');
+    describe('Error Handling Integration', () => {
+        it('should handle cascading errors gracefully', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+            const { getOrCreateDeviceId } = require('../../../src/utils/storage');
 
             // Ensure getOrCreateDeviceId returns the expected value
             getOrCreateDeviceId.mockResolvedValue('test-device-id');
@@ -286,22 +294,17 @@ describe('E2E Booking Flow Tests', () => {
                 }),
             });
 
-            // Mock API responses
-            fetchRequest.mockResolvedValue(createMockResponse(true, 'response data'));
+            // Mock API failure
+            fetchRequest.mockResolvedValue(createMockResponse(false, { message: 'API Error' }));
 
-            // Login and make API call
+            // Login should succeed
             const authResult = await authService.login('test@example.com', 'password123');
             expect(authResult).toBeTruthy();
 
-            const slotsResult = await getSlots('25.12.2024');
-            expect(slotsResult.ok).toBe(true);
-
-            // Simulate session expiration and re-authentication
-            await sessionService.clearSession();
-
-            // Should be able to continue with new session
-            const newSlotsResult = await getSlots('27.12.2024');
-            expect(newSlotsResult.ok).toBe(true);
+            // API call should fail gracefully
+            const result = await getDriverNameAndContainer('tv-app-123', []);
+            expect(result.driverName).toBe('');
+            expect(result.containerNumber).toBe('');
         });
     });
 });

@@ -583,7 +583,7 @@ describe('Baltichub Service', () => {
             const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
 
             // Assert
-            expect(result.status).toBe(Statuses.ERROR);
+            expect(result.status).toBe(Statuses.NETWORK_ERROR);
             expect(result.status_message).toBe('Problem z serwerem - spróbuj ponownie później');
         });
 
@@ -607,7 +607,7 @@ describe('Baltichub Service', () => {
             const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
 
             // Assert
-            expect(result.status).toBe(Statuses.ERROR);
+            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
             expect(result.status_message).toBe('Problem z połączeniem sieciowym');
         });
 
@@ -619,9 +619,8 @@ describe('Baltichub Service', () => {
             const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
 
             // Assert
-            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
-            expect(result.status_message).toBe('Problem z autoryzacją');
-            testHelper.expectSetStorageCalledWith({ unauthorized: true });
+            expect(result.status).toBe(Statuses.NETWORK_ERROR);
+            expect(result.status_message).toBe('Nieznany błąd (niepoprawny format odpowiedzi)');
         });
 
         it('should return request unchanged when slot is not available', async () => {

@@ -37,43 +37,20 @@ jobs:
         if: |
             github.event_name == 'pull_request' || 
             (github.event_name == 'push' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' && !startsWith(github.ref, 'refs/tags/'))
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+        uses: ./.github/workflows/test.yml
 
-            - name: Set up Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ env.NODE_VERSION }}
-
-            - name: Install dependencies
-              run: npm ci
-
-            - name: Test build
-              run: npm run build
-
-            - name: Run tests (if available)
-              run: |
-                  if npm run test --if-present; then
-                    echo "✅ Tests passed"
-                  else
-                    echo "ℹ️ No tests found, skipping"
-                  fi
-
-            - name: Validate version format
-              run: |
-                  VERSION=$(node -p "require('./package.json').version")
-                  echo "Version in package.json: $VERSION"
-                  if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    echo "❌ Invalid version format: $VERSION"
-                    exit 1
-                  fi
-                  echo "✅ Version format is valid"
+    # Run tests for production releases
+    test-production:
+        name: Test Before Production Release
+        if: |
+            (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+            (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev'))
+        uses: ./.github/workflows/test.yml
 
     # Production release (main branch and tags)
     build-and-release:
         name: Production Release
+        needs: test-production
         if: |
             (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
             (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !endsWith(github.ref, '-dev'))
@@ -168,9 +145,16 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # Run tests for development releases
+    test-development:
+        name: Test Before Development Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: ./.github/workflows/test.yml
+
     # Development environment (dev branch)
     build-and-release-dev:
         name: Development Release
+        needs: test-development
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         runs-on: ubuntu-latest
         environment: dev

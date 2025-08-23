@@ -30,7 +30,7 @@ import {
 } from '../../../src/utils/storage';
 
 // Mock chrome storage
-const chromeMock = require('../../mocks/chrome').chromeMock;
+const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock crypto for generateUniqueId
 Object.defineProperty(global, 'crypto', {
@@ -51,7 +51,7 @@ describe('Storage Functions', () => {
     describe('getStorage', () => {
         it('should get single key from storage', async () => {
             const mockData = { deviceId: 'test-device-id' };
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback(mockData);
             });
 
@@ -69,7 +69,7 @@ describe('Storage Functions', () => {
                 deviceId: 'test-device-id',
                 userSettings: { theme: 'dark' },
             };
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback(mockData);
             });
 
@@ -85,7 +85,7 @@ describe('Storage Functions', () => {
 
     describe('setStorage', () => {
         it('should set data in storage', async () => {
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, callback) => {
                 callback();
             });
 
@@ -167,7 +167,7 @@ describe('Storage Functions', () => {
 
     describe('removeStorage', () => {
         it('should remove single key from storage', async () => {
-            chromeMock.storage.local.remove.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.remove.mockImplementation((_keys, callback) => {
                 callback();
             });
 
@@ -180,7 +180,7 @@ describe('Storage Functions', () => {
         });
 
         it('should remove multiple keys from storage', async () => {
-            chromeMock.storage.local.remove.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.remove.mockImplementation((_keys, callback) => {
                 callback();
             });
 
@@ -195,7 +195,7 @@ describe('Storage Functions', () => {
 
     describe('getOrCreateDeviceId', () => {
         it('should return existing device ID from storage', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({ deviceId: 'existing-device-id' });
             });
 
@@ -209,11 +209,11 @@ describe('Storage Functions', () => {
         });
 
         it('should create and save new device ID if none exists', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({ deviceId: undefined });
             });
 
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, callback) => {
                 callback();
             });
 
@@ -227,7 +227,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return fallback ID', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, _callback) => {
                 throw new Error('Storage error');
             });
 
@@ -239,7 +239,7 @@ describe('Storage Functions', () => {
 
     describe('cleanupCache', () => {
         it('should clear cache successfully', async () => {
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, callback) => {
                 callback();
             });
 
@@ -256,7 +256,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return false', async () => {
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, _callback) => {
                 throw new Error('Storage error');
             });
 
@@ -274,7 +274,7 @@ describe('Storage Functions', () => {
                 cache: { key: 'value' },
             };
 
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback(mockData);
             });
 
@@ -287,7 +287,7 @@ describe('Storage Functions', () => {
 
     describe('getStorageValue', () => {
         it('should get value by key', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({ deviceId: 'test-device-id' });
             });
 
@@ -297,7 +297,7 @@ describe('Storage Functions', () => {
         });
 
         it('should return null for non-existent key', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({});
             });
 
@@ -307,7 +307,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return null', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, _callback) => {
                 throw new Error('Storage error');
             });
 
@@ -319,7 +319,7 @@ describe('Storage Functions', () => {
 
     describe('setStorageValue', () => {
         it('should set value by key successfully', async () => {
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, callback) => {
                 callback();
             });
 
@@ -333,7 +333,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return false', async () => {
-            chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            chromeMock.storage.local.set.mockImplementation((_data, _callback) => {
                 throw new Error('Storage error');
             });
 
@@ -345,7 +345,7 @@ describe('Storage Functions', () => {
 
     describe('hasStorageKey', () => {
         it('should return true for existing key', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({ deviceId: 'test-device-id' });
             });
 
@@ -355,7 +355,7 @@ describe('Storage Functions', () => {
         });
 
         it('should return false for non-existent key', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({});
             });
 
@@ -365,7 +365,7 @@ describe('Storage Functions', () => {
         });
 
         it('should return false for undefined value', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback({ deviceId: undefined });
             });
 
@@ -375,7 +375,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return false', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, _callback) => {
                 throw new Error('Storage error');
             });
 
@@ -392,7 +392,7 @@ describe('Storage Functions', () => {
                 userSettings: { theme: 'dark' },
             };
 
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, callback) => {
                 callback(mockData);
             });
 
@@ -403,7 +403,7 @@ describe('Storage Functions', () => {
         });
 
         it('should handle errors and return 0', async () => {
-            chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            chromeMock.storage.local.get.mockImplementation((_keys, _callback) => {
                 throw new Error('Storage error');
             });
 

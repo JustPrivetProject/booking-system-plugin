@@ -25,7 +25,7 @@ import {
 } from '../../../src/utils/logging';
 
 // Mock chrome storage
-const chromeMock = require('../../mocks/chrome').chromeMock;
+const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock LOGS_LENGTH
 jest.mock('../../../src/data', () => ({

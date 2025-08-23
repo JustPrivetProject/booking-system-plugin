@@ -29,7 +29,7 @@ export function sendActionAfterElementDisappears(selector, action, messageOrFn, 
  */
 export function sendActionToBackground(action, message, callback) {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        console.warn('Chrome runtime API is not available');
+        console.log('Chrome runtime API is not available');
         return;
     }
     chrome.runtime.sendMessage({ action, message }, response => {
@@ -74,7 +74,7 @@ export function waitForElement(selector, callback) {
 export function waitElementAndSendChromeMessage(selector, action, actionFunction) {
     waitForElement(selector, () => {
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-            console.warn('Chrome runtime API is not available');
+            console.log('Chrome runtime API is not available');
             return;
         }
 
@@ -82,7 +82,7 @@ export function waitElementAndSendChromeMessage(selector, action, actionFunction
             const parsedData = actionFunction();
             sendActionToBackground(action, parsedData, undefined);
         } catch (error) {
-            console.warn(`Error processing ${action}:`, error);
+            console.log(`Error processing ${action}:`, error);
         }
     });
 }
@@ -108,7 +108,6 @@ export function parseTable(): string[][] {
  * @param {Function} callback - Function called after the element disappears
  */
 export function waitForElementToDisappear(selector, callback) {
-    // Если элемент уже отсутствует, сразу вызываем callback
     if (!document.querySelector(selector)) {
         callback();
         return;
@@ -126,13 +125,13 @@ export function isUserAuthenticated(): Promise<boolean> {
     return new Promise(resolve => {
         try {
             if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                console.warn('[content] Chrome runtime not available');
+                console.log('[content] Chrome runtime not available');
                 return resolve(false);
             }
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
-                console.warn('[content] isUserAuthenticated timeout');
+                console.log('[content] isUserAuthenticated timeout');
                 resolve(false);
             }, 5000);
 
@@ -140,12 +139,12 @@ export function isUserAuthenticated(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    console.warn('[content] Runtime error:', chrome.runtime.lastError);
+                    console.log('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
                 if (!response) {
-                    console.warn('[content] No response from background');
+                    console.log('[content] No response from background');
                     return resolve(false);
                 }
 
@@ -162,13 +161,13 @@ export function isAppUnauthorized(): Promise<boolean> {
     return new Promise(resolve => {
         try {
             if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                console.warn('[content] Chrome runtime not available');
+                console.log('[content] Chrome runtime not available');
                 return resolve(false);
             }
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
-                console.warn('[content] isAppUnauthorized timeout');
+                console.log('[content] isAppUnauthorized timeout');
                 resolve(false);
             }, 5000);
 
@@ -176,12 +175,12 @@ export function isAppUnauthorized(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    console.warn('[content] Runtime error:', chrome.runtime.lastError);
+                    console.log('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
                 if (!response) {
-                    console.warn('[content] No response from background');
+                    console.log('[content] No response from background');
                     return resolve(false);
                 }
 
@@ -227,13 +226,13 @@ export async function tryClickLoginButton() {
     // Step 3: Find and click login button
     const button = document.querySelector<HTMLButtonElement>(LOGIN_BUTTON_SELECTOR);
     if (!button) {
-        console.warn('[content] Login button not found');
+        console.log('[content] Login button not found');
         return;
     }
 
     button.click();
 
-    console.warn('[content] Manual login successful');
+    console.log('[content] Manual login successful');
     sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
 }
 
@@ -241,7 +240,7 @@ export function clickLoginButton() {
     const LOGIN_BUTTON_SELECTOR = 'a.product-box[href="/login"]';
     const button = document.querySelector<HTMLButtonElement>(LOGIN_BUTTON_SELECTOR);
     if (!button) {
-        console.warn('[content] Login button not found');
+        console.log('[content] Login button not found');
         return;
     }
 

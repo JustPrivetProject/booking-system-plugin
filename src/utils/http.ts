@@ -1,4 +1,4 @@
-import type { ErrorResponse, FetchRequestOptions } from '../data';
+import type { ErrorResponse, FetchRequestOptions } from '../types/general';
 import {
     ErrorType,
     // HttpStatus,

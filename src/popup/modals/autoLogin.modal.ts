@@ -42,15 +42,50 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
         loginInput.style.borderRadius = '4px';
         loginInput.style.boxSizing = 'border-box';
 
+        // Password input container with toggle visibility button
+        const passwordContainer = document.createElement('div');
+        passwordContainer.style.position = 'relative';
+        passwordContainer.style.width = '100%';
+        passwordContainer.style.marginBottom = '15px';
+
         const passwordInput = document.createElement('input');
         passwordInput.type = 'password';
         passwordInput.placeholder = 'Hasło';
         passwordInput.style.width = '100%';
-        passwordInput.style.padding = '10px';
-        passwordInput.style.marginBottom = '15px';
+        passwordInput.style.padding = '10px 40px 10px 10px'; // Extra padding on right for the eye icon
         passwordInput.style.border = '1px solid #ccc';
         passwordInput.style.borderRadius = '4px';
         passwordInput.style.boxSizing = 'border-box';
+
+        const togglePasswordButton = document.createElement('button');
+        togglePasswordButton.type = 'button';
+        togglePasswordButton.innerHTML = '👁️';
+        togglePasswordButton.style.position = 'absolute';
+        togglePasswordButton.style.right = '10px';
+        togglePasswordButton.style.top = '50%';
+        togglePasswordButton.style.transform = 'translateY(-50%)';
+        togglePasswordButton.style.background = 'none';
+        togglePasswordButton.style.border = 'none';
+        togglePasswordButton.style.cursor = 'pointer';
+        togglePasswordButton.style.fontSize = '16px';
+        togglePasswordButton.style.padding = '0';
+        togglePasswordButton.style.width = '20px';
+        togglePasswordButton.style.height = '20px';
+        togglePasswordButton.style.display = 'flex';
+        togglePasswordButton.style.alignItems = 'center';
+        togglePasswordButton.style.justifyContent = 'center';
+        togglePasswordButton.title = 'Pokaż/ukryj hasło';
+
+        // Toggle password visibility
+        let isPasswordVisible = false;
+        togglePasswordButton.addEventListener('click', () => {
+            isPasswordVisible = !isPasswordVisible;
+            passwordInput.type = isPasswordVisible ? 'text' : 'password';
+            togglePasswordButton.innerHTML = isPasswordVisible ? '🙈' : '👁️';
+        });
+
+        passwordContainer.appendChild(passwordInput);
+        passwordContainer.appendChild(togglePasswordButton);
 
         const infoNote = document.createElement('p');
         infoNote.textContent =
@@ -165,7 +200,7 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
 
         modal.appendChild(title);
         modal.appendChild(loginInput);
-        modal.appendChild(passwordInput);
+        modal.appendChild(passwordContainer);
         modal.appendChild(infoNote);
         modal.appendChild(buttonsContainer);
 
