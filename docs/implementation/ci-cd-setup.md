@@ -184,6 +184,44 @@ Use the Codecov dashboard to:
    - Run tests locally to reproduce issues
    - Check test output in GitHub Actions logs
 
+4. **Test Reporter Permissions Error:**
+   - Error: "Resource not accessible by integration" with dorny/test-reporter
+   - **Solution**: Ensure workflow has proper permissions:
+     ```yaml
+     permissions:
+         contents: read
+         checks: write
+         pull-requests: write
+     ```
+   - **Solution**: Add GITHUB_TOKEN to test reporter step:
+     ```yaml
+     - name: Generate test report
+       uses: dorny/test-reporter@v1
+       with:
+         token: ${{ secrets.GITHUB_TOKEN }}
+     ```
+
+5. **Reusable Workflow Permissions Error:**
+   - Error: "The workflow is requesting 'checks: write, pull-requests: write', but is only allowed 'checks: none, pull-requests: none'"
+   - **Problem**: Reusable workflows inherit only explicitly granted permissions from calling workflow
+   - **Best Solution (2024)**: Configure repository-level permissions:
+     1. Go to **Repository Settings** → **Actions** → **General**
+     2. Under **Workflow permissions** select **"Read and write permissions"**
+     3. Check **"Allow GitHub Actions to create and approve pull requests"**
+     4. Remove all explicit `permissions:` from workflow files
+   - **Alternative Solution** (if repo permissions can't be changed):
+     ```yaml
+     # Add global permissions to workflow level
+     permissions:
+       contents: read
+       checks: write
+       pull-requests: write
+     ```
+   - **Benefits**: 
+     - Works with restricted repository settings
+     - Resolves reusable workflow conflicts
+     - Centralized permissions per workflow
+
 ### Local Development
 
 To match CI environment locally:

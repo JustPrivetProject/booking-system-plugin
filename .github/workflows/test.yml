@@ -12,11 +12,19 @@ on:
             - 'jest.config.js'
             - 'tsconfig.json'
             - 'tsconfig.test.json'
+            - '.github/workflows/**'
     # Allow manual trigger and reuse from other workflows
     workflow_call:
+    workflow_dispatch:
 
 env:
     NODE_VERSION: '20'
+
+# Minimal permissions for when repo settings are restricted
+permissions:
+    contents: read
+    checks: write
+    pull-requests: write
 
 jobs:
     test:
@@ -52,12 +60,19 @@ jobs:
 
             - name: Generate test report
               uses: dorny/test-reporter@v1
-              if: (success() || failure()) && github.event_name != 'workflow_call'
+              if: success() || failure()
               with:
                   name: Jest Tests
                   path: coverage/junit.xml
                   reporter: jest-junit
                   fail-on-error: true
+                  path-replace-backslashes: false
+                  list-suites: all
+                  list-tests: all
+                  max-annotations: 10
+                  fail-on-empty: true
+                  only-summary: false
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Comment PR with coverage
               if: github.event_name == 'pull_request'
@@ -67,12 +82,10 @@ jobs:
                   lcov-file: ./coverage/lcov.info
                   delete-old-comments: true
 
-            - name: Coverage Badge
-              if: github.ref == 'refs/heads/main'
-              uses: tj-actions/coverage-badge-js@v1
-              with:
-                  badge-path: ./coverage/badge.svg
-                  coverage-source: coverage-summary
+            # Coverage badge generation disabled until action is fixed
+            # - name: Coverage Badge
+            #   if: github.ref == 'refs/heads/main'
+            #   uses: tj-actions/coverage-badge-js@v1
 
             - name: Verify minimum coverage
               run: |
