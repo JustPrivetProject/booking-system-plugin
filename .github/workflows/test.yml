@@ -67,12 +67,10 @@ jobs:
                   lcov-file: ./coverage/lcov.info
                   delete-old-comments: true
 
-            - name: Coverage Badge
-              if: github.ref == 'refs/heads/main'
-              uses: tj-actions/coverage-badge-js@v1
-              with:
-                  badge-path: ./coverage/badge.svg
-                  coverage-source: coverage-summary
+            # Coverage badge generation disabled until action is fixed
+            # - name: Coverage Badge
+            #   if: github.ref == 'refs/heads/main'
+            #   uses: tj-actions/coverage-badge-js@v1
 
             - name: Verify minimum coverage
               run: |

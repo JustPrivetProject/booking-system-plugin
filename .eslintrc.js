@@ -76,5 +76,10 @@ module.exports = {
         'coverage/',
         'extension*.zip',
         '.eslintrc.js',
+        'tests/e2e/',
+        'playwright.config.ts',
+        '**/*.spec.ts',
+        'playwright-report/',
+        'test-results/',
     ],
 };
