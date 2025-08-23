@@ -12,8 +12,10 @@ on:
             - 'jest.config.js'
             - 'tsconfig.json'
             - 'tsconfig.test.json'
+            - '.github/workflows/**'
     # Allow manual trigger and reuse from other workflows
     workflow_call:
+    workflow_dispatch:
 
 env:
     NODE_VERSION: '20'

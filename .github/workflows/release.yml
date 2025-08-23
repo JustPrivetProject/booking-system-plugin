@@ -14,6 +14,7 @@ on:
             - 'public/**'
             - 'package-lock.json'
             - 'tsconfig.json'
+            - '.github/workflows/**'
 
     pull_request:
         branches:
@@ -25,6 +26,7 @@ on:
             - 'public/**'
             - 'package-lock.json'
             - 'tsconfig.json'
+            - '.github/workflows/**'
 
 # Common settings for all jobs
 env:
