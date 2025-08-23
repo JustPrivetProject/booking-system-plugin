@@ -184,6 +184,23 @@ Use the Codecov dashboard to:
    - Run tests locally to reproduce issues
    - Check test output in GitHub Actions logs
 
+4. **Test Reporter Permissions Error:**
+   - Error: "Resource not accessible by integration" with dorny/test-reporter
+   - **Solution**: Ensure workflow has proper permissions:
+     ```yaml
+     permissions:
+         contents: read
+         checks: write
+         pull-requests: write
+     ```
+   - **Solution**: Add GITHUB_TOKEN to test reporter step:
+     ```yaml
+     - name: Generate test report
+       uses: dorny/test-reporter@v1
+       with:
+         token: ${{ secrets.GITHUB_TOKEN }}
+     ```
+
 ### Local Development
 
 To match CI environment locally:

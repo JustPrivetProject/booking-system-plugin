@@ -18,6 +18,11 @@ on:
 env:
     NODE_VERSION: '20'
 
+permissions:
+    contents: read
+    checks: write
+    pull-requests: write
+
 jobs:
     test:
         name: Run Tests and Coverage
@@ -58,6 +63,13 @@ jobs:
                   path: coverage/junit.xml
                   reporter: jest-junit
                   fail-on-error: true
+                  path-replace-backslashes: false
+                  list-suites: all
+                  list-tests: all
+                  max-annotations: 10
+                  fail-on-empty: true
+                  only-summary: false
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Comment PR with coverage
               if: github.event_name == 'pull_request'
