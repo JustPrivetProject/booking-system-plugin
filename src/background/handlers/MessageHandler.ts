@@ -9,7 +9,8 @@ import type {
     RequestCacheHeaderBody,
     RequestCacheBodyObject,
     RetryObject,
-} from '../../types/baltichub';
+    LocalStorageData,
+} from '../../types/index';
 import {
     consoleLog,
     consoleError,
@@ -429,11 +430,10 @@ export class MessageHandler {
 
         try {
             consoleLog('Sending logs to Supabase...');
-            let localData = null;
+            let localData: LocalStorageData | null = null;
             if (process.env.NODE_ENV === 'development') {
                 localData = await getLocalStorageData();
             }
-
             const logs = await getLogsFromSession();
 
             let userId: string | null = null;
@@ -446,7 +446,7 @@ export class MessageHandler {
             const description = message.data?.description || null;
 
             if (logs && logs.length > 0) {
-                await errorLogService.sendLogs([logs], userId, description, [localData]);
+                await errorLogService.sendLogs(logs, userId, description, localData || undefined);
                 await clearLogsInSession();
             }
             sendResponse({ success: true });

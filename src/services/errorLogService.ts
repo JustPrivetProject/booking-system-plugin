@@ -1,4 +1,5 @@
 import type { ErrorType } from '../utils/index';
+import type { LocalStorageData } from '../types/index';
 
 import { supabase } from './supabaseClient';
 
@@ -72,8 +73,17 @@ export const errorLogService = {
             console.warn('Error while logging request error to Supabase:', e);
         }
     },
-    async sendLogs(logs: any[], userId?: string, description?: string, localData?: any) {
+    async sendLogs(
+        logs: any[],
+        userId?: string,
+        description?: string,
+        localData?: LocalStorageData,
+    ) {
         if (!Array.isArray(logs) || logs.length === 0) return;
+        if (localData && localData.autoLoginData) {
+            // Hide sensitive auto login data, preserve presence flag
+            (localData as any).autoLoginData = true;
+        }
         const logRow = {
             user_id: userId || null,
             log: logs,
