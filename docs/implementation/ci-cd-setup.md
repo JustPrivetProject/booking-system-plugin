@@ -201,6 +201,19 @@ Use the Codecov dashboard to:
          token: ${{ secrets.GITHUB_TOKEN }}
      ```
 
+5. **Reusable Workflow Permissions Error:**
+   - Error: "The workflow is requesting 'checks: write, pull-requests: write', but is only allowed 'checks: none, pull-requests: none'"
+   - **Problem**: Global permissions in reusable workflows conflict with calling workflow permissions
+   - **Solution**: Move permissions from workflow level to job level:
+     ```yaml
+     jobs:
+       test:
+         permissions:
+           contents: read
+           checks: write
+           pull-requests: write
+     ```
+
 ### Local Development
 
 To match CI environment locally:
