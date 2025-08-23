@@ -20,12 +20,16 @@ on:
 env:
     NODE_VERSION: '20'
 
+# Minimal permissions for when repo settings are restricted
+permissions:
+    contents: read
+    checks: write
+    pull-requests: write
+
 jobs:
     test:
         name: Run Tests and Coverage
         runs-on: ubuntu-latest
-        permissions:
-            contents: read
 
         steps:
             - name: Checkout code
@@ -61,15 +65,14 @@ jobs:
                   name: Jest Tests
                   path: coverage/junit.xml
                   reporter: jest-junit
-                  fail-on-error: ${{ github.event_name != 'workflow_call' }}
+                  fail-on-error: true
                   path-replace-backslashes: false
                   list-suites: all
                   list-tests: all
                   max-annotations: 10
-                  fail-on-empty: ${{ github.event_name != 'workflow_call' }}
-                  only-summary: ${{ github.event_name == 'workflow_call' }}
+                  fail-on-empty: true
+                  only-summary: false
                   token: ${{ secrets.GITHUB_TOKEN }}
-              continue-on-error: ${{ github.event_name == 'workflow_call' }}
 
             - name: Comment PR with coverage
               if: github.event_name == 'pull_request'
@@ -103,8 +106,6 @@ jobs:
         name: Build Test
         runs-on: ubuntu-latest
         needs: test
-        permissions:
-            contents: read
 
         steps:
             - name: Checkout code

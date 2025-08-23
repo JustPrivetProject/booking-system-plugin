@@ -204,31 +204,23 @@ Use the Codecov dashboard to:
 5. **Reusable Workflow Permissions Error:**
    - Error: "The workflow is requesting 'checks: write, pull-requests: write', but is only allowed 'checks: none, pull-requests: none'"
    - **Problem**: Reusable workflows inherit only explicitly granted permissions from calling workflow
-   - **Modern Solution (2024)**: Use conditional behavior and provide permissions in calling workflow:
+   - **Best Solution (2024)**: Configure repository-level permissions:
+     1. Go to **Repository Settings** → **Actions** → **General**
+     2. Under **Workflow permissions** select **"Read and write permissions"**
+     3. Check **"Allow GitHub Actions to create and approve pull requests"**
+     4. Remove all explicit `permissions:` from workflow files
+   - **Alternative Solution** (if repo permissions can't be changed):
      ```yaml
-     # In calling workflow (release.yml)
-     jobs:
-       test-production:
-         permissions:
-           contents: read
-           checks: write
-           pull-requests: write
-         uses: ./.github/workflows/test.yml
+     # Add global permissions to workflow level
+     permissions:
+       contents: read
+       checks: write
+       pull-requests: write
      ```
-   - **In reusable workflow**: Use minimal permissions and conditional steps:
-     ```yaml
-     # In reusable workflow (test.yml)
-     jobs:
-       test:
-         permissions:
-           contents: read
-         steps:
-           - name: Generate test report
-             uses: dorny/test-reporter@v1
-             with:
-               fail-on-error: ${{ github.event_name != 'workflow_call' }}
-             continue-on-error: ${{ github.event_name == 'workflow_call' }}
-     ```
+   - **Benefits**: 
+     - Works with restricted repository settings
+     - Resolves reusable workflow conflicts
+     - Centralized permissions per workflow
 
 ### Local Development
 
