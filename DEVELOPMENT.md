@@ -71,12 +71,14 @@ This project maintains the following minimum coverage requirements:
 [![Build](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/release.yml/badge.svg)](https://github.com/JustPrivetProject/booking-system-plugin/actions/workflows/release.yml)
 
 ```bash
-npm run lint           # Run ESLint
+npm run lint           # Run ESLint (shows errors and warnings)
+npm run lint:errors    # Run ESLint (errors only, ignores warnings)
 npm run lint:fix       # Fix ESLint issues automatically
 npm run lint:check     # Check ESLint with zero warnings policy
 npm run format         # Format code with Prettier
 npm run format:check   # Check formatting without changes
-npm run check-all      # Run all quality checks
+npm run check-all      # Run all quality checks (fails on warnings)
+npm run ci:lint        # CI-friendly lint (format check + errors only)
 ```
 
 ### Quality Assurance
@@ -86,6 +88,13 @@ npm run check-all      # Run all quality checks
 - 🔄 **Pre-commit Hooks**: Automatic linting and formatting before commits
 - ✅ **Automated Testing**: Full test suite with CI/CD integration
 - 📊 **Code Coverage**: Minimum 40% coverage requirement enforced
+
+### Linting Policy
+
+- **CI/CD Pipeline**: Only ESLint **errors** block the build process
+- **Local Development**: Use `npm run lint` to see all warnings and errors
+- **Pre-commit**: Hooks fix and check only errors (warnings allowed)
+- **Strict Mode**: Use `npm run lint:check` for zero-warning policy when needed
 
 ## CI/CD Pipeline
 

@@ -16,7 +16,7 @@ The project uses GitHub Actions for automated testing, code coverage reporting, 
 - Changes to source code, tests, or configuration files
 
 **Jobs:**
-- **Linting**: ESLint validation with TypeScript support
+- **Linting**: ESLint validation (errors only, warnings ignored)
 - **Testing**: Jest unit tests with coverage reporting
 - **Coverage**: Uploads coverage reports to Codecov
 - **Build Test**: Validates that both production and development builds succeed
@@ -130,7 +130,7 @@ Coverage rules are defined in `codecov.yml`:
 The following quality gates are enforced:
 
 1. **Code Coverage**: Minimum 40% line coverage
-2. **Linting**: ESLint validation must pass
+2. **Linting**: ESLint errors must be resolved (warnings allowed)
 3. **Build Validation**: Both dev and production builds must succeed
 4. **Test Execution**: All unit tests must pass
 
