@@ -13,14 +13,14 @@ export const autoLoginHelper = {
         return new Promise(resolve => {
             try {
                 if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                    console.warn('[content] Chrome runtime not available for auto-login');
+                    console.log('[content] Chrome runtime not available for auto-login');
                     resolve(null);
                     return;
                 }
 
                 // Add timeout to prevent hanging
                 const timeout = setTimeout(() => {
-                    console.warn('[content] Auto-login credentials timeout');
+                    console.log('[content] Auto-login credentials timeout');
                     resolve(null);
                 }, 5000);
 
@@ -30,7 +30,7 @@ export const autoLoginHelper = {
                         clearTimeout(timeout);
 
                         if (chrome.runtime.lastError) {
-                            console.warn(
+                            console.log(
                                 '[content] Runtime error in auto-login:',
                                 chrome.runtime.lastError,
                             );
@@ -39,7 +39,7 @@ export const autoLoginHelper = {
                         }
 
                         if (!response) {
-                            console.warn('[content] No response from background for auto-login');
+                            console.log('[content] No response from background for auto-login');
                             resolve(null);
                             return;
                         }
@@ -52,7 +52,7 @@ export const autoLoginHelper = {
                     },
                 );
             } catch (error) {
-                console.warn('[content] Error loading auto-login credentials:', error);
+                console.log('[content] Error loading auto-login credentials:', error);
                 resolve(null);
             }
         });
@@ -66,7 +66,7 @@ export const autoLoginHelper = {
             const credentials = await this.loadCredentials();
             return !!credentials;
         } catch (error) {
-            console.warn('Failed to check auto-login status:', error);
+            console.log('Failed to check auto-login status:', error);
             return false;
         }
     },

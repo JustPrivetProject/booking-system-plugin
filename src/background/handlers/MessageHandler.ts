@@ -389,6 +389,16 @@ export class MessageHandler {
                     });
                 return true;
 
+            case Actions.REMOVE_MULTIPLE_REQUESTS:
+                this.queueManager
+                    .removeMultipleFromQueue(message.data.ids)
+                    .then(() => sendResponse({ success: true }))
+                    .catch(error => {
+                        consoleError('Error removing multiple requests:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
+
             case Actions.UPDATE_REQUEST_STATUS:
                 this.queueManager
                     .updateQueueItem(message.data.id, {

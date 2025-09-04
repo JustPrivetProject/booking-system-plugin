@@ -11,22 +11,19 @@ jest.mock('../../../src/services/supabaseClient', () => ({
     },
 }));
 
-// Mock console methods to avoid noise in tests
-const originalConsoleWarn = console.warn;
-const originalConsoleError = console.error;
-
-beforeAll(() => {
-    console.warn = jest.fn();
-    console.error = jest.fn();
-});
-
-afterAll(() => {
-    console.warn = originalConsoleWarn;
-    console.error = originalConsoleError;
-});
+// Mock consoleLog function from utils
+jest.mock('../../../src/utils/logging', () => ({
+    consoleLog: jest.fn(),
+    consoleLogWithoutSave: jest.fn(),
+    consoleError: jest.fn(),
+    saveLogToSession: jest.fn(),
+    getLogsFromSession: jest.fn(),
+    clearLogsInSession: jest.fn(),
+}));
 
 describe('ErrorLogService', () => {
     const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+    const mockConsoleLog = require('../../../src/utils/logging').consoleLog;
 
     // Helper function to create a mock LocalStorageData
     const createMockLocalStorageData = (
@@ -63,6 +60,7 @@ describe('ErrorLogService', () => {
         jest.clearAllMocks();
         jest.useFakeTimers();
         jest.setSystemTime(new Date('2024-01-01T12:00:00Z'));
+        mockConsoleLog.mockClear();
     });
 
     afterEach(() => {
@@ -132,7 +130,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.logError('Test error', 'test-source');
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to log error to Supabase:',
                 supabaseError,
             );
@@ -144,7 +142,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.logError('Test error', 'test-source');
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while logging to Supabase:',
                 expect.any(Error),
             );
@@ -226,7 +224,7 @@ describe('ErrorLogService', () => {
                 'https://api.example.com/endpoint',
             );
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to log request error to Supabase:',
                 supabaseError,
             );
@@ -242,7 +240,7 @@ describe('ErrorLogService', () => {
                 'https://api.example.com/endpoint',
             );
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while logging request error to Supabase:',
                 expect.any(Error),
             );
@@ -324,7 +322,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.sendLogs(logs);
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to send logs to Supabase:',
                 JSON.stringify(supabaseError, null, 2),
             );
@@ -338,7 +336,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.sendLogs(logs);
 
-            expect(console.error).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while sending logs to Supabase:',
                 expect.any(Error),
             );

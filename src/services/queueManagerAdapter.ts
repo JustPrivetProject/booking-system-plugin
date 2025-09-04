@@ -41,6 +41,10 @@ export class QueueManagerAdapter {
         return this.queueManager.removeFromQueue(id);
     }
 
+    async removeMultipleFromQueue(ids: string[]): Promise<RetryObject[]> {
+        return this.queueManager.removeMultipleFromQueue(ids);
+    }
+
     async updateQueueItem(id: string, updateData: Partial<RetryObject>): Promise<RetryObject[]> {
         return this.queueManager.updateQueueItem(id, updateData);
     }

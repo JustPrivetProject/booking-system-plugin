@@ -66,7 +66,6 @@ export function handleErrorResponse(
             status_message: Messages.ANOTHER_TASK,
         };
     }
-
     if (parsedResponse.includes('YbqToMuchTransactionInSector')) {
         consoleLog(
             '⚠️ Too many transactions in sector, keeping in queue:',
@@ -77,8 +76,10 @@ export function handleErrorResponse(
         return {
             ...req,
             status_message: Messages.TOO_MANY_TRANSACTIONS_IN_SECTOR,
+            status_color: 'orange',
         };
     }
+
     let responseObj;
     try {
         responseObj = JSON.parse(parsedResponse);

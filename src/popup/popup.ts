@@ -47,6 +47,10 @@ async function removeRequestFromRetryQueue(id) {
     return sendMessageToBackground(Actions.REMOVE_REQUEST, { id });
 }
 
+async function removeMultipleRequestsFromRetryQueue(ids) {
+    return sendMessageToBackground(Actions.REMOVE_MULTIPLE_REQUESTS, { ids });
+}
+
 async function setStatusRequest(id, status, status_message) {
     return sendMessageToBackground(Actions.UPDATE_REQUEST_STATUS, {
         id,
@@ -132,6 +136,20 @@ function getStatusIcon(status: string) {
     return 'report';
 }
 
+/**
+ * Apply custom status color if status_color is provided
+ * @param element - HTML element to apply color to
+ * @param status_color - Custom color for the status
+ */
+function applyCustomStatusColor(element: HTMLElement, status_color?: string) {
+    if (status_color) {
+        const statusIcon = element.querySelector('.status-icon') as HTMLElement;
+        if (statusIcon) {
+            statusIcon.style.color = status_color;
+        }
+    }
+}
+
 function isDisabled(status: string) {
     if (
         status === Statuses.ANOTHER_TASK ||
@@ -190,6 +208,11 @@ async function updateQueueDisplay() {
                 items.map((item: RetryObjectArray[0]) => item.status),
             )[0];
             const statusIconForGroup = getStatusIcon(statusForGroup);
+
+            // Find item with highest priority status to get its custom color
+            const prioritizedItem = items.find(item => item.status === statusForGroup);
+            const statusColorForGroup = prioritizedItem?.status_color;
+
             const groupRow = document.createElement('tr');
             groupRow.dataset.groupId = tvAppId;
             groupRow.classList.add('group-row');
@@ -207,6 +230,12 @@ async function updateQueueDisplay() {
             </button>
         </td>`;
             tableBody.appendChild(groupRow);
+
+            // Apply custom status color to group if available
+            const groupStatusCell = groupRow.querySelector('.status') as HTMLElement;
+            if (groupStatusCell && statusColorForGroup) {
+                applyCustomStatusColor(groupStatusCell, statusColorForGroup);
+            }
 
             items.forEach((req: RetryObjectArray[0]) => {
                 const containerInfo = normalizeFormData(req.body).formData;
@@ -233,6 +262,12 @@ async function updateQueueDisplay() {
                 </td>
             `;
                 tableBody.appendChild(row);
+
+                // Apply custom status color if available
+                const statusCell = row.querySelector('.status') as HTMLElement;
+                if (statusCell && req.status_color) {
+                    applyCustomStatusColor(statusCell, req.status_color);
+                }
             });
         });
         // Spellcheck suppression for Polish words
@@ -318,9 +353,8 @@ async function updateQueueDisplay() {
                         nextRow = nextRow.nextElementSibling;
                     }
 
-                    for (const id of idsToDelete) {
-                        await removeRequestFromRetryQueue(id);
-                    }
+                    // Remove all items from queue in a single atomic operation
+                    await removeMultipleRequestsFromRetryQueue(idsToDelete);
 
                     idsToDelete.forEach(id => {
                         const row = document

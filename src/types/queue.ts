@@ -4,6 +4,7 @@ import type { RetryObject } from './baltichub';
 export interface IQueueManager {
     addToQueue(item: RetryObject): Promise<RetryObject[]>;
     removeFromQueue(id: string): Promise<RetryObject[]>;
+    removeMultipleFromQueue(ids: string[]): Promise<RetryObject[]>;
     updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
     getQueue(): Promise<RetryObject[]>;
     updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]>;

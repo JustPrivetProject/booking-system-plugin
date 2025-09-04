@@ -11,26 +11,45 @@ import {
     isAppUnauthorized,
     sendActionToBackground,
     isAutoLoginEnabled,
+    checkConnectionAndShowWarning,
 } from './utils/contentUtils';
 
 console.log('[content] Content script is loaded');
 
-// Start authorization check interval
-console.log('[content] Starting authorization check interval (60s)');
+// Check extension connection on page load
+checkConnectionAndShowWarning()
+    .then(isConnected => {
+        if (!isConnected) {
+            console.log('[content] Extension connection issues detected');
+        }
+    })
+    .catch(error => {
+        console.log('[content] Error checking extension connection:', error);
+    });
 
 setInterval(async () => {
     try {
+        // First check extension connection
+        const isConnected = await checkConnectionAndShowWarning();
+        if (!isConnected) {
+            console.log('[content] Extension connection lost during interval check');
+            return; // Skip other checks if extension is not connected
+        }
+
         const isAutoLoginEnabledResult = await isAutoLoginEnabled();
         if (!isAutoLoginEnabledResult) return;
 
         const isUnauthorized = await isAppUnauthorized();
 
         if (isUnauthorized) {
-            console.warn('[content] Unauthorized — showing session expire modal');
+            console.log('[content] Unauthorized — showing session expire modal');
             showSessionExpireModal();
         }
     } catch (error) {
-        console.warn('[content] Error in authorization check:', error);
+        console.log('[content] Error in authorization check:', error);
+        // If there's an error, it might be due to extension disconnection
+        // Try to show warning modal
+        await checkConnectionAndShowWarning();
     }
 }, 65_000);
 

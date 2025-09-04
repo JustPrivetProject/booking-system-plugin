@@ -15,7 +15,7 @@ export function consoleLog(...args: any[]) {
     }
     // Save log to chrome.storage.session
     saveLogToSession('log', args).catch(e => {
-        console.warn('Error saving log to chrome.storage.session:', e);
+        console.log('Error saving log to chrome.storage.session:', e);
     });
 }
 
