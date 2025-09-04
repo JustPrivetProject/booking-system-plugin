@@ -1,5 +1,6 @@
 import { errorLogService } from '../../../src/services/errorLogService';
 import { ErrorType } from '../../../src/data';
+import type { LocalStorageData } from '../../../src/types';
 
 // Mock Supabase client
 jest.mock('../../../src/services/supabaseClient', () => ({
@@ -10,27 +11,56 @@ jest.mock('../../../src/services/supabaseClient', () => ({
     },
 }));
 
-// Mock console methods to avoid noise in tests
-const originalConsoleWarn = console.warn;
-const originalConsoleError = console.error;
-
-beforeAll(() => {
-    console.warn = jest.fn();
-    console.error = jest.fn();
-});
-
-afterAll(() => {
-    console.warn = originalConsoleWarn;
-    console.error = originalConsoleError;
-});
+// Mock consoleLog function from utils
+jest.mock('../../../src/utils/logging', () => ({
+    consoleLog: jest.fn(),
+    consoleLogWithoutSave: jest.fn(),
+    consoleError: jest.fn(),
+    saveLogToSession: jest.fn(),
+    getLogsFromSession: jest.fn(),
+    clearLogsInSession: jest.fn(),
+}));
 
 describe('ErrorLogService', () => {
     const mockSupabase = require('../../../src/services/supabaseClient').supabase;
+    const mockConsoleLog = require('../../../src/utils/logging').consoleLog;
+
+    // Helper function to create a mock LocalStorageData
+    const createMockLocalStorageData = (
+        overrides?: Partial<LocalStorageData>,
+    ): LocalStorageData => ({
+        testEnv: false,
+        deviceId: 'test-device-id',
+        tableData: [['test', 'data']],
+        retryQueue: [],
+        groupStates: {},
+        headerHidden: false,
+        retryEnabled: true,
+        unauthorized: false,
+        user_session: {
+            user: {
+                id: 'test-user-id',
+                email: 'test@example.com',
+                deviceId: 'test-device-id',
+            },
+            expiresAt: Date.now() + 3600000,
+        },
+        autoLoginData: {
+            login: 'test-login',
+            enabled: true,
+            password: 'secret-password',
+            createdAt: Date.now(),
+        },
+        requestCacheBody: {},
+        requestCacheHeaders: {},
+        ...overrides,
+    });
 
     beforeEach(() => {
         jest.clearAllMocks();
         jest.useFakeTimers();
         jest.setSystemTime(new Date('2024-01-01T12:00:00Z'));
+        mockConsoleLog.mockClear();
     });
 
     afterEach(() => {
@@ -100,7 +130,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.logError('Test error', 'test-source');
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to log error to Supabase:',
                 supabaseError,
             );
@@ -112,7 +142,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.logError('Test error', 'test-source');
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while logging to Supabase:',
                 expect.any(Error),
             );
@@ -194,7 +224,7 @@ describe('ErrorLogService', () => {
                 'https://api.example.com/endpoint',
             );
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to log request error to Supabase:',
                 supabaseError,
             );
@@ -210,7 +240,7 @@ describe('ErrorLogService', () => {
                 'https://api.example.com/endpoint',
             );
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while logging request error to Supabase:',
                 expect.any(Error),
             );
@@ -225,7 +255,7 @@ describe('ErrorLogService', () => {
             const logs = [{ level: 'info', message: 'Test log' }];
             const userId = 'user-123';
             const description = 'Test log batch';
-            const localData = { key: 'value' };
+            const localData = createMockLocalStorageData();
 
             await errorLogService.sendLogs(logs, userId, description, localData);
 
@@ -292,7 +322,7 @@ describe('ErrorLogService', () => {
 
             await errorLogService.sendLogs(logs);
 
-            expect(console.warn).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Failed to send logs to Supabase:',
                 JSON.stringify(supabaseError, null, 2),
             );
@@ -306,10 +336,71 @@ describe('ErrorLogService', () => {
 
             await errorLogService.sendLogs(logs);
 
-            expect(console.error).toHaveBeenCalledWith(
+            expect(mockConsoleLog).toHaveBeenCalledWith(
                 'Error while sending logs to Supabase:',
                 expect.any(Error),
             );
+        });
+
+        it('should hide sensitive autoLoginData when present', async () => {
+            const mockInsert = jest.fn().mockResolvedValue({ error: null });
+            mockSupabase.from.mockReturnValue({ insert: mockInsert });
+
+            const logs = [{ level: 'info', message: 'Test log' }];
+            const userId = 'user-123';
+            const description = 'Test log batch';
+            const localData = createMockLocalStorageData({
+                autoLoginData: {
+                    login: 'sensitive-login',
+                    enabled: true,
+                    password: 'super-secret-password',
+                    createdAt: Date.now(),
+                },
+            });
+
+            await errorLogService.sendLogs(logs, userId, description, localData);
+
+            expect(mockSupabase.from).toHaveBeenCalledWith('logs');
+            expect(mockInsert).toHaveBeenCalledWith([
+                expect.objectContaining({
+                    user_id: userId,
+                    log: logs,
+                    local_storage_data: expect.objectContaining({
+                        autoLoginData: true, // Should be replaced with true to hide sensitive data
+                    }),
+                    source: null,
+                    description,
+                    created_at: '2024-01-01T12:00:00.000Z',
+                }),
+            ]);
+        });
+
+        it('should not modify localData when autoLoginData is not present', async () => {
+            const mockInsert = jest.fn().mockResolvedValue({ error: null });
+            mockSupabase.from.mockReturnValue({ insert: mockInsert });
+
+            const logs = [{ level: 'info', message: 'Test log' }];
+            const userId = 'user-123';
+            const description = 'Test log batch';
+            const localData = createMockLocalStorageData({
+                autoLoginData: undefined as any,
+            });
+
+            await errorLogService.sendLogs(logs, userId, description, localData);
+
+            expect(mockSupabase.from).toHaveBeenCalledWith('logs');
+            expect(mockInsert).toHaveBeenCalledWith([
+                expect.objectContaining({
+                    user_id: userId,
+                    log: logs,
+                    local_storage_data: expect.objectContaining({
+                        autoLoginData: undefined, // Should remain undefined
+                    }),
+                    source: null,
+                    description,
+                    created_at: '2024-01-01T12:00:00.000Z',
+                }),
+            ]);
         });
     });
 

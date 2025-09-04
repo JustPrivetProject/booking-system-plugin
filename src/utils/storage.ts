@@ -1,4 +1,5 @@
 import { consoleLog, consoleError } from './logging';
+import type { LocalStorageData } from '../types/general';
 
 /**
  * Получает значение из chrome.storage.local
@@ -104,12 +105,12 @@ export async function cleanupCache(): Promise<boolean> {
 
 /**
  * Получает все данные из chrome.storage.local
- * @returns {Promise<any>} Все данные из хранилища
+ * @returns {Promise<LocalStorageData>} Все данные из хранилища
  */
-export async function getLocalStorageData(): Promise<any> {
-    return new Promise<any>(resolve => {
+export async function getLocalStorageData(): Promise<LocalStorageData> {
+    return new Promise<LocalStorageData>(resolve => {
         chrome.storage.local.get(null, data => {
-            resolve(data);
+            resolve(data as LocalStorageData);
         });
     });
 }

@@ -1,4 +1,5 @@
-import type { ErrorType } from '../utils/index';
+import { consoleLog, type ErrorType } from '../utils/index';
+import type { LocalStorageData } from '../types/index';
 
 import { supabase } from './supabaseClient';
 
@@ -32,10 +33,10 @@ export const errorLogService = {
             const { error: supabaseError } = await supabase.from('error_logs').insert([errorLog]);
 
             if (supabaseError) {
-                console.warn('Failed to log error to Supabase:', supabaseError);
+                consoleLog('Failed to log error to Supabase:', supabaseError);
             }
         } catch (e) {
-            console.warn('Error while logging to Supabase:', e);
+            consoleLog('Error while logging to Supabase:', e);
         }
     },
 
@@ -66,14 +67,23 @@ export const errorLogService = {
                 .insert([requestErrorLog]);
 
             if (supabaseError) {
-                console.warn('Failed to log request error to Supabase:', supabaseError);
+                consoleLog('Failed to log request error to Supabase:', supabaseError);
             }
         } catch (e) {
-            console.warn('Error while logging request error to Supabase:', e);
+            consoleLog('Error while logging request error to Supabase:', e);
         }
     },
-    async sendLogs(logs: any[], userId?: string, description?: string, localData?: any) {
+    async sendLogs(
+        logs: any[],
+        userId?: string,
+        description?: string,
+        localData?: LocalStorageData,
+    ) {
         if (!Array.isArray(logs) || logs.length === 0) return;
+        if (localData && localData.autoLoginData) {
+            // Hide sensitive auto login data, preserve presence flag
+            (localData as any).autoLoginData = true;
+        }
         const logRow = {
             user_id: userId || null,
             log: logs,
@@ -85,13 +95,13 @@ export const errorLogService = {
         try {
             const { error: supabaseError } = await supabase.from('logs').insert([logRow]);
             if (supabaseError) {
-                console.warn(
+                consoleLog(
                     'Failed to send logs to Supabase:',
                     JSON.stringify(supabaseError, null, 2),
                 );
             }
         } catch (e) {
-            console.error('Error while sending logs to Supabase:', e);
+            consoleLog('Error while sending logs to Supabase:', e);
         }
     },
 };

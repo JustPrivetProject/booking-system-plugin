@@ -22,4 +22,13 @@ export * from './status-utils';
 // Re-export types and enums from data.ts and types/general.ts
 export { ErrorType, HttpStatus, DEFAULT_RETRY_CONFIG, RETRYABLE_STATUSES } from '../data';
 
-export { RetryConfig, ErrorResponse, FetchRequestOptions } from '../types/general';
+export {
+    RetryConfig,
+    ErrorResponse,
+    FetchRequestOptions,
+    UserSession,
+    AutoLoginData,
+    TableData,
+    TableRowData,
+    LocalStorageData,
+} from '../types/general';

@@ -9,6 +9,7 @@ export type RetryObject = {
     endSlot: string; // 26.06.2025 00:59:00
     status: string; // e.g. "paused"
     status_message: string; // e.g. "Zadanie jest wstrzymane"
+    status_color?: string; // e.g. "red"
     timestamp: number;
     tvAppId: string;
     url: string;

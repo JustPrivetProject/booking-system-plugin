@@ -36,6 +36,7 @@ export const Actions = {
     SUCCEED_BOOKING: 'succeedBooking',
     PARSED_TABLE: 'parsedTable',
     REMOVE_REQUEST: 'removeRequest',
+    REMOVE_MULTIPLE_REQUESTS: 'removeMultipleRequests',
     UPDATE_REQUEST_STATUS: 'updateRequestStatus',
     UPDATE_STATUS: 'updateStatus',
     SEND_LOGS: 'SEND_LOGS_TO_SUPABASE',

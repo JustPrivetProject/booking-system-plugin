@@ -34,7 +34,7 @@ export function sendActionToBackground(action, message, callback) {
     }
     chrome.runtime.sendMessage({ action, message }, response => {
         if (chrome.runtime.lastError) {
-            console.warn(`Error sending ${action} message:`, chrome.runtime.lastError);
+            console.log(`Error sending ${action} message:`, chrome.runtime.lastError);
         }
         if (typeof callback === 'function') {
             callback(response);
@@ -151,7 +151,7 @@ export function isUserAuthenticated(): Promise<boolean> {
                 resolve(response.isAuthenticated === true);
             });
         } catch (error) {
-            console.warn('[content] Error in isUserAuthenticated:', error);
+            console.log('[content] Error in isUserAuthenticated:', error);
             resolve(false);
         }
     });
@@ -187,7 +187,7 @@ export function isAppUnauthorized(): Promise<boolean> {
                 resolve(response.unauthorized);
             });
         } catch (error) {
-            console.warn('[content] Error in isAppUnauthorized:', error);
+            console.log('[content] Error in isAppUnauthorized:', error);
             resolve(false);
         }
     });
@@ -220,7 +220,7 @@ export async function tryClickLoginButton() {
             autoLoginHelper.fillLoginForm(autoLoginCredentials);
         }
     } catch (error) {
-        console.warn('[content] Error loading auto-login credentials:', error);
+        console.log('[content] Error loading auto-login credentials:', error);
     }
 
     // Step 3: Find and click login button
@@ -246,4 +246,78 @@ export function clickLoginButton() {
 
     console.log('[content] Clicking login button...');
     button.click();
+}
+
+/**
+ * Checks if extension connection is available
+ * @returns {Promise<boolean>} True if connection is available, false otherwise
+ */
+export function checkExtensionConnection(): Promise<boolean> {
+    return new Promise(resolve => {
+        try {
+            if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+                console.log('[content] Chrome runtime API is not available');
+                return resolve(false);
+            }
+
+            // Add timeout to prevent hanging
+            const timeout = setTimeout(() => {
+                console.log('[content] Extension connection check timeout');
+                resolve(false);
+            }, 5000);
+
+            // Use existing action that we know works instead of PING
+            chrome.runtime.sendMessage({ action: Actions.IS_AUTHENTICATED }, response => {
+                clearTimeout(timeout);
+
+                if (chrome.runtime.lastError) {
+                    console.log('[content] Extension connection error:', chrome.runtime.lastError);
+                    return resolve(false);
+                }
+
+                // Check if we got any response at all
+                // Even if user is not authenticated, we should get a response object
+                // Only show warning if there's no response (connection issue)
+                if (response === undefined || response === null) {
+                    console.log('[content] No response from extension - connection issue');
+                    return resolve(false);
+                }
+
+                // If we got a response (even with isAuthenticated: false), connection is OK
+                console.log(
+                    '[content] Extension connection OK, auth status:',
+                    response.isAuthenticated,
+                );
+                resolve(true);
+            });
+        } catch (error) {
+            console.log('[content] Error checking extension connection:', error);
+            resolve(false);
+        }
+    });
+}
+
+/**
+ * Checks extension connection and shows warning modal if connection is lost
+ * Warning appears only once per session and can be dismissed permanently for that session
+ * @returns {Promise<boolean>} True if connection is available, false if warning was shown
+ */
+export async function checkConnectionAndShowWarning(): Promise<boolean> {
+    const isConnected = await checkExtensionConnection();
+
+    if (!isConnected) {
+        console.log('[content] Extension connection lost, showing warning modal');
+
+        // Dynamically import the modal to avoid circular dependencies
+        try {
+            const { showExtensionWarningModal } = await import('../modals/extensionWarningModal');
+            await showExtensionWarningModal();
+        } catch (error) {
+            console.log('[content] Error loading extension warning modal:', error);
+        }
+
+        return false;
+    }
+
+    return true;
 }

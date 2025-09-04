@@ -106,6 +106,20 @@ export class QueueManager implements IQueueManager {
         });
     }
 
+    async removeMultipleFromQueue(ids: string[]): Promise<RetryObject[]> {
+        return this.withMutex(async () => {
+            const queue = await this.getQueue();
+            const filteredQueue = queue.filter(item => !ids.includes(item.id));
+
+            await setStorage({ [this.config.storageKey]: filteredQueue });
+
+            consoleLog(`Items removed from ${this.config.storageKey}. IDs:`, ids);
+            ids.forEach(id => this.events.onItemRemoved?.(id));
+
+            return filteredQueue;
+        });
+    }
+
     async updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]> {
         return this.withMutex(async () => {
             const queue = await this.getQueue();

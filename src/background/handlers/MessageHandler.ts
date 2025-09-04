@@ -9,7 +9,8 @@ import type {
     RequestCacheHeaderBody,
     RequestCacheBodyObject,
     RetryObject,
-} from '../../types/baltichub';
+    LocalStorageData,
+} from '../../types/index';
 import {
     consoleLog,
     consoleError,
@@ -388,6 +389,16 @@ export class MessageHandler {
                     });
                 return true;
 
+            case Actions.REMOVE_MULTIPLE_REQUESTS:
+                this.queueManager
+                    .removeMultipleFromQueue(message.data.ids)
+                    .then(() => sendResponse({ success: true }))
+                    .catch(error => {
+                        consoleError('Error removing multiple requests:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
+
             case Actions.UPDATE_REQUEST_STATUS:
                 this.queueManager
                     .updateQueueItem(message.data.id, {
@@ -429,11 +440,10 @@ export class MessageHandler {
 
         try {
             consoleLog('Sending logs to Supabase...');
-            let localData = null;
+            let localData: LocalStorageData | null = null;
             if (process.env.NODE_ENV === 'development') {
                 localData = await getLocalStorageData();
             }
-
             const logs = await getLogsFromSession();
 
             let userId: string | null = null;
@@ -446,7 +456,7 @@ export class MessageHandler {
             const description = message.data?.description || null;
 
             if (logs && logs.length > 0) {
-                await errorLogService.sendLogs([logs], userId, description, [localData]);
+                await errorLogService.sendLogs(logs, userId, description, localData || undefined);
                 await clearLogsInSession();
             }
             sendResponse({ success: true });
