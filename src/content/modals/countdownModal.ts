@@ -54,6 +54,7 @@ export async function showCountdownModal() {
 
     let countdown = countdownSeconds;
     let interval: number | undefined = undefined;
+    let isModalClosed = false; // Flag to prevent multiple actions
 
     const timerSpan = document.getElementById('modal-timer');
     const desc = document.getElementById('modal-desc');
@@ -62,6 +63,14 @@ export async function showCountdownModal() {
     const cancelLoginBtn = document.getElementById('cancel-login');
 
     function closeModal() {
+        if (isModalClosed) return; // Prevent multiple closures
+        isModalClosed = true;
+
+        if (interval !== undefined) {
+            clearInterval(interval);
+            interval = undefined;
+        }
+
         const modal = document.getElementById('countdown-modal');
         if (modal) modal.remove();
     }
@@ -79,22 +88,23 @@ export async function showCountdownModal() {
             const timerEl = document.getElementById('modal-timer');
             if (timerEl) timerEl.textContent = countdown.toString();
             if (countdown <= 0) {
-                if (interval !== undefined) clearInterval(interval);
-                closeModal();
-                clickLoginButton();
+                if (!isModalClosed) {
+                    closeModal();
+                    clickLoginButton();
+                }
             }
         }, 1000);
     }
 
     if (loginNowBtn)
         loginNowBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval);
+            if (isModalClosed) return; // Prevent multiple clicks
             closeModal();
             clickLoginButton();
         };
     if (cancelLoginBtn)
         cancelLoginBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval);
+            if (isModalClosed) return; // Prevent multiple clicks
             closeModal();
         };
 

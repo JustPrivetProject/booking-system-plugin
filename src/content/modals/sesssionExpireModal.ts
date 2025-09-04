@@ -56,6 +56,7 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
     let interval: number | undefined = undefined;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     let waitingForMinute = false;
+    let isModalClosed = false; // Flag to prevent multiple actions
 
     const timerSpan = document.getElementById('modal-timer');
     const desc = document.getElementById('modal-desc');
@@ -64,6 +65,14 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
     const cancelReloadBtn = document.getElementById('cancel-reload');
 
     function closeModal() {
+        if (isModalClosed) return; // Prevent multiple closures
+        isModalClosed = true;
+
+        if (interval !== undefined) {
+            clearInterval(interval);
+            interval = undefined;
+        }
+
         const modal = document.getElementById('session-expire-modal');
         if (modal) modal.remove();
         if (opts && typeof opts.onModalClosed === 'function') opts.onModalClosed();
@@ -83,14 +92,17 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
             const timerEl = document.getElementById('modal-timer');
             if (timerEl) timerEl.textContent = countdown.toString();
             if (countdown <= 0) {
-                if (interval !== undefined) clearInterval(interval);
-                window.location.reload();
-                closeModal();
+                if (!isModalClosed) {
+                    window.location.reload();
+                    closeModal();
+                }
             }
         }, 1000);
     }
 
     function waitForOneMinute() {
+        if (isModalClosed) return; // Don't start waiting if modal is already closed
+
         if (interval !== undefined) clearInterval(interval);
         if (btns) btns.style.display = 'none';
         if (desc) {
@@ -102,18 +114,28 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
         // Кнопка закрытия
         const closeBtn = document.getElementById('close-modal-btn') as HTMLButtonElement | null;
         const autoCloseTimeout: number | undefined = window.setTimeout(() => {
-            closeModal();
+            if (!isModalClosed) {
+                closeModal();
+            }
         }, 5000);
         if (closeBtn) {
             closeBtn.onclick = () => {
                 if (autoCloseTimeout !== undefined) clearTimeout(autoCloseTimeout);
-                closeModal();
+                if (!isModalClosed) {
+                    closeModal();
+                }
             };
         }
 
         // Обратный отсчет 60 секунд
         let countdown = 60;
         const reloadInterval: number | undefined = window.setInterval(() => {
+            if (isModalClosed) {
+                if (reloadInterval !== undefined) clearInterval(reloadInterval);
+                if (autoCloseTimeout !== undefined) clearTimeout(autoCloseTimeout);
+                return;
+            }
+
             countdown--;
             const timerEl = document.getElementById('modal-timer');
             if (timerEl) timerEl.textContent = countdown.toString();
@@ -128,12 +150,13 @@ export async function showSessionExpireModal(opts?: { onModalClosed?: () => void
 
     if (reloadNowBtn)
         reloadNowBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval);
+            if (isModalClosed) return; // Prevent multiple clicks
             window.location.reload();
             closeModal();
         };
     if (cancelReloadBtn)
         cancelReloadBtn.onclick = () => {
+            if (isModalClosed) return; // Prevent multiple clicks
             waitForOneMinute();
         };
 

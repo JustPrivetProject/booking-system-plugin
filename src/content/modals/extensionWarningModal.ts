@@ -34,11 +34,10 @@ export async function showExtensionWarningModal() {
         border-radius: var(--border-radius, 8px);
         text-align: center;
         min-width: 280px;
-        max-width: 380px;
+        max-width: min(380px, 85vw);
         box-shadow: var(--shadow-card, 0 4px 10px rgba(0,0,0,0.1));
         font-family: Arial, sans-serif;
         color: var(--color-primary, #00aacc);
-        max-width: 85vw;
       ">
         <div style="
           width: 32px;
@@ -102,12 +101,16 @@ export async function showExtensionWarningModal() {
     function dismissWarning() {
         // Mark as dismissed for this page only
         modalDismissedOnThisPage = true;
+        // Remove event listener
+        document.removeEventListener('keydown', handleKeyDown);
         closeModal();
     }
 
     // Refresh page button
     if (refreshBtn) {
         refreshBtn.onclick = () => {
+            // Remove event listener before closing
+            document.removeEventListener('keydown', handleKeyDown);
             closeModal();
             window.location.reload();
         };
@@ -131,7 +134,6 @@ export async function showExtensionWarningModal() {
     const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === 'Escape') {
             dismissWarning();
-            document.removeEventListener('keydown', handleKeyDown);
         }
     };
     document.addEventListener('keydown', handleKeyDown);
