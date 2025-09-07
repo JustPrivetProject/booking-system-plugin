@@ -201,12 +201,18 @@ export class MessageHandler {
         retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
         if (tableData) {
+            let row = null;
             consoleLog('Getting table data...');
-            const row = tableData.find((row: string[]) =>
-                row.includes(driverAndContainer.containerNumber),
-            );
-
+            if (driverAndContainer.containerNumber) {
+                row = tableData.find((row: string[]) =>
+                    row.includes(driverAndContainer.containerNumber),
+                );
+            } else {
+                consoleLog('Container number not found, searching by TV App ID...');
+                row = tableData.find((row: string[]) => row.includes(tvAppId));
+            }
             consoleLog('Row: ', row);
+
             if (row) {
                 const currentSlot = `${row[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${row[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
                 consoleLog('Getting current slot time... :', currentSlot);

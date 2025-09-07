@@ -42,7 +42,7 @@ export async function getEditForm(tvAppId: string): Promise<Response | ErrorResp
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
             'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/vbs-slots',
+            Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
@@ -93,18 +93,18 @@ export async function getDriverNameAndContainer(
         return { driverName: '', containerNumber: '' };
     }
 
-    const request = await response.text();
-    consoleLog('Request Edit form:', request);
-    if (!request.trim()) {
+    const tvAppEditText = await response.text();
+    consoleLog('Request Edit form:', tvAppEditText);
+    if (!tvAppEditText.trim()) {
         consoleLog('Error getting driver name: Response is empty');
         return { driverName: '', containerNumber: '' };
     }
 
-    const driverNameObject = request.match(regex)?.[1] || '';
+    const driverNameObject = tvAppEditText.match(regex)?.[1] || '';
     const driverNameItems = driverNameObject.split(' ');
     const driverName = `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim();
 
-    const containerNumberMatch = request.match(containerIdRegex);
+    const containerNumberMatch = tvAppEditText.match(containerIdRegex);
     const containerNumber = containerNumberMatch?.[1] || '';
 
     consoleLog('Driver info:', driverName);

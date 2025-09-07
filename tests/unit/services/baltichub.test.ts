@@ -412,7 +412,7 @@ describe('Baltichub Service', () => {
                     headers: {
                         'Content-Type': 'application/json; charset=UTF-8',
                         'X-requested-with': 'XMLHttpRequest',
-                        Referer: 'https://ebrama.baltichub.com/vbs-slots',
+                        Referer: 'https://ebrama.baltichub.com/tv-apps',
                         Accept: '*/*',
                         'X-Extension-Request': 'JustPrivetProject',
                     },
