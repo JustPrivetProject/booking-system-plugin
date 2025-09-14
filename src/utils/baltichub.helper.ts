@@ -77,6 +77,7 @@ export function handleErrorResponse(
             ...req,
             status_message: Messages.TOO_MANY_TRANSACTIONS_IN_SECTOR,
             status_color: 'orange',
+            updated: true,
         };
     }
 

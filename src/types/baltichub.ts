@@ -10,6 +10,7 @@ export type RetryObject = {
     status: string; // e.g. "paused"
     status_message: string; // e.g. "Zadanie jest wstrzymane"
     status_color?: string; // e.g. "red"
+    updated?: boolean; // e.g. true
     timestamp: number;
     tvAppId: string;
     url: string;

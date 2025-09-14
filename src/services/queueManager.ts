@@ -264,7 +264,10 @@ export class QueueManager implements IQueueManager {
 
                 const updatedReq = await processRequest(req, queue);
 
-                if (updatedReq.status !== 'in-progress') {
+                if (updatedReq.status !== 'in-progress' || updatedReq.updated) {
+                    if (updatedReq.updated) {
+                        updatedReq.updated = false;
+                    }
                     await this.updateQueueItem(req.id, updatedReq);
                     this.processingState.processedCount++;
 
