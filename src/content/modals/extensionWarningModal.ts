@@ -52,10 +52,9 @@ export async function showExtensionWarningModal() {
           color: white;
           font-weight: bold;
         ">⚠</div>
-        <h2 style='margin-bottom: var(--spacing-small, 8px); font-size: var(--font-size-medium, 16px); color: var(--color-primary, #00aacc);'>Problemy z rozszerzeniem Brama</h2>
+        <h2 style='margin-bottom: var(--spacing-small, 8px); font-size: var(--font-size-medium, 16px); color: var(--color-primary, #00aacc);'>Problem z wtyczką Booking System Plugin</h2>
         <p style='margin-bottom: var(--spacing-medium, 16px); color: var(--color-text-light, #888); font-size: var(--font-size-small, 13px); line-height: 1.4;'>
-          Wykryto problemy z połączeniem z rozszerzeniem Brama. 
-          Odświeżenie strony może rozwiązać ten problem.
+          Wykryto problem z wtyczką-asystentem do strony eBrama. Odświeżenie strony może rozwiązać ten problem.
         </p>
         <div id="modal-btns" style="display:flex;gap:var(--spacing-small,8px);justify-content:center;flex-wrap:wrap;">
           <button id="refresh-page" style='

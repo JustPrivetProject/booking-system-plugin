@@ -60,8 +60,8 @@ describe('Extension Warning Modal', () => {
             const modal = document.getElementById('extension-warning-modal');
             const html = modal?.innerHTML || '';
 
-            expect(html).toContain('Problemy z rozszerzeniem Brama');
-            expect(html).toContain('Wykryto problemy z połączeniem z rozszerzeniem Brama');
+            expect(html).toContain('Problem z wtyczką Booking System Plugin');
+            expect(html).toContain('Wykryto problem z wtyczką-asystentem do strony eBrama');
             expect(html).toContain('Odśwież stronę');
             expect(html).toContain('Zamknij');
         });
@@ -290,7 +290,7 @@ describe('Extension Warning Modal', () => {
             // Check for semantic structure
             const heading = modalContent?.querySelector('h2');
             expect(heading).toBeTruthy();
-            expect(heading?.textContent).toContain('Problemy z rozszerzeniem Brama');
+            expect(heading?.textContent).toContain('Problem z wtyczką Booking System Plugin');
         });
 
         it('should have focusable buttons', async () => {

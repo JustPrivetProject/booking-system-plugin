@@ -204,12 +204,14 @@ export class MessageHandler {
             let row = null;
             consoleLog('Getting table data...');
             if (driverAndContainer.containerNumber) {
+                const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
                 row = tableData.find((row: string[]) =>
-                    row.includes(driverAndContainer.containerNumber),
+                    row[containerIndex].includes(driverAndContainer.containerNumber),
                 );
             } else {
                 consoleLog('Container number not found, searching by TV App ID...');
-                row = tableData.find((row: string[]) => row.includes(tvAppId));
+                const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
+                row = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
             }
             consoleLog('Row: ', row);
 
