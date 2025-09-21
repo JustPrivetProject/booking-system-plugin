@@ -51,6 +51,17 @@ describe('ErrorLogService', () => {
             password: 'secret-password',
             createdAt: Date.now(),
         },
+        notificationSettings: {
+            email: {
+                enabled: false,
+                userEmail: '',
+                additionalEmails: [],
+            },
+            windows: {
+                enabled: true,
+            },
+            createdAt: Date.now(),
+        },
         requestCacheBody: {},
         requestCacheHeaders: {},
         ...overrides,

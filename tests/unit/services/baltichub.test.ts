@@ -6,6 +6,7 @@ import {
 } from '../../../src/services/baltichub';
 import { RetryObject } from '../../../src/types/baltichub';
 import { Statuses, ErrorType } from '../../../src/data';
+import { notificationService } from '../../../src/services/notificationService';
 
 // Test Data Constants Pattern
 const TEST_DATES = {
@@ -202,6 +203,13 @@ jest.mock('../../../src/utils/baltichub.helper', () => ({
     isTaskCompletedInAnotherQueue: jest.fn(),
 }));
 
+// Mock notification service
+jest.mock('../../../src/services/notificationService', () => ({
+    notificationService: {
+        sendBookingSuccessNotifications: jest.fn(),
+    },
+}));
+
 // Mock chrome notifications
 global.chrome = {
     notifications: {
@@ -214,11 +222,15 @@ class BaltichubTestHelper {
     private mockUtils: any;
     private mockHelper: any;
     private mockChrome: any;
+    private mockNotificationService: any;
 
     constructor() {
         this.mockUtils = require('../../../src/utils');
         this.mockHelper = require('../../../src/utils/baltichub.helper');
         this.mockChrome = global.chrome;
+        this.mockNotificationService = notificationService as jest.Mocked<
+            typeof notificationService
+        >;
     }
 
     setupMocks(): void {
@@ -257,6 +269,7 @@ class BaltichubTestHelper {
                 status_message: 'Error occurred',
             }),
         );
+        this.mockNotificationService.sendBookingSuccessNotifications.mockResolvedValue(undefined);
     }
 
     setupExpiredEndTime(): void {
@@ -343,7 +356,7 @@ class BaltichubTestHelper {
     }
 
     expectNotificationCreated(): void {
-        expect(this.mockChrome.notifications.create).toHaveBeenCalled();
+        expect(this.mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalled();
     }
 
     resetMocks(): void {
@@ -645,6 +658,27 @@ describe('Baltichub Service', () => {
             expect(result.status).toBe(Statuses.SUCCESS);
             expect(result.status_message).toBe('Zadanie zakończone sukcesem');
             testHelper.expectNotificationCreated();
+        });
+
+        it('should send notification with correct booking data', async () => {
+            // Arrange
+            testHelper.setupExecuteRequestSuccess();
+
+            // Act
+            await processRequest(TEST_RETRY_OBJECTS.VALID, []);
+
+            // Assert
+            const mockNotificationService = notificationService as jest.Mocked<
+                typeof notificationService
+            >;
+            expect(mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    tvAppId: TEST_RETRY_OBJECTS.VALID.tvAppId,
+                    bookingTime: expect.any(String),
+                    driverName: TEST_RETRY_OBJECTS.VALID.driverName,
+                    containerNumber: TEST_RETRY_OBJECTS.VALID.containerNumber,
+                }),
+            );
         });
 
         it('should handle execute request error', async () => {

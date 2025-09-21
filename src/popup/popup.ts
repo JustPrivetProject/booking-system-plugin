@@ -16,6 +16,8 @@ import { showAutoLoginModal } from './modals/autoLogin.modal';
 import { createConfirmationModal } from './modals/confirmation.modal';
 import { showEmailConfirmationModal } from './modals/emailConfirm.modal';
 import { showInfoModal } from './modals/info.modal';
+import { showNotificationSettingsModal } from './modals/notificationSettings.modal';
+import { notificationSettingsService } from '../services/notificationSettingsService';
 
 function sendMessageToBackground(action, data, options = { updateQueue: true }) {
     chrome.runtime.sendMessage(
@@ -382,6 +384,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         consoleLog('Auto-login data changed, updating UI');
         updateAutoLoginButtonState();
     }
+    if (namespace === 'local' && changes.notificationSettings) {
+        consoleLog('Notification settings changed, updating UI');
+        updateNotificationButtonState();
+    }
 });
 
 async function saveHeaderState(isHidden: boolean) {
@@ -463,6 +469,47 @@ async function updateAutoLoginButtonState() {
     }
 }
 
+async function updateNotificationButtonState() {
+    try {
+        const summary = await notificationSettingsService.getSettingsSummary();
+        const notificationToggle = document.getElementById(
+            'notificationSettingsToggle',
+        ) as HTMLElement;
+
+        if (notificationToggle) {
+            let title = 'Ustawienia powiadomień';
+            const hasAnyEnabled =
+                summary.windowsEnabled || (summary.emailEnabled && summary.hasValidEmail);
+
+            if (hasAnyEnabled) {
+                notificationToggle.classList.add('enabled');
+                const enabledTypes: string[] = [];
+
+                if (summary.windowsEnabled) {
+                    enabledTypes.push('Windows');
+                }
+
+                if (summary.emailEnabled && summary.hasValidEmail) {
+                    const emailInfo =
+                        summary.totalValidEmails > 1
+                            ? `Email (${summary.totalValidEmails} adresy)`
+                            : `Email (${summary.userEmail})`;
+                    enabledTypes.push(emailInfo);
+                }
+
+                title = `Powiadomienia: ${enabledTypes.join(', ')}`;
+            } else {
+                notificationToggle.classList.remove('enabled');
+                title = 'Ustawienia powiadomień - Wyłączone';
+            }
+
+            notificationToggle.title = title;
+        }
+    } catch (error) {
+        consoleError('Error updating notification button state:', error);
+    }
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates();
@@ -470,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleHeaderVisibility();
     restoreHeaderState();
     updateAutoLoginButtonState();
+    updateNotificationButtonState();
     // Удаляем тестовую кнопку, если она есть
     const testBtn = document.getElementById('testEmailConfirmBtn');
     if (testBtn) testBtn.remove();
@@ -654,6 +702,27 @@ autoLoginToggle.addEventListener('click', async e => {
         }
     } catch (error) {
         consoleError('Error in auto-login modal:', error);
+    }
+});
+
+// Notification settings toggle button handler
+const notificationSettingsToggle = document.getElementById('notificationSettingsToggle')!;
+notificationSettingsToggle.addEventListener('click', async e => {
+    e.preventDefault();
+    try {
+        const result = await showNotificationSettingsModal();
+        if (result) {
+            await updateNotificationButtonState();
+            let message = 'Ustawienia powiadomień zostały zapisane pomyślnie!';
+
+            if (result.email.enabled && result.email.userEmail) {
+                message += `\nPowiadomienia e-mail będą wysyłane na: ${result.email.userEmail}`;
+            }
+
+            await showInfoModal(message);
+        }
+    } catch (error) {
+        consoleError('Error in notification settings modal:', error);
     }
 });
 
@@ -867,6 +936,7 @@ function showAuthenticatedUI(user: { email: string }) {
     restoreHeaderState();
     updateQueueDisplay();
     updateAutoLoginButtonState();
+    updateNotificationButtonState();
 }
 
 function showUnauthenticatedUI() {

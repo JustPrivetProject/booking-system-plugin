@@ -120,6 +120,9 @@ jobs:
                   echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
                   echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
                   echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+                  echo "BREVO_API_KEY=${{ secrets.BREVO_API_KEY }}" >> .env
+                  echo "BREVO_SENDER_EMAIL=${{ secrets.BREVO_SENDER_EMAIL }}" >> .env
+                  echo "BREVO_SENDER_NAME=${{ secrets.BREVO_SENDER_NAME }}" >> .env
 
             - name: Build extension
               run: npm run build
@@ -205,6 +208,9 @@ jobs:
                   echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
                   echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
                   echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+                  echo "BREVO_API_KEY=${{ secrets.BREVO_API_KEY }}" >> .env
+                  echo "BREVO_SENDER_EMAIL=${{ secrets.BREVO_SENDER_EMAIL }}" >> .env
+                  echo "BREVO_SENDER_NAME=${{ secrets.BREVO_SENDER_NAME }}" >> .env
 
             - name: Build extension
               run: npm run build:dev
