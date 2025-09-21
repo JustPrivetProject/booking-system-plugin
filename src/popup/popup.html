@@ -5,10 +5,7 @@
         <meta charset="UTF-8" />
         <link rel="stylesheet" />
         <!--// https://fonts.google.com/icons -->
-        <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/icon?family=Material+Icons"
-        />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
     </head>
     <body>
         <div id="authContainer" class="auth-container">
@@ -16,11 +13,7 @@
                 <h2>Logowanie</h2>
                 <div class="error-message" id="loginError"></div>
                 <input type="email" id="loginEmail" placeholder="Email" />
-                <input
-                    type="password"
-                    id="loginPassword"
-                    placeholder="Password"
-                />
+                <input type="password" id="loginPassword" placeholder="Password" />
                 <button id="loginButton" type="submit">Zaloguj się</button>
                 <div class="form-links">
                     <a href="#" id="showRegister">Zarejestruj się</a>
@@ -32,14 +25,8 @@
                 <h2>Rejestracja</h2>
                 <div class="error-message" id="registerError"></div>
                 <input type="email" id="registerEmail" placeholder="Email" />
-                <input
-                    type="password"
-                    id="registerPassword"
-                    placeholder="Password"
-                />
-                <button id="registerButton" type="submit">
-                    Zarejestruj się
-                </button>
+                <input type="password" id="registerPassword" placeholder="Password" />
+                <button id="registerButton" type="submit">Zarejestruj się</button>
                 <div class="form-links">
                     <a href="#" id="showLogin">Wróć do logowania</a>
                     <a href="#" id="showUnbind">Odłącz urządzenie</a>
@@ -48,49 +35,26 @@
 
             <form id="unbindForm" class="hidden">
                 <h2>Odłącz urządzenie</h2>
-                <p>
-                    Wprowadź swoją nazwę użytkownika i hasło, aby odwiązać
-                    urządzenie
-                </p>
+                <p>Wprowadź swoją nazwę użytkownika i hasło, aby odwiązać urządzenie</p>
                 <div class="form-group">
-                    <input
-                        type="email"
-                        id="unbindEmail"
-                        placeholder="Email"
-                        required
-                    />
+                    <input type="email" id="unbindEmail" placeholder="Email" required />
                 </div>
                 <div class="form-group">
-                    <input
-                        type="password"
-                        id="unbindPassword"
-                        placeholder="Password"
-                        required
-                    />
+                    <input type="password" id="unbindPassword" placeholder="Password" required />
                 </div>
                 <div class="error-message" id="unbindError"></div>
-                <button type="submit" id="unbindButton">
-                    Odłącz urządzenie
-                </button>
+                <button type="submit" id="unbindButton">Odłącz urządzenie</button>
                 <div class="form-links">
                     <a href="#" id="hideUnbind">Powrót do logowania</a>
-                    <a href="#" id="backToAppButton" class="hidden"
-                        >Powrót do aplikacji</a
-                    >
+                    <a href="#" id="backToAppButton" class="hidden">Powrót do aplikacji</a>
                 </div>
             </form>
         </div>
 
         <!-- Main Content (hidden when not authenticated) -->
         <div id="mainContent" class="hidden">
-            <button
-                id="toggleHeaderBtn"
-                class="toggle-header-btn"
-                title="Ukryj/Pokaż"
-            >
-                <span class="material-icons" id="toggleHeaderIcon"
-                    >arrow_drop_up</span
-                >
+            <button id="toggleHeaderBtn" class="toggle-header-btn" title="Ukryj/Pokaż">
+                <span class="material-icons" id="toggleHeaderIcon">arrow_drop_up</span>
             </button>
             <div class="header">
                 <div class="user-info">
@@ -103,9 +67,7 @@
                         >
                             Odłącz
                         </button>
-                        <button id="logoutButton" title="Wyloguj się z konta">
-                            Wyloguj
-                        </button>
+                        <button id="logoutButton" title="Wyloguj się z konta">Wyloguj</button>
                     </div>
                 </div>
                 <div class="user-actions">

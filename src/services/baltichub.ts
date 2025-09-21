@@ -1,32 +1,30 @@
+import { Statuses, Messages, urls } from '../data';
+import type { RetryObject } from '../types/baltichub';
+import { setStorage } from '../utils';
+import {
+    parseSlotsIntoButtons,
+    handleErrorResponse,
+    isTaskCompletedInAnotherQueue,
+} from '../utils/baltichub.helper';
+import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
     consoleError,
     fetchRequest,
     normalizeFormData,
+    createFormData,
     parseDateTimeFromDMY,
     consoleLogWithoutSave,
     JSONstringify,
     formatDateToDMY,
-    ErrorResponse,
     ErrorType,
-} from '../utils/utils-function'
-import { Statuses } from '../data'
-import { createFormData } from '../utils/utils-function'
-import { RetryObject } from '../types/baltichub'
-import {
-    parseSlotsIntoButtons,
-    handleErrorResponse,
-    isTaskCompletedInAnotherQueue,
-} from '../utils/baltichub.helper'
-import { setStorage } from '../utils/storageControl.helper'
+} from '../utils/index';
 
-export async function getSlots(
-    date: string
-): Promise<Response | ErrorResponse> {
-    const [day, month, year] = date.split('.').map(Number)
-    const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
-    const dateAfterTransfer = formatDateToDMY(newDate)
-    return fetchRequest('https://ebrama.baltichub.com/Home/GetSlots', {
+export async function getSlots(date: string): Promise<Response | ErrorResponse> {
+    const [day, month, year] = date.split('.').map(Number);
+    const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const dateAfterTransfer = formatDateToDMY(newDate);
+    return fetchRequest(urls.getSlots, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
@@ -35,38 +33,28 @@ export async function getSlots(
             Accept: '*/*',
         },
         body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 07.08.2025 26.02.2025
-    })
+    });
 }
 
-export async function getEditForm(
-    tvAppId: string
-): Promise<Response | ErrorResponse> {
-    return fetchRequest(
-        `https://ebrama.baltichub.com/TVApp/EditTvAppModal?tvAppId=${tvAppId}`,
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json; charset=UTF-8',
-                'X-requested-with': 'XMLHttpRequest',
-                Referer: 'https://ebrama.baltichub.com/vbs-slots',
-                Accept: '*/*',
-                'X-Extension-Request': 'JustPrivetProject',
-            },
-            credentials: 'include',
-        }
-    )
+export async function getEditForm(tvAppId: string): Promise<Response | ErrorResponse> {
+    return fetchRequest(`${urls.editTvAppModal}?tvAppId=${tvAppId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-requested-with': 'XMLHttpRequest',
+            Referer: 'https://ebrama.baltichub.com/tv-apps',
+            Accept: '*/*',
+            'X-Extension-Request': 'JustPrivetProject',
+        },
+        credentials: 'include',
+    });
 }
 
-async function checkSlotAvailability(
-    htmlText: string,
-    time: string[]
-): Promise<boolean> {
-    const buttons = parseSlotsIntoButtons(htmlText)
-    const slotButton = buttons.find((button) =>
-        button.text.includes(time[1].slice(0, 5))
-    )
-    consoleLogWithoutSave('Slot button:', slotButton)
-    return slotButton ? !slotButton.disabled : false
+async function checkSlotAvailability(htmlText: string, time: string[]): Promise<boolean> {
+    const buttons = parseSlotsIntoButtons(htmlText);
+    const slotButton = buttons.find(button => button.text.includes(time[1].slice(0, 5)));
+    consoleLogWithoutSave('Slot button:', slotButton);
+    return slotButton ? !slotButton.disabled : false;
 }
 
 /**
@@ -84,51 +72,47 @@ async function checkSlotAvailability(
 
 export async function getDriverNameAndContainer(
     tvAppId: string,
-    retryQueue: RetryObject[]
+    retryQueue: RetryObject[],
 ): Promise<{ driverName: string; containerNumber: string }> {
-    consoleLog('Getting driver name and container for TV App ID:', tvAppId)
+    consoleLog('Getting driver name and container for TV App ID:', tvAppId);
     const regex =
-        /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/
-    const containerIdRegex = /"ContainerId":"([^"]+)"/
-    const sameItem = retryQueue.find((item) => item.tvAppId === tvAppId)
+        /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
+    const containerIdRegex = /"ContainerId":"([^"]+)"/;
+    const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
 
     if (sameItem) {
         return {
             driverName: sameItem.driverName || '',
             containerNumber: sameItem.containerNumber || '',
-        }
+        };
     }
 
-    const response = await getEditForm(tvAppId)
+    const response = await getEditForm(tvAppId);
     if (!response.ok) {
-        consoleLog(
-            'Error getting driver name: Response not OK',
-            JSONstringify(response)
-        )
-        return { driverName: '', containerNumber: '' }
+        consoleLog('Error getting driver name: Response not OK', JSONstringify(response));
+        return { driverName: '', containerNumber: '' };
     }
 
-    const request = await response.text()
-    consoleLog('Request Edit form:', request)
-    if (!request.trim()) {
-        consoleLog('Error getting driver name: Response is empty')
-        return { driverName: '', containerNumber: '' }
+    const tvAppEditText = await response.text();
+    consoleLog('Request Edit form:', tvAppEditText);
+    if (!tvAppEditText.trim()) {
+        consoleLog('Error getting driver name: Response is empty');
+        return { driverName: '', containerNumber: '' };
     }
 
-    const driverNameObject = request.match(regex)?.[1] || ''
-    const driverNameItems = driverNameObject.split(' ')
-    const driverName =
-        `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim()
+    const driverNameObject = tvAppEditText.match(regex)?.[1] || '';
+    const driverNameItems = driverNameObject.split(' ');
+    const driverName = `${driverNameItems[0] || ''} ${driverNameItems[1] || ''}`.trim();
 
-    const containerNumberMatch = request.match(containerIdRegex)
-    const containerNumber = containerNumberMatch?.[1] || ''
+    const containerNumberMatch = tvAppEditText.match(containerIdRegex);
+    const containerNumber = containerNumberMatch?.[1] || '';
 
-    consoleLog('Driver info:', driverName)
-    consoleLog('Container ID:', containerNumber)
+    consoleLog('Driver info:', driverName);
+    consoleLog('Container ID:', containerNumber);
     return {
         driverName,
         containerNumber,
-    }
+    };
 }
 
 /**
@@ -150,9 +134,9 @@ export async function getDriverNameAndContainer(
 async function executeRequest(
     req: RetryObject,
     tvAppId: string,
-    time: string[]
-): Promise<{ status: string; status_message: string }> {
-    const formData = createFormData(req.body!.formData)
+    time: string[],
+): Promise<RetryObject> {
+    const formData = createFormData(req.body!.formData);
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -161,11 +145,11 @@ async function executeRequest(
             credentials: 'include',
         },
         body: formData,
-    })
+    });
 
-    const parsedResponse = await response.text()
+    const parsedResponse = await response.text();
     if (!parsedResponse.includes('error') && response.ok) {
-        consoleLog('✅Request retried successfully:', tvAppId, time.join(', '))
+        consoleLog('✅Request retried successfully:', tvAppId, time.join(', '));
         // Send notification to user
         try {
             chrome.notifications.create({
@@ -174,20 +158,19 @@ async function executeRequest(
                 title: 'Zmiana czasu',
                 message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie - ${time[1].slice(0, 5)}`,
                 priority: 2,
-            })
+            });
         } catch (error) {
-            consoleError('Error sending notification:', error)
+            consoleError('Error sending notification:', error);
         }
 
         return {
             ...req,
             status: Statuses.SUCCESS,
-            status_message: 'Zadanie zakończone sukcesem',
-        }
+            status_message: Messages.SUCCESS,
+        };
     }
 
-    return handleErrorResponse(req, parsedResponse, tvAppId, time)
-    // TODO: add action to update grid
+    return handleErrorResponse(req, parsedResponse, tvAppId, time);
 }
 
 /**
@@ -213,117 +196,89 @@ async function executeRequest(
  * const result = await processRequest(req, queue);
  * console.log(result);
  */
-export async function processRequest(
-    req: RetryObject,
-    queue: RetryObject[]
-): Promise<{ status: string; status_message: string }> {
-    let body = normalizeFormData(req.body).formData
-    const tvAppId = body.TvAppId[0]
-    const time = body.SlotStart[0].split(' ')
-    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]) // 26.06.2025 00:59:00
-    const currentTimeSlot = new Date(req.currentSlot)
-    const currentTIme = new Date()
+export async function processRequest(req: RetryObject, queue: RetryObject[]): Promise<RetryObject> {
+    const body = normalizeFormData(req.body).formData;
+    const tvAppId = body.TvAppId[0];
+    const time = body.SlotStart[0].split(' ');
+    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]); // 26.06.2025 00:59:00
+    const currentTimeSlot = new Date(req.currentSlot);
+    const currentTIme = new Date();
 
-    if (new Date(endTimeStr.getTime() + 90 * 1000) < currentTIme) {
-        consoleLog(
-            '❌ End time is in the past, cannot process:',
-            tvAppId,
-            endTimeStr
-        )
+    if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTIme) {
+        consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
         return {
             ...req,
             status: Statuses.EXPIRED,
-            status_message: 'Czas zakończenia slotu już minął',
-        }
+            status_message: Messages.EXPIRED,
+        };
     }
 
     if (currentTimeSlot < currentTIme) {
-        consoleLog(
-            '❌ Changing the time is no longer possible:',
-            tvAppId,
-            endTimeStr
-        )
+        consoleLog('❌ Changing the time is no longer possible:', tvAppId, endTimeStr);
         return {
             ...req,
             status: Statuses.EXPIRED,
-            status_message:
-                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
-        }
+            status_message: Messages.AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL,
+        };
     }
 
     if (isTaskCompletedInAnotherQueue(req, queue)) {
-        consoleLog(
-            '✅ The request was executed in another task:',
-            tvAppId,
-            time.join(', ')
-        )
+        consoleLog('✅ The request was executed in another task:', tvAppId, time.join(', '));
         return {
             ...req,
             status: Statuses.ANOTHER_TASK,
             status_message: 'Zadanie zakończone w innym wątku',
-        }
+        };
     }
-    const slots = await getSlots(time[0])
+    const slots = await getSlots(time[0]);
     // Check Authorization
     if (!slots.ok && 'error' in slots) {
-        consoleLog(
-            '❌ Problem with authorization:',
-            tvAppId,
-            time.join(', '),
-            slots.error
-        )
+        consoleLog('❌ Problem with request:', tvAppId, time.join(', '), slots.error);
 
         // Handle different error types
         switch (slots.error.type) {
             case ErrorType.CLIENT_ERROR:
                 if (slots.error.status === 401) {
-                    setStorage({ unauthorized: true })
+                    setStorage({ unauthorized: true });
                     return {
                         ...req,
                         status: Statuses.AUTHORIZATION_ERROR,
-                        status_message:
-                            'Problem z autoryzacją - nieautoryzowany dostęp',
-                    }
+                        status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
+                    };
                 }
-                break
+                break;
             case ErrorType.SERVER_ERROR:
                 return {
                     ...req,
-                    status: Statuses.ERROR,
-                    status_message:
-                        'Problem z serwerem - spróbuj ponownie później',
-                }
+                    status: Statuses.NETWORK_ERROR,
+                    status_message: 'Problem z serwerem - spróbuj ponownie później',
+                };
             case ErrorType.HTML_ERROR:
                 return {
                     ...req,
                     status: Statuses.AUTHORIZATION_ERROR,
                     status_message: 'Problem z autoryzacją - strona błędu',
-                }
+                };
             case ErrorType.NETWORK:
                 return {
                     ...req,
-                    status: Statuses.ERROR,
+                    status: Statuses.AUTHORIZATION_ERROR,
                     status_message: 'Problem z połączeniem sieciowym',
-                }
+                };
             default:
-                setStorage({ unauthorized: true })
                 return {
                     ...req,
-                    status: Statuses.AUTHORIZATION_ERROR,
-                    status_message: 'Problem z autoryzacją',
-                }
+                    status: Statuses.NETWORK_ERROR,
+                    status_message: Messages.UNKNOWN,
+                };
         }
     }
-    const htmlText = await slots.text()
-    const isSlotAvailable = await checkSlotAvailability(htmlText, time)
+    const htmlText = await slots.text();
+    const isSlotAvailable = await checkSlotAvailability(htmlText, time);
     if (!isSlotAvailable) {
-        consoleLogWithoutSave(
-            '❌ No slots, keeping in queue:',
-            tvAppId,
-            time.join(', ')
-        )
-        return req
+        consoleLogWithoutSave('❌ No slots, keeping in queue:', tvAppId, time.join(', '));
+        return req;
     }
-    const objectToReturn = await executeRequest(req, tvAppId, time)
-    return objectToReturn
+    const objectToReturn = await executeRequest(req, tvAppId, time);
+    return objectToReturn;
 }

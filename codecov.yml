@@ -1,0 +1,31 @@
+coverage:
+    status:
+        project:
+            default:
+                target: 40%
+                threshold: 1%
+                base: auto
+        patch:
+            default:
+                target: 40%
+                threshold: 5%
+
+comment:
+    layout: 'reach,diff,flags,tree,reach'
+    behavior: default
+    require_changes: false
+    require_base: no
+    require_head: yes
+
+github_checks:
+    annotations: true
+
+ignore:
+    - 'tests/**/*'
+    - '*.config.js'
+    - '*.config.ts'
+    - 'webpack.config.js'
+    - 'dist/**/*'
+    - 'coverage/**/*'
+    - 'src/**/*.d.ts'
+    - 'src/**/index.ts'

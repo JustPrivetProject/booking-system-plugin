@@ -1,12 +1,13 @@
-import { clickLoginButton } from '../utils/contentUtils'
+import { clickLoginButton } from '../utils/contentUtils';
 
 export async function showCountdownModal() {
-    if (document.getElementById('countdown-modal')) return
-    const countdownSeconds = 60
+    if (document.getElementById('countdown-modal')) return;
+    const countdownSeconds = 60;
 
-    const modal = document.createElement('div')
-    modal.id = 'countdown-modal'
-    modal.style = `position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;`
+    const modal = document.createElement('div');
+    modal.id = 'countdown-modal';
+    modal.style =
+        'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
 
     // Содержимое модального окна
     modal.innerHTML = `
@@ -48,54 +49,64 @@ export async function showCountdownModal() {
           '>Anuluj</button>
         </div>
       </div>
-    `
-    document.body.appendChild(modal)
+    `;
+    document.body.appendChild(modal);
 
-    let countdown = countdownSeconds
-    let interval: number | undefined = undefined
+    let countdown = countdownSeconds;
+    let interval: number | undefined = undefined;
+    let isModalClosed = false; // Flag to prevent multiple actions
 
-    const timerSpan = document.getElementById('modal-timer')
-    const desc = document.getElementById('modal-desc')
-    const btns = document.getElementById('modal-btns')
-    const loginNowBtn = document.getElementById('login-now')
-    const cancelLoginBtn = document.getElementById('cancel-login')
+    const timerSpan = document.getElementById('modal-timer');
+    const desc = document.getElementById('modal-desc');
+    const btns = document.getElementById('modal-btns');
+    const loginNowBtn = document.getElementById('login-now');
+    const cancelLoginBtn = document.getElementById('cancel-login');
 
     function closeModal() {
-        const modal = document.getElementById('countdown-modal')
-        if (modal) modal.remove()
+        if (isModalClosed) return; // Prevent multiple closures
+        isModalClosed = true;
+
+        if (interval !== undefined) {
+            clearInterval(interval);
+            interval = undefined;
+        }
+
+        const modal = document.getElementById('countdown-modal');
+        if (modal) modal.remove();
     }
 
     function startCountdown() {
-        countdown = countdownSeconds
-        if (timerSpan) timerSpan.textContent = countdown.toString()
+        countdown = countdownSeconds;
+        if (timerSpan) timerSpan.textContent = countdown.toString();
         if (desc)
-            desc.innerHTML = `Kliknięcie przycisku logowania za <span id="modal-timer" style="font-weight:bold; color:var(--color-primary,#00aacc);">${countdown}</span> sekund`
-        if (btns) btns.style.display = 'flex'
+            desc.innerHTML = `Kliknięcie przycisku logowania za <span id="modal-timer" style="font-weight:bold; color:var(--color-primary,#00aacc);">${countdown}</span> sekund`;
+        if (btns) btns.style.display = 'flex';
 
-        if (interval !== undefined) clearInterval(interval)
+        if (interval !== undefined) clearInterval(interval);
         interval = window.setInterval(() => {
-            countdown--
-            const timerEl = document.getElementById('modal-timer')
-            if (timerEl) timerEl.textContent = countdown.toString()
+            countdown--;
+            const timerEl = document.getElementById('modal-timer');
+            if (timerEl) timerEl.textContent = countdown.toString();
             if (countdown <= 0) {
-                if (interval !== undefined) clearInterval(interval)
-                closeModal()
-                clickLoginButton()
+                if (!isModalClosed) {
+                    closeModal();
+                    clickLoginButton();
+                }
             }
-        }, 1000)
+        }, 1000);
     }
 
     if (loginNowBtn)
         loginNowBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval)
-            closeModal()
-            clickLoginButton()
-        }
+            if (isModalClosed) return; // Prevent multiple clicks
+            closeModal();
+            clickLoginButton();
+        };
     if (cancelLoginBtn)
         cancelLoginBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval)
-            closeModal()
-        }
+            if (isModalClosed) return; // Prevent multiple clicks
+            closeModal();
+        };
 
-    startCountdown()
+    startCountdown();
 }

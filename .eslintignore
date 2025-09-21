@@ -1,0 +1,40 @@
+# Build outputs
+dist/
+build/
+*.min.js
+
+# Dependencies
+node_modules/
+
+# Test coverage
+coverage/
+
+# Extension packages
+extension*.zip
+
+# Generated files
+public/welcome.js
+
+# Documentation
+docs/
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# E2E/Playwright files (removed)
+tests/e2e/
+playwright.config.ts
+**/*.spec.ts
+

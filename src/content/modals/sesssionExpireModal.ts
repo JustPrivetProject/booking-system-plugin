@@ -1,15 +1,14 @@
-import { isUserAuthenticated } from '../utils/contentUtils'
+import { isUserAuthenticated } from '../utils/contentUtils';
 
-export async function showSessionExpireModal(opts?: {
-    onModalClosed?: () => void
-}) {
-    const isAuth = await isUserAuthenticated()
-    if (!isAuth) return
-    if (document.getElementById('session-expire-modal')) return // Уже показано
+export async function showSessionExpireModal(opts?: { onModalClosed?: () => void }) {
+    const isAuth = await isUserAuthenticated();
+    if (!isAuth) return;
+    if (document.getElementById('session-expire-modal')) return; // Уже показано
 
-    const modal = document.createElement('div')
-    modal.id = 'session-expire-modal'
-    modal.style = `position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;`
+    const modal = document.createElement('div');
+    modal.id = 'session-expire-modal';
+    modal.style =
+        'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:9999;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
     // Содержимое модального окна
     modal.innerHTML = `
       <div id="modal-content" style="
@@ -50,96 +49,116 @@ export async function showSessionExpireModal(opts?: {
           '>Anuluj</button>
         </div>
       </div>
-    `
-    document.body.appendChild(modal)
+    `;
+    document.body.appendChild(modal);
 
-    let countdown = 60
-    let interval: number | undefined = undefined
-    let waitingForMinute = false
+    let countdown = 60;
+    let interval: number | undefined = undefined;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    let waitingForMinute = false;
+    let isModalClosed = false; // Flag to prevent multiple actions
 
-    const timerSpan = document.getElementById('modal-timer')
-    const desc = document.getElementById('modal-desc')
-    const btns = document.getElementById('modal-btns')
-    const reloadNowBtn = document.getElementById('reload-now')
-    const cancelReloadBtn = document.getElementById('cancel-reload')
+    const timerSpan = document.getElementById('modal-timer');
+    const desc = document.getElementById('modal-desc');
+    const btns = document.getElementById('modal-btns');
+    const reloadNowBtn = document.getElementById('reload-now');
+    const cancelReloadBtn = document.getElementById('cancel-reload');
 
     function closeModal() {
-        const modal = document.getElementById('session-expire-modal')
-        if (modal) modal.remove()
-        if (opts && typeof opts.onModalClosed === 'function')
-            opts.onModalClosed()
+        if (isModalClosed) return; // Prevent multiple closures
+        isModalClosed = true;
+
+        if (interval !== undefined) {
+            clearInterval(interval);
+            interval = undefined;
+        }
+
+        const modal = document.getElementById('session-expire-modal');
+        if (modal) modal.remove();
+        if (opts && typeof opts.onModalClosed === 'function') opts.onModalClosed();
     }
 
     function startCountdown() {
-        countdown = 60
-        if (timerSpan) timerSpan.textContent = countdown.toString()
+        countdown = 60;
+        if (timerSpan) timerSpan.textContent = countdown.toString();
         if (desc)
             desc.innerHTML =
-                'Strona zostanie odświeżona za <span id="modal-timer" style="font-weight:bold; color:var(--color-error,#ff0000);">60</span> sekund'
-        if (btns) btns.style.display = 'flex'
-        waitingForMinute = false
-        if (interval !== undefined) clearInterval(interval)
+                'Strona zostanie odświeżona za <span id="modal-timer" style="font-weight:bold; color:var(--color-error,#ff0000);">60</span> sekund';
+        if (btns) btns.style.display = 'flex';
+        waitingForMinute = false;
+        if (interval !== undefined) clearInterval(interval);
         interval = window.setInterval(() => {
-            countdown--
-            const timerEl = document.getElementById('modal-timer')
-            if (timerEl) timerEl.textContent = countdown.toString()
+            countdown--;
+            const timerEl = document.getElementById('modal-timer');
+            if (timerEl) timerEl.textContent = countdown.toString();
             if (countdown <= 0) {
-                if (interval !== undefined) clearInterval(interval)
-                window.location.reload()
-                closeModal()
+                if (!isModalClosed) {
+                    window.location.reload();
+                    closeModal();
+                }
             }
-        }, 1000)
+        }, 1000);
     }
 
     function waitForOneMinute() {
-        if (interval !== undefined) clearInterval(interval)
-        if (btns) btns.style.display = 'none'
+        if (isModalClosed) return; // Don't start waiting if modal is already closed
+
+        if (interval !== undefined) clearInterval(interval);
+        if (btns) btns.style.display = 'none';
         if (desc) {
-            desc.innerHTML = `Odświeżenie strony zostanie wykonane za <span id="modal-timer" style="font-weight:bold; color:var(--color-error,#ff0000);">60</span> sekund.<br><button id="close-modal-btn" style="margin-top:18px;padding:8px 24px;border-radius:4px;background:var(--color-primary,#00aacc);color:#fff;border:none;cursor:pointer;">Zamknij</button>`
+            desc.innerHTML =
+                'Odświeżenie strony zostanie wykonane za <span id="modal-timer" style="font-weight:bold; color:var(--color-error,#ff0000);">60</span> sekund.<br><button id="close-modal-btn" style="margin-top:18px;padding:8px 24px;border-radius:4px;background:var(--color-primary,#00aacc);color:#fff;border:none;cursor:pointer;">Zamknij</button>';
         }
-        waitingForMinute = true
+        waitingForMinute = true;
 
         // Кнопка закрытия
-        const closeBtn = document.getElementById(
-            'close-modal-btn'
-        ) as HTMLButtonElement | null
-        let autoCloseTimeout: number | undefined = window.setTimeout(() => {
-            closeModal()
-        }, 5000)
+        const closeBtn = document.getElementById('close-modal-btn') as HTMLButtonElement | null;
+        const autoCloseTimeout: number | undefined = window.setTimeout(() => {
+            if (!isModalClosed) {
+                closeModal();
+            }
+        }, 5000);
         if (closeBtn) {
             closeBtn.onclick = () => {
-                if (autoCloseTimeout !== undefined)
-                    clearTimeout(autoCloseTimeout)
-                closeModal()
-            }
+                if (autoCloseTimeout !== undefined) clearTimeout(autoCloseTimeout);
+                if (!isModalClosed) {
+                    closeModal();
+                }
+            };
         }
 
         // Обратный отсчет 60 секунд
-        let countdown = 60
-        let reloadInterval: number | undefined = window.setInterval(() => {
-            countdown--
-            const timerEl = document.getElementById('modal-timer')
-            if (timerEl) timerEl.textContent = countdown.toString()
-            if (countdown <= 0) {
-                if (reloadInterval !== undefined) clearInterval(reloadInterval)
-                if (autoCloseTimeout !== undefined)
-                    clearTimeout(autoCloseTimeout)
-                window.location.reload()
-                closeModal()
+        let countdown = 60;
+        const reloadInterval: number | undefined = window.setInterval(() => {
+            if (isModalClosed) {
+                if (reloadInterval !== undefined) clearInterval(reloadInterval);
+                if (autoCloseTimeout !== undefined) clearTimeout(autoCloseTimeout);
+                return;
             }
-        }, 1000)
+
+            countdown--;
+            const timerEl = document.getElementById('modal-timer');
+            if (timerEl) timerEl.textContent = countdown.toString();
+            if (countdown <= 0) {
+                if (reloadInterval !== undefined) clearInterval(reloadInterval);
+                if (autoCloseTimeout !== undefined) clearTimeout(autoCloseTimeout);
+                window.location.reload();
+                closeModal();
+            }
+        }, 1000);
     }
 
     if (reloadNowBtn)
         reloadNowBtn.onclick = () => {
-            if (interval !== undefined) clearInterval(interval)
-            window.location.reload()
-            closeModal()
-        }
+            if (isModalClosed) return; // Prevent multiple clicks
+            window.location.reload();
+            closeModal();
+        };
     if (cancelReloadBtn)
         cancelReloadBtn.onclick = () => {
-            waitForOneMinute()
-        }
+            if (isModalClosed) return; // Prevent multiple clicks
+            waitForOneMinute();
+        };
 
-    startCountdown()
+    startCountdown();
 }

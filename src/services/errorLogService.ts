@@ -1,46 +1,42 @@
-import { supabase } from './supabaseClient'
-import { ErrorType, HttpStatus } from '../utils/utils-function'
+import { consoleLog, type ErrorType } from '../utils/index';
+import type { LocalStorageData } from '../types/index';
+
+import { supabase } from './supabaseClient';
 
 interface ErrorLog {
-    error_message: string
-    error_stack?: string
-    source: string
-    additional_data?: Record<string, any>
-    created_at?: string
+    error_message: string;
+    error_stack?: string;
+    source: string;
+    additional_data?: Record<string, any>;
+    created_at?: string;
 }
 
 interface RequestErrorLog extends ErrorLog {
-    error_type: ErrorType
-    http_status?: number
-    url?: string
-    attempt?: number
-    response_text?: string
+    error_type: ErrorType;
+    http_status?: number;
+    url?: string;
+    attempt?: number;
+    response_text?: string;
 }
 
 export const errorLogService = {
-    async logError(
-        error: Error | string,
-        source: string,
-        additionalData?: Record<string, any>
-    ) {
+    async logError(error: Error | string, source: string, additionalData?: Record<string, any>) {
         const errorLog: ErrorLog = {
             error_message: typeof error === 'string' ? error : error.message,
             error_stack: error instanceof Error ? error.stack : undefined,
             source,
             additional_data: additionalData,
             created_at: new Date().toISOString(),
-        }
+        };
 
         try {
-            const { error: supabaseError } = await supabase
-                .from('error_logs')
-                .insert([errorLog])
+            const { error: supabaseError } = await supabase.from('error_logs').insert([errorLog]);
 
             if (supabaseError) {
-                console.warn('Failed to log error to Supabase:', supabaseError)
+                consoleLog('Failed to log error to Supabase:', supabaseError);
             }
         } catch (e) {
-            console.warn('Error while logging to Supabase:', e)
+            consoleLog('Error while logging to Supabase:', e);
         }
     },
 
@@ -51,7 +47,7 @@ export const errorLogService = {
         status?: number,
         attempt?: number,
         responseText?: string,
-        additionalData?: Record<string, any>
+        additionalData?: Record<string, any>,
     ) {
         const requestErrorLog: RequestErrorLog = {
             error_message: message,
@@ -63,30 +59,31 @@ export const errorLogService = {
             source: 'fetchRequest',
             additional_data: additionalData,
             created_at: new Date().toISOString(),
-        }
+        };
 
         try {
             const { error: supabaseError } = await supabase
                 .from('request_error_logs')
-                .insert([requestErrorLog])
+                .insert([requestErrorLog]);
 
             if (supabaseError) {
-                console.warn(
-                    'Failed to log request error to Supabase:',
-                    supabaseError
-                )
+                consoleLog('Failed to log request error to Supabase:', supabaseError);
             }
         } catch (e) {
-            console.warn('Error while logging request error to Supabase:', e)
+            consoleLog('Error while logging request error to Supabase:', e);
         }
     },
     async sendLogs(
         logs: any[],
         userId?: string,
         description?: string,
-        localData?: any
+        localData?: LocalStorageData,
     ) {
-        if (!Array.isArray(logs) || logs.length === 0) return
+        if (!Array.isArray(logs) || logs.length === 0) return;
+        if (localData && localData.autoLoginData) {
+            // Hide sensitive auto login data, preserve presence flag
+            (localData as any).autoLoginData = true;
+        }
         const logRow = {
             user_id: userId || null,
             log: logs,
@@ -94,19 +91,17 @@ export const errorLogService = {
             source: null,
             description: description || null,
             created_at: new Date().toISOString(),
-        }
+        };
         try {
-            const { error: supabaseError } = await supabase
-                .from('logs')
-                .insert([logRow])
+            const { error: supabaseError } = await supabase.from('logs').insert([logRow]);
             if (supabaseError) {
-                console.warn(
+                consoleLog(
                     'Failed to send logs to Supabase:',
-                    JSON.stringify(supabaseError, null, 2)
-                )
+                    JSON.stringify(supabaseError, null, 2),
+                );
             }
         } catch (e) {
-            console.error('Error while sending logs to Supabase:', e)
+            consoleLog('Error while sending logs to Supabase:', e);
         }
     },
-}
+};
