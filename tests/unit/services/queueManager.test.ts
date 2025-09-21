@@ -1,6 +1,6 @@
 import { QueueManager } from '../../../src/services/queueManager';
 import { RetryObject } from '../../../src/types/baltichub';
-import { QueueConfig, QueueEvents } from '../../../src/types/queue';
+import { QueueEvents } from '../../../src/types/queue';
 
 // Mock the existing utilities
 jest.mock('../../../src/utils', () => ({
@@ -27,7 +27,6 @@ describe('QueueManager', () => {
     let mockSetStorage: jest.Mock;
     let mockConsoleLog: jest.Mock;
     let mockConsoleError: jest.Mock;
-    let mockUpdateBadge: jest.Mock;
     let mockClearBadge: jest.Mock;
 
     const mockRetryObject: RetryObject = {
@@ -42,6 +41,7 @@ describe('QueueManager', () => {
         body: undefined,
         headersCache: [],
         timestamp: Date.now(),
+        updated: false, // Add the updated field with default value
     };
 
     beforeEach(() => {
@@ -51,13 +51,12 @@ describe('QueueManager', () => {
         // Get mock functions
         const { getStorage, setStorage } = require('../../../src/utils');
         const { consoleLog, consoleError } = require('../../../src/utils');
-        const { updateBadge, clearBadge } = require('../../../src/utils/badge');
+        const { clearBadge } = require('../../../src/utils/badge');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
         mockConsoleLog = consoleLog;
         mockConsoleError = consoleError;
-        mockUpdateBadge = updateBadge;
         mockClearBadge = clearBadge;
 
         mockAuthService = {
@@ -73,7 +72,13 @@ describe('QueueManager', () => {
             onProcessingError: jest.fn(),
         };
 
+        // Create a fresh QueueManager instance for each test to ensure clean state
         queueManager = new QueueManager(mockAuthService, { storageKey: 'testQueue' }, mockEvents);
+    });
+
+    afterEach(() => {
+        // Ensure processing is always stopped after each test
+        queueManager?.stopProcessing();
     });
 
     describe('addToQueue', () => {
@@ -254,6 +259,83 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             expect(mockEvents.onProcessingError).toHaveBeenCalledWith(expect.any(Error));
+        });
+
+        it('should update queue item when updated flag is true even if status is in-progress', async () => {
+            // Mock processRequest to return item with updated flag set to true
+            mockProcessRequest.mockImplementation(async (req: RetryObject) => ({
+                ...req,
+                status: 'in-progress', // Status stays the same
+                updated: true, // But updated flag is set
+                status_message: 'Updated while in progress',
+            }));
+
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            queueManager.startProcessing(mockProcessRequest, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait for processing to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Verify that updateQueueItem was called even though status is still 'in-progress'
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: 'in-progress',
+                        status_message: 'Updated while in progress',
+                        updated: false, // Should be reset to false after update
+                    }),
+                ]),
+            });
+
+            // Verify that mockProcessRequest was called (indicating processing occurred)
+            expect(mockProcessRequest).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    id: 'test-id-1',
+                    status: 'in-progress',
+                }),
+                expect.any(Array),
+            );
+        });
+
+        it('should reset updated flag to false after updating queue item', async () => {
+            // Mock processRequest to return item with updated flag set to true
+            mockProcessRequest.mockImplementation(async (req: RetryObject) => ({
+                ...req,
+                status: 'success',
+                updated: true,
+                status_message: 'Completed with update',
+            }));
+
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            queueManager.startProcessing(mockProcessRequest, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait for processing to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Verify that updated flag was reset to false in the stored item
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: 'success',
+                        status_message: 'Completed with update',
+                        updated: false, // Should be reset to false
+                    }),
+                ]),
+            });
         });
     });
 

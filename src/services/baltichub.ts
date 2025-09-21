@@ -6,6 +6,7 @@ import {
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper';
+import { notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
@@ -150,17 +151,22 @@ async function executeRequest(
     const parsedResponse = await response.text();
     if (!parsedResponse.includes('error') && response.ok) {
         consoleLog('✅Request retried successfully:', tvAppId, time.join(', '));
-        // Send notification to user
+
+        // Send centralized notifications (Windows + Email)
         try {
-            chrome.notifications.create({
-                type: 'basic',
-                iconUrl: './icon-144x144.png',
-                title: 'Zmiana czasu',
-                message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie - ${time[1].slice(0, 5)}`,
-                priority: 2,
-            });
+            consoleLog('🎉 Booking success! Preparing to send notifications...');
+            const notificationData = {
+                tvAppId,
+                bookingTime: time[1] || new Date().toISOString(),
+                driverName: req.driverName,
+                containerNumber: req.containerNumber,
+            };
+            consoleLog('🎉 Notification data prepared:', notificationData);
+
+            await notificationService.sendBookingSuccessNotifications(notificationData);
+            consoleLog('🎉 Notification process completed');
         } catch (error) {
-            consoleError('Error sending notification:', error);
+            consoleError('❌ Error sending notifications:', error);
         }
 
         return {

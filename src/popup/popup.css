@@ -512,12 +512,16 @@ tr[data-is-open='false'] .status-icon {
     margin-top: var(--spacing-small);
 }
 
-.auto-login-row {
+.auto-login-row,
+.notifications-row {
     display: flex;
     gap: var(--spacing-small);
     align-items: center;
-    margin-top: auto;
     margin-bottom: 8px;
+}
+
+.auto-login-row {
+    margin-top: auto;
 }
 
 .secondary-button {
@@ -729,8 +733,8 @@ tr[data-is-open='false'] .status-icon {
     background-color: var(--color-primary-dark);
 }
 
-/* Auto-Login Button with Text */
-#autoLoginToggle {
+/* Shared styles for toggle buttons */
+.toggle-button {
     display: flex;
     align-items: center;
     gap: var(--spacing-small);
@@ -744,23 +748,35 @@ tr[data-is-open='false'] .status-icon {
     box-shadow: var(--shadow-button);
     font-size: var(--font-size-small);
     margin-left: var(--spacing-medium);
+    width: 140px; /* Fixed width for alignment */
+    justify-content: flex-start;
 }
 
-#autoLoginToggle:hover {
+.toggle-button:hover {
     background-color: var(--color-primary-dark);
     transform: translateY(-1px);
     box-shadow: var(--shadow-hover);
 }
 
-#autoLoginToggle .material-icons {
+.toggle-button .material-icons {
     font-size: 14px;
     color: var(--color-white);
 }
 
-#autoLoginToggle.enabled {
+.toggle-button.enabled {
     background-color: var(--color-success);
 }
 
-#autoLoginToggle.enabled:hover {
+.toggle-button.enabled:hover {
     background-color: #006600;
+}
+
+/* Auto-Login Button with Text */
+#autoLoginToggle {
+    /* Inherits from .toggle-button */
+}
+
+/* Notification Settings Button */
+#notificationSettingsToggle {
+    /* Inherits from .toggle-button */
 }

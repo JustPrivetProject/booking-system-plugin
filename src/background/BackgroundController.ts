@@ -1,7 +1,7 @@
 import { autoLoginService } from '../services/autoLoginService';
 import { QueueManagerAdapter } from '../services/queueManagerAdapter';
-import { consoleLog } from '../utils';
-import { setStorage } from '../utils/storage';
+import { consoleLog, consoleError } from '../utils';
+import { getStorage, setStorage } from '../utils/storage';
 
 import { MessageHandler } from './handlers/MessageHandler';
 import { RequestHandler } from './handlers/RequestHandler';
@@ -33,13 +33,30 @@ export class BackgroundController {
         this.setupEventListeners();
 
         // Services initialized successfully
-
         consoleLog('Background Controller initialized successfully');
     }
 
     private async initializeSettings(): Promise<void> {
         await setStorage({ retryEnabled: true });
         await setStorage({ testEnv: false });
+
+        // Initialize default notification settings if not exist
+        const result = await getStorage('notificationSettings');
+        const { notificationSettings } = result || {};
+        if (!notificationSettings) {
+            const defaultNotificationSettings = {
+                email: {
+                    enabled: false,
+                    userEmail: '',
+                    additionalEmails: [],
+                },
+                windows: {
+                    enabled: true,
+                },
+                createdAt: Date.now(),
+            };
+            await setStorage({ notificationSettings: defaultNotificationSettings });
+        }
     }
 
     private async startQueueProcessing(): Promise<void> {
@@ -79,7 +96,7 @@ export class BackgroundController {
 
         // Migrate auto-login data to fix encoding issues
         autoLoginService.migrateAndCleanData().catch(error => {
-            console.error('[background] Failed to migrate auto-login data:', error);
+            consoleError('[background] Failed to migrate auto-login data:', error);
         });
     }
 }
