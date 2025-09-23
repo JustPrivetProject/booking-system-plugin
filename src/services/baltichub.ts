@@ -79,13 +79,18 @@ export async function getDriverNameAndContainer(
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const containerIdRegex = /"ContainerId":"([^"]+)"/;
-    const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
 
-    if (sameItem) {
-        return {
-            driverName: sameItem.driverName || '',
-            containerNumber: sameItem.containerNumber || '',
-        };
+    // Check if retryQueue is defined and is an array
+    if (!retryQueue || !Array.isArray(retryQueue)) {
+        consoleLog('RetryQueue is undefined or not an array, skipping cache lookup');
+    } else {
+        const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
+        if (sameItem) {
+            return {
+                driverName: sameItem.driverName || '',
+                containerNumber: sameItem.containerNumber || '',
+            };
+        }
     }
 
     const response = await getEditForm(tvAppId);

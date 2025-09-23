@@ -3,7 +3,7 @@
     "name": "Booking System Plugin",
     "version": "2.1.14",
     "description": "Help to booking slot",
-    "permissions": ["storage", "webRequest", "notifications"],
+    "permissions": ["storage", "webRequest", "notifications", "tabs"],
     "host_permissions": ["https://ebrama.baltichub.com/*", "https://*.supabase.co/*"],
     "icons": {
         "16": "128.png",
@@ -25,6 +25,12 @@
         {
             "matches": ["https://*.baltichub.com/*"],
             "js": ["content.js"]
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": ["welcome.html"],
+            "matches": ["<all_urls>"]
         }
     ],
     "content_security_policy": {
