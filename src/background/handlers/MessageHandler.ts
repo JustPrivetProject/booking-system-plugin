@@ -188,7 +188,10 @@ export class MessageHandler {
         const requestBody = normalizeFormData(requestCacheBody.body);
         const tvAppId = requestBody.formData.TvAppId[0];
 
-        const driverAndContainer = (await getDriverNameAndContainer(tvAppId, data.retryQueue)) || {
+        const driverAndContainer = (await getDriverNameAndContainer(
+            tvAppId,
+            data.retryQueue || [],
+        )) || {
             driverName: '',
             containerNumber: '',
         };

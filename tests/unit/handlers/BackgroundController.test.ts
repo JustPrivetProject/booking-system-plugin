@@ -3,8 +3,9 @@ import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import { MessageHandler } from '../../../src/background/handlers/MessageHandler';
 import { RequestHandler } from '../../../src/background/handlers/RequestHandler';
 import { StorageHandler } from '../../../src/background/handlers/StorageHandler';
-import { setStorage } from '../../../src/utils/storage';
-import { consoleLog } from '../../../src/utils';
+import { setStorage, getStorage } from '../../../src/utils/storage';
+import { consoleLog, consoleError } from '../../../src/utils';
+import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 
 // Mock dependencies
@@ -14,6 +15,9 @@ jest.mock('../../../src/background/handlers/RequestHandler');
 jest.mock('../../../src/background/handlers/StorageHandler');
 jest.mock('../../../src/utils/storage');
 jest.mock('../../../src/utils');
+jest.mock('../../../src/utils/badge', () => ({
+    clearBadge: jest.fn(),
+}));
 jest.mock('../../../src/services/autoLoginService', () => ({
     autoLoginService: {
         migrateAndCleanData: jest.fn(() => Promise.resolve()),
@@ -83,6 +87,7 @@ describe('BackgroundController', () => {
     describe('initialize', () => {
         it('should initialize successfully', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getStorage as jest.Mock).mockResolvedValue({});
 
             await backgroundController.initialize();
 
@@ -112,6 +117,7 @@ describe('BackgroundController', () => {
     describe('initializeSettings', () => {
         it('should set default settings', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getStorage as jest.Mock).mockResolvedValue({});
 
             await backgroundController['initializeSettings']();
 
@@ -170,18 +176,15 @@ describe('BackgroundController', () => {
     });
 
     describe('handleInstallation', () => {
-        it('should open welcome page on install', () => {
+        it('should not open welcome page on install (handled by checkIfFreshInstall)', () => {
             const details = {
                 reason: 'install',
             } as chrome.runtime.InstalledDetails;
-            (chrome.runtime.getURL as jest.Mock).mockReturnValue('chrome-extension://welcome.html');
 
             backgroundController['handleInstallation'](details);
 
-            expect(chrome.runtime.getURL).toHaveBeenCalledWith('welcome.html');
-            expect(chrome.tabs.create).toHaveBeenCalledWith({
-                url: 'chrome-extension://welcome.html',
-            });
+            expect(chrome.runtime.getURL).not.toHaveBeenCalledWith('welcome.html');
+            expect(chrome.tabs.create).not.toHaveBeenCalled();
         });
 
         it('should not open welcome page on update', () => {
@@ -215,11 +218,124 @@ describe('BackgroundController', () => {
             // Should not throw error
             expect(() => backgroundController['handleInstallation'](details)).not.toThrow();
         });
+
+        it('should log installation and clear badge', () => {
+            const details = {
+                reason: 'install',
+            } as chrome.runtime.InstalledDetails;
+
+            backgroundController['handleInstallation'](details);
+
+            expect(consoleLog).toHaveBeenCalledWith('Plugin installed!');
+            expect(clearBadge).toHaveBeenCalled();
+        });
+    });
+
+    describe('initializeDefaultStorageValues', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+        });
+
+        it('should initialize all default storage values', async () => {
+            // Mock empty storage
+            (getStorage as jest.Mock).mockResolvedValue({});
+
+            await backgroundController['initializeDefaultStorageValues']();
+
+            // Check that all default values are set
+            expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
+            expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
+            expect(setStorage).toHaveBeenCalledWith({ unauthorized: false });
+            expect(setStorage).toHaveBeenCalledWith({ headerHidden: false });
+            expect(setStorage).toHaveBeenCalledWith({ tableData: [] });
+            expect(setStorage).toHaveBeenCalledWith({ retryQueue: [] });
+            expect(setStorage).toHaveBeenCalledWith({ groupStates: {} });
+            expect(setStorage).toHaveBeenCalledWith({ requestCacheBody: {} });
+            expect(setStorage).toHaveBeenCalledWith({ requestCacheHeaders: {} });
+        });
+
+        it('should initialize notification settings with defaults', async () => {
+            (getStorage as jest.Mock).mockResolvedValue({});
+
+            await backgroundController['initializeDefaultStorageValues']();
+
+            expect(setStorage).toHaveBeenCalledWith({
+                notificationSettings: {
+                    email: {
+                        enabled: false,
+                        userEmail: '',
+                        additionalEmails: [],
+                    },
+                    windows: {
+                        enabled: true,
+                    },
+                    createdAt: expect.any(Number),
+                },
+            });
+        });
+
+        it('should not override existing values', async () => {
+            const existingData = {
+                notificationSettings: { email: { enabled: true } },
+                tableData: [['existing', 'data']],
+            };
+            (getStorage as jest.Mock).mockResolvedValue(existingData);
+
+            await backgroundController['initializeDefaultStorageValues']();
+
+            // Should not set existing values
+            expect(setStorage).not.toHaveBeenCalledWith(
+                expect.objectContaining({ notificationSettings: expect.any(Object) }),
+            );
+            expect(setStorage).not.toHaveBeenCalledWith(
+                expect.objectContaining({ tableData: expect.any(Array) }),
+            );
+        });
+    });
+
+    describe('checkIfFreshInstall', () => {
+        beforeEach(() => {
+            jest.clearAllMocks();
+        });
+
+        it('should show welcome page if welcomeShown is not set', async () => {
+            (getStorage as jest.Mock).mockResolvedValue({});
+            (chrome.runtime.getURL as jest.Mock).mockReturnValue('chrome-extension://welcome.html');
+
+            await backgroundController['checkIfFreshInstall']();
+
+            expect(chrome.runtime.getURL).toHaveBeenCalledWith('welcome.html');
+            expect(chrome.tabs.create).toHaveBeenCalledWith({
+                url: 'chrome-extension://welcome.html',
+            });
+            expect(setStorage).toHaveBeenCalledWith({ welcomeShown: true });
+        });
+
+        it('should not show welcome page if welcomeShown is already true', async () => {
+            (getStorage as jest.Mock).mockResolvedValue({ welcomeShown: true });
+
+            await backgroundController['checkIfFreshInstall']();
+
+            expect(chrome.tabs.create).not.toHaveBeenCalled();
+            expect(setStorage).not.toHaveBeenCalledWith({ welcomeShown: true });
+        });
+
+        it('should handle errors gracefully', async () => {
+            const error = new Error('Storage error');
+            (getStorage as jest.Mock).mockRejectedValue(error);
+
+            await expect(backgroundController['checkIfFreshInstall']()).resolves.not.toThrow();
+            expect(consoleError).toHaveBeenCalledWith(
+                '[background] Error checking fresh install:',
+                error,
+            );
+        });
     });
 
     describe('integration', () => {
         it('should handle complete initialization flow', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getStorage as jest.Mock).mockResolvedValue({});
 
             await backgroundController.initialize();
 
@@ -279,6 +395,7 @@ describe('BackgroundController', () => {
 
         it('should handle queue manager errors during initialization', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getStorage as jest.Mock).mockResolvedValue({});
             const error = new Error('Queue error');
             mockQueueManager.startProcessing.mockRejectedValue(error);
 
@@ -292,6 +409,7 @@ describe('BackgroundController', () => {
 
         it('should handle handler initialization errors', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getStorage as jest.Mock).mockResolvedValue({});
             mockQueueManager.startProcessing.mockResolvedValue(undefined);
             const error = new Error('Handler error');
             mockRequestHandler.setupRequestListeners.mockImplementation(() => {
