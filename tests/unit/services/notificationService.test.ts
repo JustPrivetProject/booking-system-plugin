@@ -4,12 +4,12 @@ import {
     BookingNotificationData,
 } from '../../../src/services/notificationService';
 import { authService } from '../../../src/services/authService';
-import { brevoEmailService } from '../../../src/services/brevoEmailService';
+import { brevoEmailService } from '../../../src/services/brevo/brevoEmailService';
 import { notificationSettingsService } from '../../../src/services/notificationSettingsService';
 
 // Mock dependencies
 jest.mock('../../../src/services/authService');
-jest.mock('../../../src/services/brevoEmailService');
+jest.mock('../../../src/services/brevo/brevoEmailService');
 jest.mock('../../../src/services/notificationSettingsService');
 jest.mock('../../../src/utils/index', () => ({
     consoleLog: jest.fn(),
@@ -42,7 +42,7 @@ describe('NotificationService', () => {
         it('should send both Windows and email notifications when enabled', async () => {
             mockNotificationSettingsService.isWindowsNotificationEnabled.mockResolvedValue(true);
             mockNotificationSettingsService.isEmailNotificationEnabled.mockResolvedValue(true);
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
             ]);
             mockAuthService.getCurrentUser.mockResolvedValue({
@@ -175,7 +175,7 @@ describe('NotificationService', () => {
         });
 
         it('should send email with correct data structure', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
                 'manager@example.com',
             ]);
@@ -187,14 +187,16 @@ describe('NotificationService', () => {
                 emails: ['user@example.com', 'manager@example.com'],
                 userName: 'user',
                 tvAppId: 'TV123456',
-                bookingTime: expect.stringContaining('2024'),
+                bookingTime: expect.stringMatching(/^\d{2}\.\d{2} \d{2}:\d{2}$/),
+                newTime: expect.stringMatching(/^\d{2}\.\d{2} \d{2}:\d{2}$/),
+                oldTime: undefined,
                 driverName: 'Test Driver',
                 containerNumber: 'CONT123',
             });
         });
 
         it('should skip email when no email addresses configured', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([]);
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([]);
 
             await service.sendBookingSuccessNotifications(mockBookingData);
 
@@ -202,7 +204,7 @@ describe('NotificationService', () => {
         });
 
         it('should format booking time for email correctly', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
             ]);
             mockBrevoEmailService.sendBookingConfirmationEmail.mockResolvedValue(true);
@@ -213,11 +215,11 @@ describe('NotificationService', () => {
             });
 
             const callArgs = mockBrevoEmailService.sendBookingConfirmationEmail.mock.calls[0][0];
-            expect(callArgs.bookingTime).toMatch(/\d{1,2} \w+ \d{4} \d{2}:\d{2}/);
+            expect(callArgs.bookingTime).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}$/);
         });
 
         it('should handle invalid booking time for email', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
             ]);
             mockBrevoEmailService.sendBookingConfirmationEmail.mockResolvedValue(true);
@@ -232,7 +234,7 @@ describe('NotificationService', () => {
         });
 
         it('should use fallback username when user not found', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
             ]);
             mockAuthService.getCurrentUser.mockResolvedValue(null);
@@ -245,7 +247,7 @@ describe('NotificationService', () => {
         });
 
         it('should handle email sending failure gracefully', async () => {
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'user@example.com',
             ]);
             mockBrevoEmailService.sendBookingConfirmationEmail.mockResolvedValue(false);
@@ -261,7 +263,7 @@ describe('NotificationService', () => {
         it('should send test notifications with test data', async () => {
             mockNotificationSettingsService.isWindowsNotificationEnabled.mockResolvedValue(true);
             mockNotificationSettingsService.isEmailNotificationEnabled.mockResolvedValue(true);
-            mockNotificationSettingsService.getAllEmailAddresses.mockResolvedValue([
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
                 'test@example.com',
             ]);
             mockAuthService.getCurrentUser.mockResolvedValue({

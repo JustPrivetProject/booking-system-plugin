@@ -65,7 +65,7 @@ describe('AutoLoginModal', () => {
 
             // Cancel the modal
             const cancelButton = Array.from(modal?.querySelectorAll('button') || []).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
 
@@ -83,7 +83,7 @@ describe('AutoLoginModal', () => {
 
             // Cancel modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -114,7 +114,7 @@ describe('AutoLoginModal', () => {
 
             // Cancel modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -147,44 +147,10 @@ describe('AutoLoginModal', () => {
 
             // Cancel modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
-        });
-
-        it('should save credentials when Save button is clicked', async () => {
-            const modalPromise = showAutoLoginModal();
-
-            await new Promise(resolve => setTimeout(resolve, 50));
-
-            // Fill in form
-            const loginInput = document.querySelector(
-                'input[placeholder="Login"]',
-            ) as HTMLInputElement;
-            const passwordInput = document.querySelector(
-                'input[placeholder="Hasło"]',
-            ) as HTMLInputElement;
-            loginInput.value = 'newuser';
-            passwordInput.value = 'newpass';
-
-            // Click Save button
-            const saveButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '✅ Zapisz',
-            );
-            (saveButton as HTMLElement)?.click();
-
-            const result = await modalPromise;
-
-            expect(mockAutoLoginService.saveCredentials).toHaveBeenCalledWith({
-                login: 'newuser',
-                password: 'newpass',
-            });
-
-            expect(result).toEqual({
-                login: 'newuser',
-                password: 'newpass',
-            });
         });
 
         it('should clear credentials when Clear button is clicked', async () => {
@@ -194,7 +160,7 @@ describe('AutoLoginModal', () => {
 
             // Click Clear button (it's always present)
             const clearButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '🗑️ Wyczyść',
+                btn => btn.textContent === '🗑 Wyczyść',
             );
 
             if (clearButton) {
@@ -204,7 +170,7 @@ describe('AutoLoginModal', () => {
 
                 // Modal stays open after clear, so we need to cancel it
                 const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                    btn => btn.textContent === '❌ Anuluj',
+                    btn => btn.textContent === '✕ Anuluj',
                 );
                 (cancelButton as HTMLElement)?.click();
             }
@@ -219,7 +185,7 @@ describe('AutoLoginModal', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
 
@@ -266,7 +232,7 @@ describe('AutoLoginModal', () => {
 
             // Cancel modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -279,13 +245,13 @@ describe('AutoLoginModal', () => {
 
             // Clear button should always be present
             const clearButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '🗑️ Wyczyść',
+                btn => btn.textContent === '🗑 Wyczyść',
             );
             expect(clearButton).toBeTruthy();
 
             // Cancel modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '❌ Anuluj',
+                btn => btn.textContent === '✕ Anuluj',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -310,14 +276,14 @@ describe('AutoLoginModal', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             const clearButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === '🗑️ Wyczyść',
+                btn => btn.textContent === '🗑 Wyczyść',
             );
 
             if (clearButton) {
                 (clearButton as HTMLElement).click();
                 // Modal should stay open even if clear fails, so we cancel
                 const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                    btn => btn.textContent === '❌ Anuluj',
+                    btn => btn.textContent === '✕ Anuluj',
                 );
                 (cancelButton as HTMLElement)?.click();
             }

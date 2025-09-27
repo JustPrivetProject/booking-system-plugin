@@ -6,7 +6,7 @@ import {
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper';
-import { notificationService } from './notificationService';
+import { BookingNotificationData, notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
@@ -79,13 +79,18 @@ export async function getDriverNameAndContainer(
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const containerIdRegex = /"ContainerId":"([^"]+)"/;
-    const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
 
-    if (sameItem) {
-        return {
-            driverName: sameItem.driverName || '',
-            containerNumber: sameItem.containerNumber || '',
-        };
+    // Check if retryQueue is defined and is an array
+    if (!retryQueue || !Array.isArray(retryQueue)) {
+        consoleLog('RetryQueue is undefined or not an array, skipping cache lookup');
+    } else {
+        const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
+        if (sameItem) {
+            return {
+                driverName: sameItem.driverName || '',
+                containerNumber: sameItem.containerNumber || '',
+            };
+        }
     }
 
     const response = await getEditForm(tvAppId);
@@ -155,9 +160,10 @@ async function executeRequest(
         // Send centralized notifications (Windows + Email)
         try {
             consoleLog('🎉 Booking success! Preparing to send notifications...');
-            const notificationData = {
+            const notificationData: BookingNotificationData = {
                 tvAppId,
-                bookingTime: time[1] || new Date().toISOString(),
+                bookingTime: time[1] || new Date().toISOString(), // newTime
+                oldTime: req.currentSlot, // oldTime from currentSlot
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };

@@ -33,3 +33,33 @@ export function formatDateToDMY(date: Date = new Date()): string {
 export function getTodayFormatted(): string {
     return formatDateToDMY(new Date());
 }
+
+/**
+ * Formats a date/time string to DD.MM HH:MM format for email subjects
+ * @param timeStr Date string in various formats (ISO, DD.MM.YYYY HH:mm, etc.)
+ * @returns Formatted time string, e.g. "23.09 18:00"
+ */
+export function formatTimeForEmail(timeStr: string): string {
+    if (!timeStr) return '';
+
+    try {
+        const date = new Date(timeStr);
+        if (!isNaN(date.getTime())) {
+            // Format as DD.MM HH:MM (e.g., "23.09 18:00")
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${day}.${month} ${hours}:${minutes}`;
+        }
+    } catch (error) {
+        // Fallback to original logic for simple time strings
+    }
+
+    // If time is in ISO format, extract only time part
+    if (timeStr.includes('T')) {
+        return timeStr.split('T')[1]?.substring(0, 5) || timeStr;
+    }
+
+    return timeStr;
+}
