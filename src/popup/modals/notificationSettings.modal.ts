@@ -1,7 +1,5 @@
 import type { NotificationSettings } from '../../types/general';
 import { notificationSettingsService } from '../../services/notificationSettingsService';
-import { notificationService } from '../../services/notificationService';
-import { consoleLog } from '../../utils';
 
 export interface NotificationSettingsResult {
     email: {
@@ -131,20 +129,6 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
         emailNote.style.color = '#666';
         emailNote.style.margin = '5px 0 10px 0';
 
-        // Test email button
-        const testEmailButton = document.createElement('button');
-        testEmailButton.textContent = 'Wyślij test e-mail';
-        testEmailButton.type = 'button';
-        testEmailButton.style.marginTop = '10px';
-        testEmailButton.style.padding = '8px 16px';
-        testEmailButton.style.backgroundColor = '#28a745';
-        testEmailButton.style.color = 'white';
-        testEmailButton.style.border = 'none';
-        testEmailButton.style.borderRadius = '4px';
-        testEmailButton.style.fontSize = '12px';
-        testEmailButton.style.cursor = 'pointer';
-        testEmailButton.style.display = 'none'; // Initially hidden
-
         // Status message container
         const statusMessage = document.createElement('div');
         statusMessage.style.marginTop = '10px';
@@ -158,7 +142,6 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
         emailSection.appendChild(emailCheckboxContainer);
         emailSection.appendChild(emailInput);
         emailSection.appendChild(emailNote);
-        emailSection.appendChild(testEmailButton);
         emailSection.appendChild(statusMessage);
 
         // Windows notifications section
@@ -264,51 +247,12 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
         modalContent.appendChild(windowsSection);
         modalContent.appendChild(buttonContainer);
 
-        // Test email button functionality
-        testEmailButton.addEventListener('click', async () => {
-            const userEmail = emailInput.value.trim();
-            if (!userEmail || !isValidEmail(userEmail)) {
-                showStatusMessage(
-                    '❌ Proszę wprowadzić prawidłowy adres e-mail przed wysłaniem testu.',
-                    false,
-                );
-                return;
-            }
-
-            try {
-                consoleLog('🧪 Sending test email notification...');
-                showStatusMessage('📧 Wysyłanie testowego e-mail...', true);
-
-                // Send test notification
-                await notificationService.sendBookingSuccessNotifications({
-                    tvAppId: 'TEST-12345',
-                    bookingTime: new Date().toISOString(),
-                    oldTime: '2025-01-23 18:00',
-                    driverName: 'TEST DRIVER',
-                    containerNumber: 'TEST1234567',
-                });
-
-                showStatusMessage(
-                    '✅ Test e-mail został wysłany! Sprawdź swoją skrzynkę odbiorczą.',
-                    true,
-                );
-            } catch (error) {
-                console.error('Error sending test email:', error);
-                showStatusMessage(
-                    '❌ Błąd podczas wysyłania test e-mail. Sprawdź konfigurację.',
-                    false,
-                );
-            }
-        });
-
         // Load existing settings
         notificationSettingsService.loadSettings().then(settings => {
             emailCheckbox.checked = settings.email.enabled;
             emailInput.value = settings.email.userEmail;
             windowsCheckbox.checked = settings.windows.enabled;
 
-            // Show/hide test button based on email checkbox
-            updateTestButtonVisibility();
             updateEmailInputState();
         });
 
@@ -321,17 +265,9 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
             } else {
                 emailInput.style.backgroundColor = 'white';
             }
-            updateTestButtonVisibility();
-        }
-
-        function updateTestButtonVisibility() {
-            const hasValidEmail = emailInput.value.trim() && isValidEmail(emailInput.value.trim());
-            testEmailButton.style.display =
-                emailCheckbox.checked && hasValidEmail ? 'block' : 'none';
         }
 
         emailCheckbox.addEventListener('change', updateEmailInputState);
-        emailInput.addEventListener('input', updateTestButtonVisibility);
 
         // Save button handler
         saveButton.addEventListener('click', async () => {
