@@ -6,7 +6,7 @@ import {
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper';
-import { notificationService } from './notificationService';
+import { BookingNotificationData, notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
@@ -160,9 +160,10 @@ async function executeRequest(
         // Send centralized notifications (Windows + Email)
         try {
             consoleLog('🎉 Booking success! Preparing to send notifications...');
-            const notificationData = {
+            const notificationData: BookingNotificationData = {
                 tvAppId,
-                bookingTime: time[1] || new Date().toISOString(),
+                bookingTime: time[1] || new Date().toISOString(), // newTime
+                oldTime: req.currentSlot, // oldTime from currentSlot
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };

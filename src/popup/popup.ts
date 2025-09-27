@@ -490,11 +490,7 @@ async function updateNotificationButtonState() {
                 }
 
                 if (summary.emailEnabled && summary.hasValidEmail) {
-                    const emailInfo =
-                        summary.totalValidEmails > 1
-                            ? `Email (${summary.totalValidEmails} adresy)`
-                            : `Email (${summary.userEmail})`;
-                    enabledTypes.push(emailInfo);
+                    enabledTypes.push(`Email (${summary.userEmail})`);
                 }
 
                 title = `Powiadomienia: ${enabledTypes.join(', ')}`;

@@ -104,14 +104,16 @@ describe('HTTP Functions', () => {
         it('should handle network errors', async () => {
             (global as any).fetch.mockRejectedValue(new Error('Network error'));
 
-            const result = await fetchRequest('https://api.test.com');
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 1, baseDelay: 10, maxDelay: 100 },
+            });
 
             expect(result.ok).toBe(false);
             if (!result.ok && 'error' in result) {
                 expect(result.error.type).toBe('NETWORK');
                 expect(result.error.message).toContain('Network error');
             }
-        });
+        }, 2000);
 
         it('should handle HTTP 404 errors', async () => {
             const mockResponse = {
@@ -198,7 +200,7 @@ describe('HTTP Functions', () => {
                 retryConfig: { maxAttempts: 2, baseDelay: 10, maxDelay: 100 },
             });
 
-            // Should be called multiple times due to retries
+            // Should be called 2 times: 1 initial + 1 retry (maxAttempts = 2)
             expect((global as any).fetch).toHaveBeenCalledTimes(2);
             expect(result.ok).toBe(false);
         });

@@ -1,12 +1,15 @@
 import type { BrevoEmailData } from '../types/general';
 import { authService } from './authService';
-import { brevoEmailService } from './brevoEmailService';
+import { brevoEmailService } from './brevo';
 import { notificationSettingsService } from './notificationSettingsService';
 import { consoleLog, consoleError } from '../utils/index';
+import { formatTimeForEmail } from '../utils/date-utils';
 
 export interface BookingNotificationData {
     tvAppId: string;
     bookingTime: string;
+    oldTime?: string; // Старое время для более информативной темы
+    newTime?: string; // Новое время для более информативной темы
     driverName?: string;
     containerNumber?: string;
 }
@@ -74,8 +77,8 @@ export class NotificationService {
                 return;
             }
 
-            // Get all email addresses for notifications (primary + additional)
-            const emailAddresses = await notificationSettingsService.getAllEmailAddresses();
+            // Get user email address for notifications
+            const emailAddresses = await notificationSettingsService.getUserEmailForNotifications();
             if (emailAddresses.length === 0) {
                 return;
             }
@@ -90,7 +93,9 @@ export class NotificationService {
                 emails: emailAddresses,
                 userName: currentUser?.email.split('@')[0] || 'Użytkownik',
                 tvAppId: data.tvAppId,
-                bookingTime: bookingTime,
+                bookingTime: bookingTime, // newTime (formatted)
+                oldTime: data.oldTime ? this.formatBookingTimeForEmail(data.oldTime) : undefined,
+                newTime: bookingTime, // newTime is the same as bookingTime
                 driverName: data.driverName,
                 containerNumber: data.containerNumber,
             };
@@ -141,32 +146,11 @@ export class NotificationService {
 
     /**
      * Format booking time for email display
-     * (Full date and time in Polish format)
+     * (Short format DD.MM HH:MM)
+     * Supports formats: ISO strings, "2025-07-30 19:00", etc.
      */
     private formatBookingTimeForEmail(timeSlot: string): string {
-        if (!timeSlot) {
-            return new Date().toLocaleString('pl-PL');
-        }
-
-        try {
-            // Try to parse and format the time slot
-            // Assuming timeSlot is in format like "2024-01-15 10:30"
-            const date = new Date(timeSlot);
-            if (!isNaN(date.getTime())) {
-                return date.toLocaleString('pl-PL', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                });
-            }
-        } catch (error) {
-            consoleLog('Error parsing booking time for email:', error);
-        }
-
-        // Fallback to original time slot or current time
-        return timeSlot || new Date().toLocaleString('pl-PL');
+        return formatTimeForEmail(timeSlot);
     }
 
     /**
