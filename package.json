@@ -1,6 +1,6 @@
 {
     "name": "booking-system-plugin",
-    "version": "2.1.15",
+    "version": "2.1.16",
     "description": "",
     "main": "index.js",
     "scripts": {
@@ -23,6 +23,11 @@
         "dev": "webpack --watch --mode=development",
         "zip": "npm run build && powershell Compress-Archive -Path dist/* -DestinationPath extension.zip -Force",
         "zip:dev": "npm run build:dev && powershell Compress-Archive -Path dist/* -DestinationPath extension-dev.zip -Force",
+        "version:patch": "npm version patch && npm run update-manifests",
+        "version:minor": "npm version minor && npm run update-manifests",
+        "version:major": "npm version major && npm run update-manifests",
+        "version:auto": "npm run update-manifests && git add . && git commit -m \"chore: bump version to $(node -p \"require('./package.json').version\")\"",
+        "update-manifests": "node scripts/update-version.js",
         "prepare": "husky"
     },
     "author": "Ilya Murashka",

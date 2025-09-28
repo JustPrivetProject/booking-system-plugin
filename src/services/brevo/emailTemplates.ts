@@ -20,8 +20,6 @@ export class EmailTemplates {
         const currentYear = new Date().getFullYear();
 
         const displayTime = this.formatTime(emailData.bookingTime);
-        const displayOldTime = emailData.oldTime ? this.formatTime(emailData.oldTime) : '';
-        const displayNewTime = emailData.newTime ? this.formatTime(emailData.newTime) : '';
 
         return `<!DOCTYPE html>
 <html lang="pl">
@@ -75,23 +73,7 @@ export class EmailTemplates {
           </tr>`
                   : ''
           }
-          ${
-              displayOldTime && displayNewTime
-                  ? `<tr>
-            <td style="padding:12px; background:#f8f9fa; font-weight:bold;">Zmiana czasu</td>
-            <td style="padding:12px; background:#ffffff;">${displayOldTime} → ${displayNewTime}</td>
-          </tr>`
-                  : ''
-          }
         </table>
-
-        <p style="margin-top:30px;">Dziękujemy za skorzystanie z <strong>Port-Sloty</strong> – 
-        życzymy spokojnej podróży i udanego załadunku! 🚢</p>
-
-        <p style="margin-top:20px; font-size:14px; color:#666;">
-          Jeśli masz pytania, skontaktuj się z nami: 
-          <a href="mailto:support@portsloty.com" style="color:#003049;">support@portsloty.com</a>
-        </p>
       </td>
     </tr>
     
@@ -114,8 +96,6 @@ export class EmailTemplates {
         const currentYear = new Date().getFullYear();
 
         const displayTime = this.formatTime(emailData.bookingTime);
-        const displayOldTime = emailData.oldTime ? this.formatTime(emailData.oldTime) : '';
-        const displayNewTime = emailData.newTime ? this.formatTime(emailData.newTime) : '';
 
         return `Port-Sloty
 Potwierdzenie rezerwacji
@@ -135,11 +115,6 @@ Kierowca: ${emailData.driverName}`
             emailData.containerNumber
                 ? `
 Numer kontenera: ${emailData.containerNumber}`
-                : ''
-        }${
-            displayOldTime && displayNewTime
-                ? `
-Zmiana czasu: ${displayOldTime} → ${displayNewTime}`
                 : ''
         }
 
