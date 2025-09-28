@@ -7,15 +7,15 @@ import {
 
 describe('date-utils', () => {
     describe('formatTimeForEmail', () => {
-        it('should format ISO time string to DD.MM HH:MM format', () => {
+        it('should format ISO time string to HH:MM format', () => {
             const result = formatTimeForEmail('2024-01-15T19:00:00Z');
             // Note: This will be converted to local time, so we check the format instead of exact time
-            expect(result).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}$/);
+            expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
 
-        it('should format date string to DD.MM HH:MM format', () => {
+        it('should format date string to HH:MM format', () => {
             const result = formatTimeForEmail('2024-01-15 19:00:00');
-            expect(result).toBe('15.01 19:00');
+            expect(result).toBe('19:00');
         });
 
         it('should return time string as-is if not parseable date', () => {
@@ -30,18 +30,18 @@ describe('date-utils', () => {
 
         it('should handle partial ISO strings', () => {
             const result = formatTimeForEmail('2024-01-15T19:00');
-            expect(result).toBe('15.01 19:00');
+            expect(result).toBe('19:00');
         });
 
         it('should handle currentSlot format', () => {
             const result = formatTimeForEmail('2025-07-30 18:00');
-            expect(result).toBe('30.07 18:00');
+            expect(result).toBe('18:00');
         });
 
         it('should handle different time zones', () => {
             const result = formatTimeForEmail('2024-12-25T23:59:59.999Z');
             // Note: This will be converted to local time, so we check the format instead of exact time
-            expect(result).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}$/);
+            expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
     });
 

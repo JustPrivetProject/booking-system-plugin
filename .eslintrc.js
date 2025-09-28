@@ -68,6 +68,17 @@ module.exports = {
                 'no-console': 'off',
             },
         },
+        {
+            // Scripts files
+            files: ['scripts/**/*.js'],
+            env: {
+                node: true,
+            },
+            rules: {
+                '@typescript-eslint/no-var-requires': 'off',
+                'no-console': 'off',
+            },
+        },
     ],
     ignorePatterns: [
         'dist/',

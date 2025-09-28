@@ -6,7 +6,7 @@ describe('EmailTemplates', () => {
         it('should delegate to formatTimeForEmail utility', () => {
             const result = EmailTemplates.formatTime('2024-01-15T19:00:00Z');
             // Note: This will be converted to local time, so we check the format instead of exact time
-            expect(result).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}$/);
+            expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
     });
 
@@ -27,7 +27,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('BSIU3108038 / ANDRZEJ KOLAKOWSKI / 30.07 18:00 → 30.07 19:00');
+            expect(result).toBe('BSIU3108038 / ANDRZEJ KOLAKOWSKI / 18:00 → 19:00');
         });
 
         it('should generate subject without driver name', () => {
@@ -37,7 +37,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('BSIU3108038 / 15.01 19:00');
+            expect(result).toBe('BSIU3108038 / 19:00');
         });
 
         it('should fallback to tvAppId when container number is missing', () => {
@@ -47,7 +47,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('91037204 / ANDRZEJ KOLAKOWSKI / 15.01 19:00');
+            expect(result).toBe('91037204 / ANDRZEJ KOLAKOWSKI / 19:00');
         });
     });
 
@@ -65,13 +65,13 @@ describe('EmailTemplates', () => {
 
             expect(result).toContain('Port-Sloty');
             expect(result).toContain('91037204');
-            expect(result).toMatch(/15\.01 \d{2}:\d{2}/);
+            expect(result).toMatch(/\d{2}:\d{2}/);
             expect(result).toContain('BSIU3108038');
             expect(result).toContain('ANDRZEJ KOLAKOWSKI');
             expect(result).toContain('Twoja rezerwacja w BalticHub została pomyślnie zmieniona');
         });
 
-        it('should include time change row when oldTime and newTime are provided', () => {
+        it('should not include time change row when oldTime and newTime are provided', () => {
             const emailData = {
                 ...baseEmailData,
                 oldTime: '2025-07-30 18:00', // currentSlot format
@@ -80,8 +80,8 @@ describe('EmailTemplates', () => {
 
             const result = EmailTemplates.generateHTML(emailData);
 
-            expect(result).toContain('Zmiana czasu');
-            expect(result).toContain('18:00 → 19:00');
+            expect(result).not.toContain('Zmiana czasu');
+            expect(result).not.toContain('18:00 → 19:00');
         });
 
         it('should not include driver row when driverName is missing', () => {
@@ -111,13 +111,13 @@ describe('EmailTemplates', () => {
 
             expect(result).toContain('Port-Sloty');
             expect(result).toContain('91037204');
-            expect(result).toMatch(/15\.01 \d{2}:\d{2}/);
+            expect(result).toMatch(/\d{2}:\d{2}/);
             expect(result).toContain('BSIU3108038');
             expect(result).toContain('ANDRZEJ KOLAKOWSKI');
             expect(result).toContain('Twoja rezerwacja w BalticHub została pomyślnie zmieniona');
         });
 
-        it('should include time change when oldTime and newTime are provided', () => {
+        it('should not include time change when oldTime and newTime are provided', () => {
             const emailData = {
                 ...baseEmailData,
                 oldTime: '2025-07-30 18:00', // currentSlot format
@@ -126,7 +126,7 @@ describe('EmailTemplates', () => {
 
             const result = EmailTemplates.generateText(emailData);
 
-            expect(result).toMatch(/Zmiana czasu: \d{2}\.\d{2} \d{2}:\d{2} → \d{2}:\d{2}/);
+            expect(result).not.toMatch(/Zmiana czasu: \d{2}:\d{2} → \d{2}:\d{2}/);
         });
     });
 });

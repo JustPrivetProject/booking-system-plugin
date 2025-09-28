@@ -35,9 +35,9 @@ export function getTodayFormatted(): string {
 }
 
 /**
- * Formats a date/time string to DD.MM HH:MM format for email subjects
+ * Formats a date/time string to HH:MM format for email subjects
  * @param timeStr Date string in various formats (ISO, DD.MM.YYYY HH:mm, etc.)
- * @returns Formatted time string, e.g. "23.09 18:00"
+ * @returns Formatted time string, e.g. "18:00"
  */
 export function formatTimeForEmail(timeStr: string): string {
     if (!timeStr) return '';
@@ -45,12 +45,10 @@ export function formatTimeForEmail(timeStr: string): string {
     try {
         const date = new Date(timeStr);
         if (!isNaN(date.getTime())) {
-            // Format as DD.MM HH:MM (e.g., "23.09 18:00")
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
+            // Format as HH:MM (e.g., "18:00")
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
-            return `${day}.${month} ${hours}:${minutes}`;
+            return `${hours}:${minutes}`;
         }
     } catch (error) {
         // Fallback to original logic for simple time strings
@@ -59,6 +57,11 @@ export function formatTimeForEmail(timeStr: string): string {
     // If time is in ISO format, extract only time part
     if (timeStr.includes('T')) {
         return timeStr.split('T')[1]?.substring(0, 5) || timeStr;
+    }
+
+    // If it's already in HH:MM format, return as is
+    if (timeStr.match(/^\d{1,2}:\d{2}$/)) {
+        return timeStr;
     }
 
     return timeStr;

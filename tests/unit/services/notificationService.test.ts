@@ -187,8 +187,8 @@ describe('NotificationService', () => {
                 emails: ['user@example.com', 'manager@example.com'],
                 userName: 'user',
                 tvAppId: 'TV123456',
-                bookingTime: expect.stringMatching(/^\d{2}\.\d{2} \d{2}:\d{2}$/),
-                newTime: expect.stringMatching(/^\d{2}\.\d{2} \d{2}:\d{2}$/),
+                bookingTime: expect.stringMatching(/^\d{2}:\d{2}$/),
+                newTime: expect.stringMatching(/^\d{2}:\d{2}$/),
                 oldTime: undefined,
                 driverName: 'Test Driver',
                 containerNumber: 'CONT123',
@@ -215,7 +215,7 @@ describe('NotificationService', () => {
             });
 
             const callArgs = mockBrevoEmailService.sendBookingConfirmationEmail.mock.calls[0][0];
-            expect(callArgs.bookingTime).toMatch(/^\d{2}\.\d{2} \d{2}:\d{2}$/);
+            expect(callArgs.bookingTime).toMatch(/^\d{2}:\d{2}$/);
         });
 
         it('should handle invalid booking time for email', async () => {
