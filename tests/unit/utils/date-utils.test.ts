@@ -43,6 +43,21 @@ describe('date-utils', () => {
             // Note: This will be converted to local time, so we check the format instead of exact time
             expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
+
+        it('should remove seconds from HH:MM:SS format', () => {
+            const result = formatTimeForEmail('20:00:00');
+            expect(result).toBe('20:00');
+        });
+
+        it('should handle date-time string with seconds', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should handle date-time string without seconds', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00');
+            expect(result).toBe('18:00');
+        });
     });
 
     describe('formatDateToDMY', () => {
