@@ -42,6 +42,16 @@ export function getTodayFormatted(): string {
 export function formatTimeForEmail(timeStr: string): string {
     if (!timeStr) return '';
 
+    // If it's already in HH:MM format, return as is
+    if (timeStr.match(/^\d{1,2}:\d{2}$/)) {
+        return timeStr;
+    }
+
+    // If it's in HH:MM:SS format, remove seconds
+    if (timeStr.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+        return timeStr.substring(0, 5);
+    }
+
     try {
         const date = new Date(timeStr);
         if (!isNaN(date.getTime())) {
@@ -56,12 +66,20 @@ export function formatTimeForEmail(timeStr: string): string {
 
     // If time is in ISO format, extract only time part
     if (timeStr.includes('T')) {
-        return timeStr.split('T')[1]?.substring(0, 5) || timeStr;
+        const timePart = timeStr.split('T')[1];
+        if (timePart) {
+            // Remove seconds if present
+            return timePart.substring(0, 5);
+        }
+        return timeStr;
     }
 
-    // If it's already in HH:MM format, return as is
-    if (timeStr.match(/^\d{1,2}:\d{2}$/)) {
-        return timeStr;
+    // If it's a date-time string like "2025-07-30 18:00:00", extract time part
+    if (timeStr.match(/^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}(:\d{2})?$/)) {
+        const timePart = timeStr.split(' ')[1];
+        if (timePart) {
+            return timePart.substring(0, 5);
+        }
     }
 
     return timeStr;
