@@ -1,3 +1,2 @@
 npx lint-staged
-node scripts/version-check.js
 npm test

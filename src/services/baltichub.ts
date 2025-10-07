@@ -6,7 +6,7 @@ import {
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper';
-import { BookingNotificationData, notificationService } from './notificationService';
+import { notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
@@ -20,6 +20,7 @@ import {
     formatDateToDMY,
     ErrorType,
 } from '../utils/index';
+import { BrevoEmailData } from '../types';
 
 export async function getSlots(date: string): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number);
@@ -160,16 +161,19 @@ async function executeRequest(
         // Send centralized notifications (Windows + Email)
         try {
             consoleLog('🎉 Booking success! Preparing to send notifications...');
-            const notificationData: BookingNotificationData = {
+
+            const notificationData: Partial<BrevoEmailData> = {
                 tvAppId,
-                bookingTime: time[1] || new Date().toISOString(), // newTime
-                oldTime: req.currentSlot, // oldTime from currentSlot
+                bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
+                oldTime: req.currentSlot.split(' ')[1], // oldTime from currentSlot
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };
             consoleLog('🎉 Notification data prepared:', notificationData);
 
-            await notificationService.sendBookingSuccessNotifications(notificationData);
+            await notificationService.sendBookingSuccessNotifications(
+                notificationData as BrevoEmailData,
+            );
             consoleLog('🎉 Notification process completed');
         } catch (error) {
             consoleError('❌ Error sending notifications:', error);

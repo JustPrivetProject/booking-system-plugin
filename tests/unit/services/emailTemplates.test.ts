@@ -2,19 +2,13 @@ import { EmailTemplates } from '../../../src/services/brevo/emailTemplates';
 import type { BrevoEmailData } from '../../../src/types/general';
 
 describe('EmailTemplates', () => {
-    describe('formatTime (deprecated)', () => {
-        it('should delegate to formatTimeForEmail utility', () => {
-            const result = EmailTemplates.formatTime('2024-01-15T19:00:00Z');
-            // Note: This will be converted to local time, so we check the format instead of exact time
-            expect(result).toMatch(/^\d{2}:\d{2}$/);
-        });
-    });
-
     describe('generateSubject', () => {
         const baseEmailData: BrevoEmailData = {
             emails: ['test@example.com'],
+            userName: 'Test User',
+            oldTime: '19:00',
             tvAppId: '91037204',
-            bookingTime: '2024-01-15 19:00:00', // Use local time format instead of UTC
+            bookingTime: '19:00', // Use local time format instead of UTC
             containerNumber: 'BSIU3108038',
             driverName: 'ANDRZEJ KOLAKOWSKI',
         };
@@ -22,8 +16,8 @@ describe('EmailTemplates', () => {
         it('should generate subject with container, driver, and time change', () => {
             const emailData = {
                 ...baseEmailData,
-                oldTime: '2025-07-30 18:00', // currentSlot format
-                newTime: '2025-07-30 19:00', // formatted new time
+                oldTime: '18:00', // currentSlot format
+                bookingTime: '19:00', // formatted new time
             };
 
             const result = EmailTemplates.generateSubject(emailData);
@@ -37,7 +31,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('BSIU3108038 / 19:00');
+            expect(result).toBe('BSIU3108038 / 19:00 → 19:00');
         });
 
         it('should fallback to tvAppId when container number is missing', () => {
@@ -47,15 +41,17 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('91037204 / ANDRZEJ KOLAKOWSKI / 19:00');
+            expect(result).toBe('91037204 / ANDRZEJ KOLAKOWSKI / 19:00 → 19:00');
         });
     });
 
     describe('generateHTML', () => {
         const baseEmailData: BrevoEmailData = {
             emails: ['test@example.com'],
+            userName: 'Test User',
+            oldTime: '19:00',
             tvAppId: '91037204',
-            bookingTime: '2024-01-15 19:00:00', // Use local time format instead of UTC
+            bookingTime: '19:00', // Use local time format instead of UTC
             containerNumber: 'BSIU3108038',
             driverName: 'ANDRZEJ KOLAKOWSKI',
         };
@@ -74,8 +70,8 @@ describe('EmailTemplates', () => {
         it('should not include time change row when oldTime and newTime are provided', () => {
             const emailData = {
                 ...baseEmailData,
-                oldTime: '2025-07-30 18:00', // currentSlot format
-                newTime: '19:00', // formatted new time
+                oldTime: '18:00', // currentSlot format
+                bookingTime: '19:00', // formatted new time
             };
 
             const result = EmailTemplates.generateHTML(emailData);
@@ -100,8 +96,10 @@ describe('EmailTemplates', () => {
     describe('generateText', () => {
         const baseEmailData: BrevoEmailData = {
             emails: ['test@example.com'],
+            userName: 'Test User',
+            oldTime: '19:00',
             tvAppId: '91037204',
-            bookingTime: '2024-01-15 19:00:00', // Use local time format instead of UTC
+            bookingTime: '19:00', // Use local time format instead of UTC
             containerNumber: 'BSIU3108038',
             driverName: 'ANDRZEJ KOLAKOWSKI',
         };
@@ -120,8 +118,8 @@ describe('EmailTemplates', () => {
         it('should not include time change when oldTime and newTime are provided', () => {
             const emailData = {
                 ...baseEmailData,
-                oldTime: '2025-07-30 18:00', // currentSlot format
-                newTime: '19:00', // formatted new time
+                oldTime: '18:00', // currentSlot format
+                bookingTime: '19:00', // formatted new time
             };
 
             const result = EmailTemplates.generateText(emailData);

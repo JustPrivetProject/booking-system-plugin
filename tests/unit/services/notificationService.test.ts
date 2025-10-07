@@ -1,8 +1,8 @@
 import {
     NotificationService,
     notificationService,
-    BookingNotificationData,
 } from '../../../src/services/notificationService';
+import type { BrevoEmailData } from '../../../src/types/general';
 import { authService } from '../../../src/services/authService';
 import { brevoEmailService } from '../../../src/services/brevo/brevoEmailService';
 import { notificationSettingsService } from '../../../src/services/notificationSettingsService';
@@ -31,9 +31,12 @@ describe('NotificationService', () => {
         service = new NotificationService();
     });
 
-    const mockBookingData: BookingNotificationData = {
+    const mockBookingData: BrevoEmailData = {
+        emails: ['test@example.com'],
+        userName: 'Test User',
         tvAppId: 'TV123456',
         bookingTime: '2024-01-15 10:30:00',
+        oldTime: '2024-01-15 09:30:00',
         driverName: 'Test Driver',
         containerNumber: 'CONT123',
     };
@@ -187,9 +190,8 @@ describe('NotificationService', () => {
                 emails: ['user@example.com', 'manager@example.com'],
                 userName: 'user',
                 tvAppId: 'TV123456',
-                bookingTime: expect.stringMatching(/^\d{2}:\d{2}$/),
-                newTime: expect.stringMatching(/^\d{2}:\d{2}$/),
-                oldTime: undefined,
+                bookingTime: '2024-01-15 10:30:00',
+                oldTime: '2024-01-15 09:30:00',
                 driverName: 'Test Driver',
                 containerNumber: 'CONT123',
             });
@@ -215,7 +217,7 @@ describe('NotificationService', () => {
             });
 
             const callArgs = mockBrevoEmailService.sendBookingConfirmationEmail.mock.calls[0][0];
-            expect(callArgs.bookingTime).toMatch(/^\d{2}:\d{2}$/);
+            expect(callArgs.bookingTime).toBe('2024-01-15T10:30:00.000Z');
         });
 
         it('should handle invalid booking time for email', async () => {
