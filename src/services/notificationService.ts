@@ -5,15 +5,6 @@ import { notificationSettingsService } from './notificationSettingsService';
 import { consoleLog, consoleError } from '../utils/index';
 import { formatTimeForEmail } from '../utils/date-utils';
 
-export interface BookingNotificationData {
-    tvAppId: string;
-    bookingTime: string;
-    oldTime?: string; // Старое время для более информативной темы
-    newTime?: string; // Новое время для более информативной темы
-    driverName?: string;
-    containerNumber?: string;
-}
-
 /**
  * Centralized notification service for handling all types of booking notifications
  */
@@ -21,7 +12,7 @@ export class NotificationService {
     /**
      * Send all enabled notifications for successful booking
      */
-    async sendBookingSuccessNotifications(data: BookingNotificationData): Promise<void> {
+    async sendBookingSuccessNotifications(data: BrevoEmailData): Promise<void> {
         try {
             consoleLog('🔔 Sending notifications for booking:', data.tvAppId);
 
@@ -38,7 +29,7 @@ export class NotificationService {
     /**
      * Send Windows notification if enabled
      */
-    private async sendWindowsNotification(data: BookingNotificationData): Promise<void> {
+    private async sendWindowsNotification(data: BrevoEmailData): Promise<void> {
         try {
             const isEnabled = await notificationSettingsService.isWindowsNotificationEnabled();
 
@@ -69,7 +60,7 @@ export class NotificationService {
     /**
      * Send email notification if enabled
      */
-    private async sendEmailNotification(data: BookingNotificationData): Promise<void> {
+    private async sendEmailNotification(data: BrevoEmailData): Promise<void> {
         try {
             // Check if email notifications are enabled
             const isEmailEnabled = await notificationSettingsService.isEmailNotificationEnabled();
@@ -87,15 +78,12 @@ export class NotificationService {
             const currentUser = await authService.getCurrentUser();
 
             // Prepare email data with formatted time
-            const bookingTime = this.formatBookingTimeForEmail(data.bookingTime);
-
             const emailData: BrevoEmailData = {
                 emails: emailAddresses,
                 userName: currentUser?.email.split('@')[0] || 'Użytkownik',
                 tvAppId: data.tvAppId,
-                bookingTime: bookingTime, // newTime (formatted)
-                oldTime: data.oldTime ? this.formatBookingTimeForEmail(data.oldTime) : undefined,
-                newTime: bookingTime, // newTime is the same as bookingTime
+                bookingTime: data.bookingTime,
+                oldTime: data.oldTime,
                 driverName: data.driverName,
                 containerNumber: data.containerNumber,
             };
@@ -157,7 +145,10 @@ export class NotificationService {
      * Send test notifications (for debugging)
      */
     async sendTestNotifications(): Promise<void> {
-        const testData: BookingNotificationData = {
+        const testData: BrevoEmailData = {
+            emails: ['test@example.com'],
+            userName: 'Test User',
+            oldTime: new Date().toISOString(),
             tvAppId: 'TEST123',
             bookingTime: new Date().toISOString(),
             driverName: 'Test Driver',

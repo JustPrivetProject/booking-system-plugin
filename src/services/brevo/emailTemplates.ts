@@ -19,8 +19,6 @@ export class EmailTemplates {
     static generateHTML(emailData: BrevoEmailData): string {
         const currentYear = new Date().getFullYear();
 
-        const displayTime = this.formatTime(emailData.bookingTime);
-
         return `<!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -55,7 +53,7 @@ export class EmailTemplates {
           </tr>
           <tr>
             <td style="padding:12px; background:#f8f9fa; border-bottom:1px solid #ddd; font-weight:bold;">Godzina</td>
-            <td style="padding:12px; background:#ffffff; border-bottom:1px solid #ddd;">${displayTime}</td>
+            <td style="padding:12px; background:#ffffff; border-bottom:1px solid #ddd;">${emailData.bookingTime}</td>
           </tr>
           ${
               emailData.driverName
@@ -95,8 +93,6 @@ export class EmailTemplates {
     static generateText(emailData: BrevoEmailData): string {
         const currentYear = new Date().getFullYear();
 
-        const displayTime = this.formatTime(emailData.bookingTime);
-
         return `Port-Sloty
 Potwierdzenie rezerwacji
 
@@ -106,7 +102,7 @@ SZCZEGÓŁY REZERWACJI:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ID: ${emailData.tvAppId}
-Godzina: ${displayTime}${
+Godzina: ${emailData.bookingTime}${
             emailData.driverName
                 ? `
 Kierowca: ${emailData.driverName}`
@@ -136,13 +132,10 @@ To jest automatyczna wiadomość. Prosimy nie odpowiadać na ten e-mail.`.trim()
         if (emailData.driverName) {
             subject += ` / ${emailData.driverName}`;
         }
-        if (emailData.oldTime && emailData.newTime) {
-            const oldTime = formatTimeForEmail(emailData.oldTime);
-            const newTime = formatTimeForEmail(emailData.newTime);
-            subject += ` / ${oldTime} → ${newTime}`;
+        if (emailData.oldTime && emailData.bookingTime) {
+            subject += ` / ${emailData.oldTime} → ${emailData.bookingTime}`;
         } else if (emailData.bookingTime) {
-            const displayTime = formatTimeForEmail(emailData.bookingTime);
-            subject += ` / ${displayTime}`;
+            subject += ` / ${emailData.bookingTime}`;
         }
         return subject;
     }

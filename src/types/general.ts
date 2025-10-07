@@ -54,11 +54,10 @@ export interface NotificationSettings {
 
 export interface BrevoEmailData {
     emails: string[]; // Список email адресов для отправки
-    userName?: string;
+    userName: string;
     tvAppId: string;
     bookingTime: string;
-    oldTime?: string; // Старое время для более информативной темы
-    newTime?: string; // Новое время для более информативной темы
+    oldTime: string; // Старое время для более информативной темы
     driverName?: string;
     containerNumber?: string;
 }
