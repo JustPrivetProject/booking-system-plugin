@@ -60,26 +60,27 @@ async function checkSlotAvailability(htmlText: string, time: string[]): Promise<
 }
 
 /**
- * Retrieves the driver name and container ID associated with a given tvAppId.
- * If the tvAppId exists in the retryQueue, it returns the cached driver name and container number.
- * Otherwise, it fetches the edit form, extracts the driver name and container ID from the response, and returns them.
+ * Retrieves the driver name, container ID, and current slot start time associated with a given tvAppId.
+ * If the tvAppId exists in the retryQueue, it returns the cached driver name, container number, and current slot start time.
+ * Otherwise, it fetches the edit form, extracts the driver name, container ID, and current slot start time from the response, and returns them.
  *
  * @async
  * @function getDriverNameAndContainer
  * @param {string} tvAppId - The ID of the TV application to retrieve data for.
- * @param {Array<Object>} retryQueue - An array of retry queue objects, each containing `tvAppId`, `driverName`, and `containerNumber`.
- * @returns {Promise<{driverName: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
+ * @param {Array<Object>} retryQueue - An array of retry queue objects, each containing `tvAppId`, `driverName`, `containerNumber`, and `startSlot`.
+ * @returns {Promise<{driverName: string, containerNumber: string, slotStart?: string}>} An object containing the driver's name, container ID, and current slot start time (e.g., "12.10.2025 20:00:00").
  * @throws Will log an error message to the console if an exception is encountered during processing.
  */
 
 export async function getDriverNameAndContainer(
     tvAppId: string,
     retryQueue: RetryObject[],
-): Promise<{ driverName: string; containerNumber: string }> {
+): Promise<{ driverName: string; containerNumber: string; slotStart?: string }> {
     consoleLog('Getting driver name and container for TV App ID:', tvAppId);
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const containerIdRegex = /"ContainerId":"([^"]+)"/;
+    const slotStartRegex = /<input[^>]*id="SlotStart"[^>]*value="([^"]+)"/;
 
     // Check if retryQueue is defined and is an array
     if (!retryQueue || !Array.isArray(retryQueue)) {
@@ -90,6 +91,7 @@ export async function getDriverNameAndContainer(
             return {
                 driverName: sameItem.driverName || '',
                 containerNumber: sameItem.containerNumber || '',
+                slotStart: sameItem.startSlot || '',
             };
         }
     }
@@ -97,14 +99,14 @@ export async function getDriverNameAndContainer(
     const response = await getEditForm(tvAppId);
     if (!response.ok) {
         consoleLog('Error getting driver name: Response not OK', JSONstringify(response));
-        return { driverName: '', containerNumber: '' };
+        return { driverName: '', containerNumber: '', slotStart: '' };
     }
 
     const tvAppEditText = await response.text();
     consoleLog('Request Edit form:', tvAppEditText);
     if (!tvAppEditText.trim()) {
         consoleLog('Error getting driver name: Response is empty');
-        return { driverName: '', containerNumber: '' };
+        return { driverName: '', containerNumber: '', slotStart: '' };
     }
 
     const driverNameObject = tvAppEditText.match(regex)?.[1] || '';
@@ -114,11 +116,16 @@ export async function getDriverNameAndContainer(
     const containerNumberMatch = tvAppEditText.match(containerIdRegex);
     const containerNumber = containerNumberMatch?.[1] || '';
 
+    const slotStartMatch = tvAppEditText.match(slotStartRegex);
+    const slotStart = slotStartMatch?.[1] || '';
+
     consoleLog('Driver info:', driverName);
     consoleLog('Container ID:', containerNumber);
+    consoleLog('Current Slot Start (from HTML):', slotStart);
     return {
         driverName,
         containerNumber,
+        slotStart,
     };
 }
 
@@ -165,7 +172,7 @@ async function executeRequest(
             const notificationData: Partial<BrevoEmailData> = {
                 tvAppId,
                 bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
-                oldTime: req.currentSlot.split(' ')[1], // oldTime from currentSlot
+                oldTime: req.currentSlot.split(' ')[1].slice(0, 5), // oldTime from currentSlot
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };
@@ -293,6 +300,10 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
     const isSlotAvailable = await checkSlotAvailability(htmlText, time);
     if (!isSlotAvailable) {
         consoleLogWithoutSave('❌ No slots, keeping in queue:', tvAppId, time.join(', '));
+        // Clear custom color if slots are not available (not the "Too many transactions" case)
+        if (req.status_color) {
+            return { ...req, status_color: undefined };
+        }
         return req;
     }
     const objectToReturn = await executeRequest(req, tvAppId, time);

@@ -163,6 +163,7 @@ const TEST_HTML_RESPONSES = {
             <option selected="selected">John Doe</option>
         </select>
         <script>"ContainerId":"MSNU2991953"</script>
+        <input id="SlotStart" name="SlotStart" type="hidden" value="13.10.2025 13:15:00" />
     `,
     WITHOUT_DRIVER: `
         <select id="SelectedDriver">
@@ -444,6 +445,7 @@ describe('Baltichub Service', () => {
                     ...TEST_RETRY_OBJECTS.VALID,
                     driverName: 'John Doe',
                     containerNumber: 'MSNU2991953',
+                    startSlot: '13.10.2025 13:15:00',
                 },
             ];
 
@@ -454,6 +456,7 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
+                slotStart: '13.10.2025 13:15:00',
             });
             // Verify that getEditForm (which uses fetchRequest) was not called
             const { fetchRequest } = require('../../../src/utils');
@@ -479,6 +482,7 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
+                slotStart: '13.10.2025 13:15:00',
             });
         });
 
@@ -494,6 +498,7 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
+                slotStart: '',
             });
         });
 
@@ -513,6 +518,7 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
+                slotStart: '',
             });
         });
 
@@ -532,6 +538,7 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
+                slotStart: '',
             });
         });
     });
