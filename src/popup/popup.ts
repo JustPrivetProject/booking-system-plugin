@@ -139,12 +139,14 @@ function getStatusIcon(status: string) {
 }
 
 /**
- * Apply custom status color if status_color is provided
+ * Apply custom status color if status_color is provided and status is in-progress
  * @param element - HTML element to apply color to
  * @param status_color - Custom color for the status
+ * @param status - Current status of the request
  */
-function applyCustomStatusColor(element: HTMLElement, status_color?: string) {
-    if (status_color) {
+function applyCustomStatusColor(element: HTMLElement, status_color?: string, status?: string) {
+    // Only apply custom color for in-progress status
+    if (status_color && status === Statuses.IN_PROGRESS) {
         const statusIcon = element.querySelector('.status-icon') as HTMLElement;
         if (statusIcon) {
             statusIcon.style.color = status_color;
@@ -236,7 +238,7 @@ async function updateQueueDisplay() {
             // Apply custom status color to group if available
             const groupStatusCell = groupRow.querySelector('.status') as HTMLElement;
             if (groupStatusCell && statusColorForGroup) {
-                applyCustomStatusColor(groupStatusCell, statusColorForGroup);
+                applyCustomStatusColor(groupStatusCell, statusColorForGroup, statusForGroup);
             }
 
             items.forEach((req: RetryObjectArray[0]) => {
@@ -268,7 +270,7 @@ async function updateQueueDisplay() {
                 // Apply custom status color if available
                 const statusCell = row.querySelector('.status') as HTMLElement;
                 if (statusCell && req.status_color) {
-                    applyCustomStatusColor(statusCell, req.status_color);
+                    applyCustomStatusColor(statusCell, req.status_color, req.status);
                 }
             });
         });
