@@ -132,9 +132,7 @@ To jest automatyczna wiadomość. Prosimy nie odpowiadać na ten e-mail.`.trim()
         if (emailData.driverName) {
             subject += ` / ${emailData.driverName}`;
         }
-        if (emailData.oldTime && emailData.bookingTime) {
-            subject += ` / ${emailData.oldTime} → ${emailData.bookingTime}`;
-        } else if (emailData.bookingTime) {
+        if (emailData.bookingTime) {
             subject += ` / ${emailData.bookingTime}`;
         }
         return subject;

@@ -694,6 +694,30 @@ tr[data-is-open='false'] .status-icon {
     box-shadow: var(--shadow-hover);
 }
 
+.instruction-btn {
+    border-radius: 50%;
+    background: var(--color-white);
+    border: none;
+    box-shadow: var(--shadow-button);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
+}
+
+.instruction-btn .material-icons {
+    font-size: 16px;
+    color: #1976d2;
+}
+
+.instruction-btn:hover {
+    background: #e8f5e8;
+    box-shadow: var(--shadow-hover);
+}
+
 /* Auto-Login Toggle Button */
 .auto-login-toggle {
     border-radius: 50%;

@@ -752,6 +752,13 @@ document.getElementById('send-logs-btn')?.addEventListener('click', async () => 
     );
 });
 
+document.getElementById('instruction-btn')?.addEventListener('click', () => {
+    const welcomeUrl = chrome.runtime.getURL('welcome.html');
+    chrome.tabs.create({
+        url: welcomeUrl,
+    });
+});
+
 // Functions
 async function handleLogin() {
     consoleLog('handleLogin called', Date.now(), Math.random());

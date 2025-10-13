@@ -83,7 +83,6 @@ export class NotificationService {
                 userName: currentUser?.email.split('@')[0] || 'Użytkownik',
                 tvAppId: data.tvAppId,
                 bookingTime: data.bookingTime,
-                oldTime: data.oldTime,
                 driverName: data.driverName,
                 containerNumber: data.containerNumber,
             };
@@ -148,7 +147,6 @@ export class NotificationService {
         const testData: BrevoEmailData = {
             emails: ['test@example.com'],
             userName: 'Test User',
-            oldTime: new Date().toISOString(),
             tvAppId: 'TEST123',
             bookingTime: new Date().toISOString(),
             driverName: 'Test Driver',

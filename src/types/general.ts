@@ -57,7 +57,6 @@ export interface BrevoEmailData {
     userName: string;
     tvAppId: string;
     bookingTime: string;
-    oldTime: string; // Старое время для более информативной темы
     driverName?: string;
     containerNumber?: string;
 }

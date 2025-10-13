@@ -36,7 +36,6 @@ describe('NotificationService', () => {
         userName: 'Test User',
         tvAppId: 'TV123456',
         bookingTime: '2024-01-15 10:30:00',
-        oldTime: '2024-01-15 09:30:00',
         driverName: 'Test Driver',
         containerNumber: 'CONT123',
     };
@@ -191,7 +190,6 @@ describe('NotificationService', () => {
                 userName: 'user',
                 tvAppId: 'TV123456',
                 bookingTime: '2024-01-15 10:30:00',
-                oldTime: '2024-01-15 09:30:00',
                 driverName: 'Test Driver',
                 containerNumber: 'CONT123',
             });
