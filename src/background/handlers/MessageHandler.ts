@@ -201,7 +201,6 @@ export class MessageHandler {
         retryObject.startSlot = requestBody.formData.SlotStart[0];
         retryObject.endSlot = requestBody.formData.SlotEnd[0];
         retryObject.driverName = driverAndContainer.driverName || '';
-        retryObject.currentSlot = driverAndContainer.slotStart || '';
         retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
         if (tableData) {
@@ -220,9 +219,9 @@ export class MessageHandler {
             consoleLog('Row: ', tableRow);
 
             if (tableRow) {
-                if (!retryObject.currentSlot) {
-                    const currentSlot = `${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
-                    consoleLog('Getting current slot time... :', currentSlot);
+                const currentSlot = `${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
+                consoleLog('Getting current slot time... :', currentSlot);
+                if (currentSlot) {
                     retryObject.currentSlot = currentSlot;
                 }
 

@@ -34,7 +34,6 @@ describe('BrevoApiClient', () => {
             userName: 'Test User',
             tvAppId: '91037204',
             bookingTime: '2024-01-15T19:00:00Z',
-            oldTime: '2024-01-15T18:00:00Z',
             containerNumber: 'BSIU3108038',
             driverName: 'ANDRZEJ KOLAKOWSKI',
         };

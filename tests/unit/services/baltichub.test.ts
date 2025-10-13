@@ -456,7 +456,6 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
-                slotStart: '13.10.2025 13:15:00',
             });
             // Verify that getEditForm (which uses fetchRequest) was not called
             const { fetchRequest } = require('../../../src/utils');
@@ -482,7 +481,6 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: 'John Doe',
                 containerNumber: 'MSNU2991953',
-                slotStart: '13.10.2025 13:15:00',
             });
         });
 
@@ -498,7 +496,6 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
-                slotStart: '',
             });
         });
 
@@ -518,7 +515,6 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
-                slotStart: '',
             });
         });
 
@@ -538,7 +534,6 @@ describe('Baltichub Service', () => {
             expect(result).toEqual({
                 driverName: '',
                 containerNumber: '',
-                slotStart: '',
             });
         });
     });
