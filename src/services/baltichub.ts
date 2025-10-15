@@ -6,6 +6,7 @@ import {
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
 } from '../utils/baltichub.helper';
+import { notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
@@ -19,6 +20,7 @@ import {
     formatDateToDMY,
     ErrorType,
 } from '../utils/index';
+import { BrevoEmailData } from '../types';
 
 export async function getSlots(date: string): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number);
@@ -66,7 +68,7 @@ async function checkSlotAvailability(htmlText: string, time: string[]): Promise<
  * @function getDriverNameAndContainer
  * @param {string} tvAppId - The ID of the TV application to retrieve data for.
  * @param {Array<Object>} retryQueue - An array of retry queue objects, each containing `tvAppId`, `driverName`, and `containerNumber`.
- * @returns {Promise<{driverName: string} | null>} An object containing the driver's name and container ID, or `null` if an error occurs.
+ * @returns {Promise<{driverName: string, containerNumber: string}>} An object containing the driver's name and container ID.
  * @throws Will log an error message to the console if an exception is encountered during processing.
  */
 
@@ -155,17 +157,25 @@ async function executeRequest(
     const parsedResponse = await response.text();
     if (!parsedResponse.includes('error') && response.ok) {
         consoleLog('✅Request retried successfully:', tvAppId, time.join(', '));
-        // Send notification to user
+
+        // Send centralized notifications (Windows + Email)
         try {
-            chrome.notifications.create({
-                type: 'basic',
-                iconUrl: './icon-144x144.png',
-                title: 'Zmiana czasu',
-                message: `✅ Zmiana czasu dla nr ${tvAppId} - zakończyła się pomyślnie - ${time[1].slice(0, 5)}`,
-                priority: 2,
-            });
+            consoleLog('🎉 Booking success! Preparing to send notifications...');
+
+            const notificationData: Partial<BrevoEmailData> = {
+                tvAppId,
+                bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
+                driverName: req.driverName,
+                containerNumber: req.containerNumber,
+            };
+            consoleLog('🎉 Notification data prepared:', notificationData);
+
+            await notificationService.sendBookingSuccessNotifications(
+                notificationData as BrevoEmailData,
+            );
+            consoleLog('🎉 Notification process completed');
         } catch (error) {
-            consoleError('Error sending notification:', error);
+            consoleError('❌ Error sending notifications:', error);
         }
 
         return {
@@ -282,6 +292,10 @@ export async function processRequest(req: RetryObject, queue: RetryObject[]): Pr
     const isSlotAvailable = await checkSlotAvailability(htmlText, time);
     if (!isSlotAvailable) {
         consoleLogWithoutSave('❌ No slots, keeping in queue:', tvAppId, time.join(', '));
+        // Clear custom color if slots are not available (not the "Too many transactions" case)
+        if (req.status_color) {
+            return { ...req, status_color: undefined };
+        }
         return req;
     }
     const objectToReturn = await executeRequest(req, tvAppId, time);

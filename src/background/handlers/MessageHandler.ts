@@ -204,29 +204,29 @@ export class MessageHandler {
         retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
         if (tableData) {
-            let row = null;
+            let tableRow = null;
             consoleLog('Getting table data...');
             if (driverAndContainer.containerNumber) {
                 const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
-                row = tableData.find((row: string[]) =>
+                tableRow = tableData.find((row: string[]) =>
                     row[containerIndex].includes(driverAndContainer.containerNumber),
                 );
             } else {
                 consoleLog('Container number not found, searching by TV App ID...');
                 const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
-                row = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
+                tableRow = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
             }
-            consoleLog('Row: ', row);
+            consoleLog('Row: ', tableRow);
 
-            if (row) {
-                const currentSlot = `${row[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${row[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
+            if (tableRow) {
+                const currentSlot = `${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
                 consoleLog('Getting current slot time... :', currentSlot);
-                retryObject.currentSlot = currentSlot;
-            }
-            // Cam be more than one container number in the row
-            if (row) {
+                if (currentSlot) {
+                    retryObject.currentSlot = currentSlot;
+                }
+
                 const containerNumber =
-                    row[tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER)];
+                    tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER)];
                 if (containerNumber) {
                     retryObject.containerNumber = containerNumber;
                 }

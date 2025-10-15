@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Booking System Plugin",
-    "version": "2.1.14",
+    "version": "2.2.0",
     "description": "Help to booking slot",
     "permissions": ["storage", "webRequest", "notifications", "tabs"],
     "host_permissions": ["https://ebrama.baltichub.com/*", "https://*.supabase.co/*"],

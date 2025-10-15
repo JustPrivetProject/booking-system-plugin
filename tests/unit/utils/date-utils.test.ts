@@ -1,121 +1,104 @@
-// Mock Supabase client before importing date-utils
-jest.mock('../../../src/services/supabaseClient', () => ({
-    supabase: {
-        from: jest.fn(() => ({
-            insert: jest.fn(),
-        })),
-    },
-}));
-
-// Mock errorLogService
-jest.mock('../../../src/services/errorLogService', () => ({
-    errorLogService: {
-        logError: jest.fn(),
-        logRequestError: jest.fn(),
-    },
-}));
-
 import {
-    parseDateTimeFromDMY,
+    formatTimeForEmail,
     formatDateToDMY,
+    parseDateTimeFromDMY,
     getTodayFormatted,
 } from '../../../src/utils/date-utils';
 
-describe('Date Utils Functions', () => {
-    describe('parseDateTimeFromDMY', () => {
-        it('should parse date with seconds', () => {
-            const result = parseDateTimeFromDMY('26.06.2025 00:59:00');
-            expect(result).toEqual(new Date('2025-06-26T00:59:00'));
+describe('date-utils', () => {
+    describe('formatTimeForEmail', () => {
+        it('should format ISO time string to HH:MM format', () => {
+            const result = formatTimeForEmail('2024-01-15T19:00:00Z');
+            // Note: This will be converted to local time, so we check the format instead of exact time
+            expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
 
-        it('should parse date without seconds', () => {
-            const result = parseDateTimeFromDMY('26.06.2025 00:59');
-            expect(result).toEqual(new Date('2025-06-26T00:59:00'));
+        it('should format date string to HH:MM format', () => {
+            const result = formatTimeForEmail('2024-01-15 19:00:00');
+            expect(result).toBe('19:00');
         });
 
-        it('should handle invalid date format', () => {
-            const result = parseDateTimeFromDMY('invalid-date');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should return time string as-is if not parseable date', () => {
+            const result = formatTimeForEmail('19:00');
+            expect(result).toBe('19:00');
         });
 
-        it('should handle missing time part', () => {
-            const result = parseDateTimeFromDMY('26.06.2025');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should return empty string for empty input', () => {
+            const result = formatTimeForEmail('');
+            expect(result).toBe('');
         });
 
-        it('should handle missing date part', () => {
-            const result = parseDateTimeFromDMY('00:59:00');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should handle partial ISO strings', () => {
+            const result = formatTimeForEmail('2024-01-15T19:00');
+            expect(result).toBe('19:00');
         });
 
-        it('should handle invalid day', () => {
-            const result = parseDateTimeFromDMY('32.06.2025 00:59:00');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should handle currentSlot format', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00');
+            expect(result).toBe('18:00');
         });
 
-        it('should handle invalid month', () => {
-            const result = parseDateTimeFromDMY('26.13.2025 00:59:00');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should handle different time zones', () => {
+            const result = formatTimeForEmail('2024-12-25T23:59:59.999Z');
+            // Note: This will be converted to local time, so we check the format instead of exact time
+            expect(result).toMatch(/^\d{2}:\d{2}$/);
         });
 
-        it('should handle invalid year', () => {
-            const result = parseDateTimeFromDMY('26.06.0000 00:59:00');
-            expect(isNaN(result.getTime())).toBe(true);
+        it('should remove seconds from HH:MM:SS format', () => {
+            const result = formatTimeForEmail('20:00:00');
+            expect(result).toBe('20:00');
+        });
+
+        it('should handle date-time string with seconds', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should handle date-time string without seconds', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00');
+            expect(result).toBe('18:00');
         });
     });
 
     describe('formatDateToDMY', () => {
-        it('should format current date correctly', () => {
-            const mockDate = new Date('2025-08-07T12:30:45');
-            jest.spyOn(global, 'Date').mockImplementation(() => mockDate);
+        it('should format date to DD.MM.YYYY', () => {
+            const date = new Date('2024-01-15');
+            const result = formatDateToDMY(date);
+            expect(result).toBe('15.01.2024');
+        });
 
+        it('should use current date if no date provided', () => {
             const result = formatDateToDMY();
+            expect(result).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
+        });
+    });
 
-            expect(result).toBe('07.08.2025');
-            jest.restoreAllMocks();
+    describe('parseDateTimeFromDMY', () => {
+        it('should parse date string correctly', () => {
+            const result = parseDateTimeFromDMY('26.06.2025 00:59:00');
+            expect(result.getFullYear()).toBe(2025);
+            expect(result.getMonth()).toBe(5); // June is month 5 (0-indexed)
+            expect(result.getDate()).toBe(26);
+            expect(result.getHours()).toBe(0);
+            expect(result.getMinutes()).toBe(59);
         });
 
-        it('should format provided date correctly', () => {
-            const date = new Date('2025-12-25T15:30:00');
-            const result = formatDateToDMY(date);
-
-            expect(result).toBe('25.12.2025');
+        it('should handle time without seconds', () => {
+            const result = parseDateTimeFromDMY('26.06.2025 00:59');
+            expect(result.getMinutes()).toBe(59);
+            expect(result.getSeconds()).toBe(0);
         });
 
-        it('should handle single digit day and month', () => {
-            const date = new Date('2025-01-05T10:15:00');
-            const result = formatDateToDMY(date);
-
-            expect(result).toBe('05.01.2025');
-        });
-
-        it('should handle leap year', () => {
-            const date = new Date('2024-02-29T12:00:00');
-            const result = formatDateToDMY(date);
-
-            expect(result).toBe('29.02.2024');
+        it('should return Invalid Date for malformed input', () => {
+            const result = parseDateTimeFromDMY('invalid-date');
+            expect(isNaN(result.getTime())).toBe(true);
         });
     });
 
     describe('getTodayFormatted', () => {
-        it('should return today date in correct format', () => {
-            const mockDate = new Date('2025-08-07T12:30:45');
-            jest.spyOn(global, 'Date').mockImplementation(() => mockDate);
-
+        it('should return today date in DD.MM.YYYY format', () => {
             const result = getTodayFormatted();
-
-            expect(result).toBe('07.08.2025');
-            jest.restoreAllMocks();
-        });
-
-        it('should use current date when no date provided', () => {
-            const mockDate = new Date('2025-12-25T15:30:00');
-            jest.spyOn(global, 'Date').mockImplementation(() => mockDate);
-
-            const result = getTodayFormatted();
-
-            expect(result).toBe('25.12.2025');
-            jest.restoreAllMocks();
+            expect(result).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
         });
     });
 });

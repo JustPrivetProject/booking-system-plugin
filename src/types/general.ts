@@ -40,6 +40,27 @@ export interface AutoLoginData {
     createdAt: number;
 }
 
+export interface NotificationSettings {
+    email: {
+        enabled: boolean;
+        userEmail: string;
+        additionalEmails: string[]; // Список дополнительных email адресов
+    };
+    windows: {
+        enabled: boolean;
+    };
+    createdAt: number;
+}
+
+export interface BrevoEmailData {
+    emails: string[]; // Список email адресов для отправки
+    userName: string;
+    tvAppId: string;
+    bookingTime: string;
+    driverName?: string;
+    containerNumber?: string;
+}
+
 // Table data structure
 export type TableRowData = string[];
 export type TableData = TableRowData[];
@@ -56,6 +77,7 @@ export interface LocalStorageData {
     unauthorized: boolean;
     user_session: UserSession;
     autoLoginData: AutoLoginData;
+    notificationSettings: NotificationSettings;
     requestCacheBody: import('./baltichub').RequestCacheBodes;
     requestCacheHeaders: import('./baltichub').RequestCacheHeaders;
 }

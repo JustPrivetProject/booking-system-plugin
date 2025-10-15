@@ -26,10 +26,10 @@ module.exports = {
     coverageReporters: ['text', 'lcov', 'html', 'json-summary'],
     coverageThreshold: {
         global: {
-            branches: 40,
-            functions: 40,
-            lines: 40,
-            statements: 40,
+            branches: 60,
+            functions: 60,
+            lines: 60,
+            statements: 60,
         },
     },
     setupFilesAfterEnv: ['<rootDir>/tests/unit/setup.ts'],
@@ -44,7 +44,7 @@ module.exports = {
     verbose: false,
     silent: false,
     collectCoverage: false,
-    testTimeout: 10000,
+    testTimeout: 6000,
     maxWorkers: '50%',
 
     // Reporters for CI/CD

@@ -16,6 +16,8 @@ import { showAutoLoginModal } from './modals/autoLogin.modal';
 import { createConfirmationModal } from './modals/confirmation.modal';
 import { showEmailConfirmationModal } from './modals/emailConfirm.modal';
 import { showInfoModal } from './modals/info.modal';
+import { showNotificationSettingsModal } from './modals/notificationSettings.modal';
+import { notificationSettingsService } from '../services/notificationSettingsService';
 
 function sendMessageToBackground(action, data, options = { updateQueue: true }) {
     chrome.runtime.sendMessage(
@@ -137,12 +139,14 @@ function getStatusIcon(status: string) {
 }
 
 /**
- * Apply custom status color if status_color is provided
+ * Apply custom status color if status_color is provided and status is in-progress
  * @param element - HTML element to apply color to
  * @param status_color - Custom color for the status
+ * @param status - Current status of the request
  */
-function applyCustomStatusColor(element: HTMLElement, status_color?: string) {
-    if (status_color) {
+function applyCustomStatusColor(element: HTMLElement, status_color?: string, status?: string) {
+    // Only apply custom color for in-progress status
+    if (status_color && status === Statuses.IN_PROGRESS) {
         const statusIcon = element.querySelector('.status-icon') as HTMLElement;
         if (statusIcon) {
             statusIcon.style.color = status_color;
@@ -234,7 +238,7 @@ async function updateQueueDisplay() {
             // Apply custom status color to group if available
             const groupStatusCell = groupRow.querySelector('.status') as HTMLElement;
             if (groupStatusCell && statusColorForGroup) {
-                applyCustomStatusColor(groupStatusCell, statusColorForGroup);
+                applyCustomStatusColor(groupStatusCell, statusColorForGroup, statusForGroup);
             }
 
             items.forEach((req: RetryObjectArray[0]) => {
@@ -266,7 +270,7 @@ async function updateQueueDisplay() {
                 // Apply custom status color if available
                 const statusCell = row.querySelector('.status') as HTMLElement;
                 if (statusCell && req.status_color) {
-                    applyCustomStatusColor(statusCell, req.status_color);
+                    applyCustomStatusColor(statusCell, req.status_color, req.status);
                 }
             });
         });
@@ -382,6 +386,10 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         consoleLog('Auto-login data changed, updating UI');
         updateAutoLoginButtonState();
     }
+    if (namespace === 'local' && changes.notificationSettings) {
+        consoleLog('Notification settings changed, updating UI');
+        updateNotificationButtonState();
+    }
 });
 
 async function saveHeaderState(isHidden: boolean) {
@@ -463,6 +471,43 @@ async function updateAutoLoginButtonState() {
     }
 }
 
+async function updateNotificationButtonState() {
+    try {
+        const summary = await notificationSettingsService.getSettingsSummary();
+        const notificationToggle = document.getElementById(
+            'notificationSettingsToggle',
+        ) as HTMLElement;
+
+        if (notificationToggle) {
+            let title = 'Ustawienia powiadomień';
+            const hasAnyEnabled =
+                summary.windowsEnabled || (summary.emailEnabled && summary.hasValidEmail);
+
+            if (hasAnyEnabled) {
+                notificationToggle.classList.add('enabled');
+                const enabledTypes: string[] = [];
+
+                if (summary.windowsEnabled) {
+                    enabledTypes.push('Windows');
+                }
+
+                if (summary.emailEnabled && summary.hasValidEmail) {
+                    enabledTypes.push(`Email (${summary.userEmail})`);
+                }
+
+                title = `Powiadomienia: ${enabledTypes.join(', ')}`;
+            } else {
+                notificationToggle.classList.remove('enabled');
+                title = 'Ustawienia powiadomień - Wyłączone';
+            }
+
+            notificationToggle.title = title;
+        }
+    } catch (error) {
+        consoleError('Error updating notification button state:', error);
+    }
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates();
@@ -470,6 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleHeaderVisibility();
     restoreHeaderState();
     updateAutoLoginButtonState();
+    updateNotificationButtonState();
     // Удаляем тестовую кнопку, если она есть
     const testBtn = document.getElementById('testEmailConfirmBtn');
     if (testBtn) testBtn.remove();
@@ -657,6 +703,27 @@ autoLoginToggle.addEventListener('click', async e => {
     }
 });
 
+// Notification settings toggle button handler
+const notificationSettingsToggle = document.getElementById('notificationSettingsToggle')!;
+notificationSettingsToggle.addEventListener('click', async e => {
+    e.preventDefault();
+    try {
+        const result = await showNotificationSettingsModal();
+        if (result) {
+            await updateNotificationButtonState();
+            let message = 'Ustawienia powiadomień zostały zapisane pomyślnie!';
+
+            if (result.email.enabled && result.email.userEmail) {
+                message += `\nPowiadomienia e-mail będą wysyłane na: ${result.email.userEmail}`;
+            }
+
+            await showInfoModal(message);
+        }
+    } catch (error) {
+        consoleError('Error in notification settings modal:', error);
+    }
+});
+
 // Prevent form submit for login and register forms
 loginForm.addEventListener('submit', e => {
     e.preventDefault();
@@ -683,6 +750,13 @@ document.getElementById('send-logs-btn')?.addEventListener('click', async () => 
     await showInfoModal(
         'Dziękujemy za opisanie problemu. Postaramy się go rozwiązać najszybciej jak to możliwe.',
     );
+});
+
+document.getElementById('instruction-btn')?.addEventListener('click', () => {
+    const welcomeUrl = chrome.runtime.getURL('welcome.html');
+    chrome.tabs.create({
+        url: welcomeUrl,
+    });
 });
 
 // Functions
@@ -867,6 +941,7 @@ function showAuthenticatedUI(user: { email: string }) {
     restoreHeaderState();
     updateQueueDisplay();
     updateAutoLoginButtonState();
+    updateNotificationButtonState();
 }
 
 function showUnauthenticatedUI() {

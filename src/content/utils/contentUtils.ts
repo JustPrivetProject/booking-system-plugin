@@ -12,11 +12,11 @@ import { autoLoginHelper } from './autoLoginHelper';
  */
 export function sendActionAfterElementDisappears(selector, action, messageOrFn, callback) {
     // First, wait for the appearance of the element
-    waitForElement(selector, () => {
+    contentUtils.waitForElement(selector, () => {
         // Then wait for the disappearance
-        waitForElementToDisappear(selector, () => {
+        contentUtils.waitForElementToDisappear(selector, () => {
             const message = typeof messageOrFn === 'function' ? messageOrFn() : messageOrFn;
-            sendActionToBackground(action, message, callback);
+            contentUtils.sendActionToBackground(action, message, callback);
         });
     });
 }
@@ -72,7 +72,7 @@ export function waitForElement(selector, callback) {
 }
 
 export function waitElementAndSendChromeMessage(selector, action, actionFunction) {
-    waitForElement(selector, () => {
+    contentUtils.waitForElement(selector, () => {
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
             console.log('Chrome runtime API is not available');
             return;
@@ -80,7 +80,7 @@ export function waitElementAndSendChromeMessage(selector, action, actionFunction
 
         try {
             const parsedData = actionFunction();
-            sendActionToBackground(action, parsedData, undefined);
+            contentUtils.sendActionToBackground(action, parsedData, undefined);
         } catch (error) {
             console.log(`Error processing ${action}:`, error);
         }
@@ -195,7 +195,7 @@ export function isAppUnauthorized(): Promise<boolean> {
 
 export function isAutoLoginEnabled(): Promise<boolean> {
     return new Promise(resolve => {
-        sendActionToBackground(Actions.IS_AUTO_LOGIN_ENABLED, null, response => {
+        contentUtils.sendActionToBackground(Actions.IS_AUTO_LOGIN_ENABLED, null, response => {
             resolve(response.isEnabled);
         });
     });
@@ -233,7 +233,7 @@ export async function tryClickLoginButton() {
     button.click();
 
     console.log('[content] Manual login successful');
-    sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
+    contentUtils.sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
 }
 
 export function clickLoginButton() {
@@ -303,7 +303,7 @@ export function checkExtensionConnection(): Promise<boolean> {
  * @returns {Promise<boolean>} True if connection is available, false if warning was shown
  */
 export async function checkConnectionAndShowWarning(): Promise<boolean> {
-    const isConnected = await checkExtensionConnection();
+    const isConnected = await contentUtils.checkExtensionConnection();
 
     if (!isConnected) {
         console.log('[content] Extension connection lost, showing warning modal');
@@ -321,3 +321,20 @@ export async function checkConnectionAndShowWarning(): Promise<boolean> {
 
     return true;
 }
+
+// Create contentUtils object for internal function calls to enable easier testing
+export const contentUtils = {
+    sendActionToBackground,
+    waitForElement,
+    waitForElementToDisappear,
+    sendActionAfterElementDisappears,
+    waitElementAndSendChromeMessage,
+    parseTable,
+    isUserAuthenticated,
+    isAppUnauthorized,
+    isAutoLoginEnabled,
+    tryClickLoginButton,
+    clickLoginButton,
+    checkExtensionConnection,
+    checkConnectionAndShowWarning,
+};

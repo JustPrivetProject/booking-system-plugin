@@ -34,7 +34,6 @@ export class BackgroundController {
         await this.startQueueProcessing();
 
         // Services initialized successfully
-
         consoleLog('Background Controller initialized successfully');
     }
 
@@ -141,7 +140,7 @@ export class BackgroundController {
 
         // Migrate auto-login data to fix encoding issues
         autoLoginService.migrateAndCleanData().catch(error => {
-            console.error('[background] Failed to migrate auto-login data:', error);
+            consoleError('[background] Failed to migrate auto-login data:', error);
         });
     }
 
