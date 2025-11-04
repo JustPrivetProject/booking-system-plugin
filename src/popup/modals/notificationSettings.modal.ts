@@ -309,15 +309,27 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
 
                 const success = await notificationSettingsService.saveSettings(settings);
                 if (success) {
-                    showStatusMessage('✅ Ustawienia zostały zapisane pomyślnie!', true);
+                    // Close modal with result immediately after successful save
+                    closeModal({
+                        email: {
+                            enabled: emailEnabled,
+                            userEmail: emailEnabled ? userEmail : '',
+                        },
+                        windows: {
+                            enabled: windowsEnabled,
+                        },
+                    });
                 } else {
                     showStatusMessage('❌ Błąd podczas zapisywania ustawień.', false);
+                    // Re-enable button on error
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = '✓ Zapisz';
+                    updateSaveButtonState();
                 }
             } catch (error) {
                 console.error('Error saving settings:', error);
                 showStatusMessage('❌ Błąd podczas zapisywania ustawień.', false);
-            } finally {
-                // Re-enable button
+                // Re-enable button on error
                 saveButton.disabled = false;
                 saveButton.innerHTML = '✓ Zapisz';
                 updateSaveButtonState();

@@ -1,4 +1,5 @@
 import type { RetryObject } from './baltichub';
+import type { ErrorResponse } from '../utils/index';
 
 // Core interfaces for Queue Management
 export interface IQueueManager {
@@ -9,7 +10,8 @@ export interface IQueueManager {
     getQueue(): Promise<RetryObject[]>;
     updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]>;
     startProcessing(
-        processRequest: ProcessRequestFunction,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        processRequest: ProcessRequestFunction, // Deprecated: kept for backward compatibility, not used internally
         options?: ProcessingOptions,
     ): Promise<void>;
     stopProcessing(): void;
@@ -69,3 +71,21 @@ export interface QueueConfig {
     batchSize: number;
     enableLogging: boolean;
 }
+
+// Slot subscription types for date-based processing
+export type DateSubscription = {
+    date: string; // "07.08.2025"
+    requests: RetryObject[]; // All queue items with this date
+};
+
+export type DateSubscriptionsMap = Map<string, RetryObject[]>; // date -> requests[]
+
+export type DateProcessingResult = {
+    date: string;
+    htmlText?: string;
+    error?: ErrorResponse;
+    processedRequests: Array<{
+        request: RetryObject;
+        result: RetryObject;
+    }>;
+};
