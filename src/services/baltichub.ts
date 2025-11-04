@@ -52,7 +52,7 @@ export async function getEditForm(tvAppId: string): Promise<Response | ErrorResp
     });
 }
 
-async function checkSlotAvailability(htmlText: string, time: string[]): Promise<boolean> {
+export async function checkSlotAvailability(htmlText: string, time: string[]): Promise<boolean> {
     const buttons = parseSlotsIntoButtons(htmlText);
     const slotButton = buttons.find(button => button.text.includes(time[1].slice(0, 5)));
     consoleLogWithoutSave('Slot button:', slotButton);
@@ -138,12 +138,15 @@ export async function getDriverNameAndContainer(
  * @returns {Promise<Object>} A promise that resolves to an object containing the updated request status and message.
  * @throws {Error} If there is an issue with sending the notification or handling the response.
  */
-async function executeRequest(
+export async function executeRequest(
     req: RetryObject,
     tvAppId: string,
     time: string[],
 ): Promise<RetryObject> {
-    const formData = createFormData(req.body!.formData);
+    if (!req.body || !req.body.formData) {
+        throw new Error('Request body or formData is missing');
+    }
+    const formData = createFormData(req.body.formData);
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -186,6 +189,55 @@ async function executeRequest(
     }
 
     return handleErrorResponse(req, parsedResponse, tvAppId, time);
+}
+
+/**
+ * Validates a request before checking slot availability (without server request)
+ * Returns null if validation passed, RetryObject with error status if validation failed
+ * @param req - The request object to validate
+ * @param queue - The queue of tasks to check for task completion
+ * @returns Promise<RetryObject | null> - null if valid, RetryObject with error status if invalid
+ */
+export async function validateRequestBeforeSlotCheck(
+    req: RetryObject,
+    queue: RetryObject[],
+): Promise<RetryObject | null> {
+    const body = normalizeFormData(req.body).formData;
+    const tvAppId = body.TvAppId[0];
+    const time = body.SlotStart[0].split(' ');
+    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]); // 26.06.2025 00:59:00
+    const currentTimeSlot = new Date(req.currentSlot);
+    const currentTime = new Date();
+
+    if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTime) {
+        consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message: Messages.EXPIRED,
+        };
+    }
+
+    if (currentTimeSlot < currentTime) {
+        consoleLog('❌ Changing the time is no longer possible:', tvAppId, endTimeStr);
+        return {
+            ...req,
+            status: Statuses.EXPIRED,
+            status_message: Messages.AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL,
+        };
+    }
+
+    if (isTaskCompletedInAnotherQueue(req, queue)) {
+        consoleLog('✅ The request was executed in another task:', tvAppId, time.join(', '));
+        return {
+            ...req,
+            status: Statuses.ANOTHER_TASK,
+            status_message: 'Zadanie zakończone w innym wątku',
+        };
+    }
+
+    // Validation passed
+    return null;
 }
 
 /**

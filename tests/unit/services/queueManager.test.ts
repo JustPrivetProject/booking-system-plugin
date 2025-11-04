@@ -1,8 +1,4 @@
-import { QueueManager } from '../../../src/services/queueManager';
-import { RetryObject } from '../../../src/types/baltichub';
-import { QueueEvents } from '../../../src/types/queue';
-
-// Mock the existing utilities
+// Mock the existing utilities FIRST, before any imports
 jest.mock('../../../src/utils', () => ({
     generateUniqueId: jest.fn(() => 'mock-id'),
     consoleLog: jest.fn(),
@@ -10,6 +6,37 @@ jest.mock('../../../src/utils', () => ({
     consoleLogWithoutSave: jest.fn(),
     getStorage: jest.fn(),
     setStorage: jest.fn(),
+    normalizeFormData: jest.fn((body: any) => {
+        // normalizeFormData should return the same structure if body already has formData
+        // In real code it normalizes arrays, but for tests we preserve the structure
+        if (body && body.formData) {
+            return body;
+        }
+        // If body is already formData structure, return it wrapped
+        return {
+            formData: {
+                TvAppId: ['test-tv-app'],
+                SlotStart: ['01.01.2025 10:00'],
+                SlotEnd: ['01.01.2025 11:00'],
+            },
+        };
+    }),
+    parseDateTimeFromDMY: jest.fn((_date: string) => new Date('2025-01-01T11:00:00')),
+}));
+
+// Mock baltichub helper functions
+jest.mock('../../../src/utils/baltichub.helper', () => ({
+    isTaskCompletedInAnotherQueue: jest.fn().mockReturnValue(false),
+    parseSlotsIntoButtons: jest.fn(),
+    handleErrorResponse: jest.fn(),
+}));
+
+// Mock baltichub functions
+jest.mock('../../../src/services/baltichub', () => ({
+    getSlots: jest.fn(),
+    validateRequestBeforeSlotCheck: jest.fn(),
+    checkSlotAvailability: jest.fn(),
+    executeRequest: jest.fn(),
 }));
 
 // Storage functions are now included in the main utils mock above
@@ -18,6 +45,11 @@ jest.mock('../../../src/utils/badge', () => ({
     updateBadge: jest.fn(),
     clearBadge: jest.fn(),
 }));
+
+// Import AFTER all mocks are declared
+import { QueueManager } from '../../../src/services/queueManager';
+import { RetryObject } from '../../../src/types/baltichub';
+import { QueueEvents } from '../../../src/types/queue';
 
 describe('QueueManager', () => {
     let queueManager: QueueManager;
@@ -32,24 +64,30 @@ describe('QueueManager', () => {
     const mockRetryObject: RetryObject = {
         id: 'test-id-1',
         tvAppId: 'test-tv-app',
-        startSlot: '2025-01-15 10:00:00',
-        endSlot: '2025-01-15 11:00:00',
-        currentSlot: '2025-01-15 10:00:00',
+        startSlot: '01.01.2025 10:00:00',
+        endSlot: '01.01.2025 11:00:00',
+        currentSlot: '2025-01-01 10:00:00',
         status: 'in-progress',
         status_message: 'Processing',
         url: 'https://test.com',
-        body: undefined,
+        body: {
+            formData: {
+                TvAppId: ['test-tv-app'],
+                SlotStart: ['01.01.2025 10:00'],
+                SlotEnd: ['01.01.2025 11:00'],
+            },
+        },
         headersCache: [],
         timestamp: Date.now(),
-        updated: false, // Add the updated field with default value
+        updated: false,
     };
 
     beforeEach(() => {
-        // Reset mocks
+        // Reset mocks but preserve implementations
         jest.clearAllMocks();
 
         // Get mock functions
-        const { getStorage, setStorage } = require('../../../src/utils');
+        const { getStorage, setStorage, normalizeFormData } = require('../../../src/utils');
         const { consoleLog, consoleError } = require('../../../src/utils');
         const { clearBadge } = require('../../../src/utils/badge');
 
@@ -58,6 +96,20 @@ describe('QueueManager', () => {
         mockConsoleLog = consoleLog;
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
+
+        // Restore normalizeFormData implementation after clearAllMocks
+        normalizeFormData.mockImplementation((body: any) => {
+            if (body && body.formData) {
+                return body;
+            }
+            return {
+                formData: {
+                    TvAppId: ['test-tv-app'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            };
+        });
 
         mockAuthService = {
             isAuthenticated: jest.fn().mockResolvedValue(true),
@@ -119,6 +171,67 @@ describe('QueueManager', () => {
                 invalidItem,
             );
         });
+
+        it('should not add success status item if no same tvAppId exists', async () => {
+            mockGetStorage.mockResolvedValue({ testQueue: [] });
+
+            const successItem = { ...mockRetryObject, status: 'success' };
+            const result = await queueManager.addToQueue(successItem);
+
+            expect(result).toHaveLength(0);
+            expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.stringContaining("Item with status 'success'"),
+            );
+        });
+
+        it('should add success status item if same tvAppId exists', async () => {
+            // existingItem has tvAppId 'test-tv-app' and startSlot '01.01.2025 10:00:00'
+            const existingItem = { ...mockRetryObject, id: 'existing-id', status: 'in-progress' };
+            mockGetStorage.mockResolvedValue({ testQueue: [existingItem] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // successItem has same tvAppId 'test-tv-app' but different startSlot
+            // So hasSameTvAppId returns true (same tvAppId exists)
+            // But isDuplicate returns false (different startSlot)
+            // Therefore, the item should be added (because !hasSameTvAppId is false, so condition passes)
+            const successItem = {
+                ...mockRetryObject,
+                status: 'success',
+                id: 'new-id',
+                tvAppId: 'test-tv-app', // Same tvAppId as existingItem
+                startSlot: '01.01.2025 11:00:00', // Different startSlot to avoid duplicate check
+                body: {
+                    formData: {
+                        TvAppId: ['test-tv-app'],
+                        SlotStart: ['01.01.2025 11:00'], // Different time
+                        SlotEnd: ['01.01.2025 12:00'],
+                    },
+                },
+            };
+            const result = await queueManager.addToQueue(successItem);
+
+            expect(result).toHaveLength(2);
+            expect(result.find(item => item.id === 'new-id')).toBeDefined();
+            expect(result.find(item => item.id === 'existing-id')).toBeDefined();
+        });
+
+        it('should generate id if not present', async () => {
+            mockGetStorage.mockResolvedValue({ testQueue: [] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const itemWithoutId: Omit<typeof mockRetryObject, 'id'> & { id?: string } = {
+                ...mockRetryObject,
+            };
+            delete itemWithoutId.id;
+
+            const { generateUniqueId } = require('../../../src/utils');
+            generateUniqueId.mockReturnValue('generated-id');
+
+            const result = await queueManager.addToQueue(itemWithoutId as any);
+
+            expect(result).toHaveLength(1);
+            expect(result[0].id).toBe('generated-id');
+        });
     });
 
     describe('removeFromQueue', () => {
@@ -132,6 +245,28 @@ describe('QueueManager', () => {
             expect(result).toHaveLength(0);
             expect(mockEvents.onItemRemoved).toHaveBeenCalledWith(mockRetryObject.id);
             expect(mockSetStorage).toHaveBeenCalledWith({ testQueue: [] });
+        });
+    });
+
+    describe('removeMultipleFromQueue', () => {
+        it('should remove multiple items by ids', async () => {
+            const item1 = { ...mockRetryObject, id: 'id-1' };
+            const item2 = { ...mockRetryObject, id: 'id-2' };
+            const item3 = { ...mockRetryObject, id: 'id-3' };
+            const existingQueue = [item1, item2, item3];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await queueManager.removeMultipleFromQueue(['id-1', 'id-3']);
+
+            expect(result).toHaveLength(1);
+            expect(result[0].id).toBe('id-2');
+            expect(mockEvents.onItemRemoved).toHaveBeenCalledTimes(2);
+            expect(mockEvents.onItemRemoved).toHaveBeenCalledWith('id-1');
+            expect(mockEvents.onItemRemoved).toHaveBeenCalledWith('id-3');
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: [item2],
+            });
         });
     });
 
@@ -169,15 +304,54 @@ describe('QueueManager', () => {
         });
     });
 
+    describe('updateEntireQueue', () => {
+        it('should update entire queue', async () => {
+            const newQueue = [
+                { ...mockRetryObject, id: 'new-id-1' },
+                { ...mockRetryObject, id: 'new-id-2' },
+            ];
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await queueManager.updateEntireQueue(newQueue);
+
+            expect(result).toEqual(newQueue);
+            expect(mockSetStorage).toHaveBeenCalledWith({ testQueue: newQueue });
+            expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Entire'));
+        });
+    });
+
     describe('startProcessing', () => {
-        const mockProcessRequest = jest.fn();
+        let mockGetSlots: jest.Mock;
+        let mockValidateRequest: jest.Mock;
+        let mockCheckSlotAvailability: jest.Mock;
+        let mockExecuteRequest: jest.Mock;
 
         beforeEach(() => {
-            mockProcessRequest.mockImplementation(async (req: RetryObject) => ({
-                ...req,
+            // Get fresh references to mocks after each test
+            const baltichub = require('../../../src/services/baltichub');
+            mockGetSlots = baltichub.getSlots;
+            mockValidateRequest = baltichub.validateRequestBeforeSlotCheck;
+            mockCheckSlotAvailability = baltichub.checkSlotAvailability;
+            mockExecuteRequest = baltichub.executeRequest;
+
+            // Clear call history but keep implementations
+            mockGetSlots.mockClear();
+            mockValidateRequest.mockClear();
+            mockCheckSlotAvailability.mockClear();
+            mockExecuteRequest.mockClear();
+
+            // Default mocks - these will be used by dynamic imports
+            mockGetSlots.mockResolvedValue({
+                ok: true,
+                text: jest.fn().mockResolvedValue('<html>slots</html>'),
+            });
+            mockValidateRequest.mockResolvedValue(null); // Validation passed
+            mockCheckSlotAvailability.mockResolvedValue(true); // Slot available
+            mockExecuteRequest.mockResolvedValue({
+                ...mockRetryObject,
                 status: 'success',
                 status_message: 'Processed',
-            }));
+            });
         });
 
         it('should start processing when not already running', async () => {
@@ -185,7 +359,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -194,12 +368,12 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             expect(mockEvents.onProcessingStarted).toHaveBeenCalled();
-            expect(mockProcessRequest).toHaveBeenCalled();
+            expect(mockGetSlots).toHaveBeenCalled();
         });
 
         it('should not start processing if already running', async () => {
-            queueManager.startProcessing(mockProcessRequest);
-            queueManager.startProcessing(mockProcessRequest); // Second call
+            queueManager.startProcessing(null);
+            queueManager.startProcessing(null); // Second call
 
             expect(mockConsoleLog).toHaveBeenCalledWith('Processing is already running');
         });
@@ -209,7 +383,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -219,12 +393,29 @@ describe('QueueManager', () => {
             expect(mockClearBadge).toHaveBeenCalled();
         });
 
-        it('should handle processing errors gracefully', async () => {
-            mockProcessRequest.mockRejectedValue(new Error('Processing failed'));
+        it('should stop processing when retryEnabled is false', async () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+                retryEnabled: false,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockEvents.onProcessingStarted).toHaveBeenCalled();
+            expect(mockEvents.onProcessingStopped).toHaveBeenCalled();
+        });
+
+        it('should handle processing errors gracefully', async () => {
+            mockExecuteRequest.mockRejectedValue(new Error('Processing failed'));
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -233,7 +424,7 @@ describe('QueueManager', () => {
 
             // Error should be logged and item should be updated to error status
             expect(mockConsoleError).toHaveBeenCalledWith(
-                'Error processing request test-id-1:',
+                'Error processing request test-id-1 for date 01.01.2025:',
                 expect.any(Error),
             );
             expect(mockSetStorage).toHaveBeenCalledWith({
@@ -251,7 +442,7 @@ describe('QueueManager', () => {
             // Mock getQueue to throw an error
             mockGetStorage.mockRejectedValue(new Error('Storage error'));
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -261,20 +452,12 @@ describe('QueueManager', () => {
             expect(mockEvents.onProcessingError).toHaveBeenCalledWith(expect.any(Error));
         });
 
-        it('should update queue item when updated flag is true even if status is in-progress', async () => {
-            // Mock processRequest to return item with updated flag set to true
-            mockProcessRequest.mockImplementation(async (req: RetryObject) => ({
-                ...req,
-                status: 'in-progress', // Status stays the same
-                updated: true, // But updated flag is set
-                status_message: 'Updated while in progress',
-            }));
-
+        it('should process requests successfully when slot is available', async () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -282,70 +465,431 @@ describe('QueueManager', () => {
             // Wait for processing to complete
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Verify that updateQueueItem was called even though status is still 'in-progress'
+            // Verify that getSlots was called with the date
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            // Verify that validateRequestBeforeSlotCheck was called
+            expect(mockValidateRequest).toHaveBeenCalled();
+            // Verify that checkSlotAvailability was called
+            expect(mockCheckSlotAvailability).toHaveBeenCalled();
+            // Verify that executeRequest was called
+            expect(mockExecuteRequest).toHaveBeenCalled();
+            // Verify that item was updated
+            expect(mockSetStorage).toHaveBeenCalled();
+        });
+
+        it('should keep request in queue when slot is not available', async () => {
+            mockCheckSlotAvailability.mockResolvedValue(false); // Slot not available
+
+            const existingQueue = [{ ...mockRetryObject, status_color: 'red' }];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait for processing to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Verify that getSlots was called
+            expect(mockGetSlots).toHaveBeenCalled();
+            // Verify that checkSlotAvailability was called
+            expect(mockCheckSlotAvailability).toHaveBeenCalled();
+            // Verify that executeRequest was NOT called (slot not available)
+            expect(mockExecuteRequest).not.toHaveBeenCalled();
+            // Verify that status_color was removed
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
                         id: 'test-id-1',
-                        status: 'in-progress',
-                        status_message: 'Updated while in progress',
-                        updated: false, // Should be reset to false after update
+                        status_color: undefined,
                     }),
                 ]),
             });
+        });
 
-            // Verify that mockProcessRequest was called (indicating processing occurred)
-            expect(mockProcessRequest).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    id: 'test-id-1',
-                    status: 'in-progress',
-                }),
-                expect.any(Array),
+        it('should handle validation errors', async () => {
+            // Mock validation to return error status
+            mockValidateRequest.mockResolvedValue({
+                ...mockRetryObject,
+                status: 'expired',
+                status_message: 'Request expired',
+            });
+
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait for processing to complete
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // Verify that validateRequestBeforeSlotCheck was called
+            expect(mockValidateRequest).toHaveBeenCalled();
+            // Verify that checkSlotAvailability was NOT called (validation failed)
+            expect(mockCheckSlotAvailability).not.toHaveBeenCalled();
+            // Verify that item was updated with error status
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: 'expired',
+                    }),
+                ]),
+            });
+        });
+
+        it('should handle empty batch', async () => {
+            const existingQueue = [{ ...mockRetryObject, status: 'success' }];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockGetSlots).not.toHaveBeenCalled();
+        });
+
+        it('should handle empty unique dates', async () => {
+            const { normalizeFormData } = require('../../../src/utils');
+            // Mock normalizeFormData to throw error, which will be caught in createDateSubscriptions
+            normalizeFormData.mockImplementation(() => {
+                throw new Error('Parse error');
+            });
+
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            // createDateSubscriptions will catch the error and skip the request
+            // So subscriptions will be empty, and getSlots should not be called
+            expect(mockGetSlots).not.toHaveBeenCalled();
+        });
+
+        it('should handle error reading slots text', async () => {
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns successful Response, but text() throws error
+            const mockText = jest.fn().mockRejectedValue(new Error('Text read error'));
+            mockGetSlots.mockResolvedValue({
+                ok: true,
+                text: mockText,
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // getSlots should be called with the date extracted from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockConsoleError).toHaveBeenCalledWith(
+                expect.stringContaining('Error reading slots text'),
+                expect.any(Error),
             );
         });
 
-        it('should reset updated flag to false after updating queue item', async () => {
-            // Mock processRequest to return item with updated flag set to true
-            mockProcessRequest.mockImplementation(async (req: RetryObject) => ({
-                ...req,
-                status: 'success',
-                updated: true,
-                status_message: 'Completed with update',
-            }));
-
+        it('should handle getSlots rejection', async () => {
             const existingQueue = [mockRetryObject];
+            // First call for getQueue, then multiple calls for updateQueueItem
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(mockProcessRequest, {
+            // getSlots throws error, which gets caught and converted to ErrorResponse
+            mockGetSlots.mockRejectedValue(new Error('Network error'));
+
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
 
-            // Wait for processing to complete
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Should update queue item with error status
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalled();
+        });
+
+        it('should handle getSlots error response', async () => {
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns ErrorResponse directly
+            mockGetSlots.mockResolvedValue({
+                ok: false,
+                error: {
+                    type: 'NETWORK',
+                    message: 'Network error',
+                },
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Should update queue item with error status
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalled();
+        });
+
+        it('should handle error in createDateSubscriptions', async () => {
+            const { normalizeFormData } = require('../../../src/utils');
+            normalizeFormData.mockImplementation(() => {
+                throw new Error('Parse error');
+            });
+
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Verify that updated flag was reset to false in the stored item
+            expect(mockConsoleError).toHaveBeenCalledWith(
+                expect.stringContaining('Error creating subscription'),
+                expect.any(Error),
+            );
+        });
+
+        it('should handle 401 client error', async () => {
+            const { Statuses, ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns ErrorResponse directly (not throwing)
+            mockGetSlots.mockResolvedValue({
+                ok: false,
+                error: {
+                    type: ErrorType.CLIENT_ERROR,
+                    status: 401,
+                    message: 'Unauthorized',
+                },
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Check that unauthorized was set (setStorage is called with {unauthorized: true})
+            expect(mockSetStorage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    unauthorized: true,
+                }),
+            );
+            // Check that queue item was updated
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
                         id: 'test-id-1',
-                        status: 'success',
-                        status_message: 'Completed with update',
-                        updated: false, // Should be reset to false
+                        status: Statuses.AUTHORIZATION_ERROR,
                     }),
                 ]),
             });
+        });
+
+        it('should handle server error', async () => {
+            const { Statuses, ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns ErrorResponse directly
+            mockGetSlots.mockResolvedValue({
+                ok: false,
+                error: {
+                    type: ErrorType.SERVER_ERROR,
+                    message: 'Server error',
+                },
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: Statuses.NETWORK_ERROR,
+                    }),
+                ]),
+            });
+        });
+
+        it('should handle HTML error', async () => {
+            const { Statuses, ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns ErrorResponse directly
+            mockGetSlots.mockResolvedValue({
+                ok: false,
+                error: {
+                    type: ErrorType.HTML_ERROR,
+                    message: 'HTML error',
+                },
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: Statuses.AUTHORIZATION_ERROR,
+                    }),
+                ]),
+            });
+        });
+
+        it('should handle simple error object with 401 status', async () => {
+            const { ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots returns ErrorResponse directly
+            mockGetSlots.mockResolvedValue({
+                ok: false,
+                error: {
+                    type: ErrorType.CLIENT_ERROR,
+                    status: 401,
+                },
+            });
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    unauthorized: true,
+                }),
+            );
+        });
+
+        it('should handle default network error', async () => {
+            const { Statuses } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            // getSlots throws error, which gets caught and converted to ErrorResponse with ErrorType.NETWORK
+            mockGetSlots.mockRejectedValue(new Error('Network error'));
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: Statuses.NETWORK_ERROR,
+                    }),
+                ]),
+            });
+        });
+
+        it('should handle error updating request in handleDateGroupError', async () => {
+            const existingQueue = [mockRetryObject];
+            // First call for getQueue in processQueueBatchWithSubscriptions
+            // Then calls in updateQueueItem (which calls getQueue again)
+            mockGetStorage
+                .mockResolvedValueOnce({ testQueue: existingQueue }) // First getQueue call
+                .mockResolvedValue({ testQueue: existingQueue }); // Subsequent getQueue calls in updateQueueItem
+            // Make updateQueueItem fail by making setStorage reject on first update attempt
+            mockSetStorage.mockRejectedValueOnce(new Error('Update error'));
+
+            // getSlots throws error, which gets caught and converted to ErrorResponse
+            mockGetSlots.mockRejectedValue(new Error('Network error'));
+
+            queueManager.startProcessing(null, {
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            // Wait longer to ensure processing completes
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // Should have error updating request (when setStorage rejects in updateQueueItem)
+            // getSlots should be called with the date from SlotStart
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockConsoleError).toHaveBeenCalledWith(
+                expect.stringContaining('Error updating request'),
+                expect.any(Error),
+            );
         });
     });
 
     describe('stopProcessing', () => {
         it('should stop processing and clear timeout', async () => {
-            const mockProcessRequest = jest.fn();
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(mockProcessRequest, {
+            queueManager.startProcessing(null, {
                 intervalMin: 10,
                 intervalMax: 20,
             });
