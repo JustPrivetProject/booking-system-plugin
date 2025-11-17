@@ -101,8 +101,8 @@ export class BackgroundController {
         const { processRequest } = await import('../services/baltichub');
 
         await this.queueManager.startProcessing(processRequest, {
-            intervalMin: 1000,
-            intervalMax: 2000,
+            intervalMin: 200,
+            intervalMax: 500,
             retryEnabled: true,
         });
     }
