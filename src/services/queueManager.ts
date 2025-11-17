@@ -20,7 +20,7 @@ import {
     consoleLogWithoutSave,
     normalizeFormData,
 } from '../utils/index';
-import { Statuses, ErrorType } from '../data';
+import { Statuses, ErrorType, Messages } from '../data';
 import {
     getSlots,
     checkSlotAvailability,
@@ -431,14 +431,23 @@ export class QueueManager implements IQueueManager {
                         tvAppId,
                         time.join(', '),
                     );
-                    if (req.status_color) {
-                        await this.updateQueueItem(req.id, { status_color: undefined });
+                    // Clear custom color, updated flag, and reset message when slot is not available
+                    // (this is normal "no slots" case, not "too many transactions")
+                    if (req.status_color || req.updated) {
+                        await this.updateQueueItem(req.id, {
+                            status_color: undefined,
+                            updated: undefined,
+                            status_message: Messages.IN_PROGRESS,
+                        });
                     }
                     continue;
                 }
 
+                // Reset updated flag before new attempt to allow fresh error detection
+                const reqForProcessing = req.updated ? { ...req, updated: false } : req;
+
                 // Slot available - execute request
-                const updatedReq = await executeRequest(req, tvAppId, time);
+                const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
                 await this.updateQueueItem(req.id, updatedReq);
                 this.processingState.processedCount++;
 
