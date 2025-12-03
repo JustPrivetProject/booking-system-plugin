@@ -1,6 +1,8 @@
 import type { RetryObject } from './baltichub';
 import type { ErrorResponse } from '../utils/index';
 
+// @deprecated ProcessRequestFunction is no longer used - processing logic is now internal to QueueManager
+
 // Core interfaces for Queue Management
 export interface IQueueManager {
     addToQueue(item: RetryObject): Promise<RetryObject[]>;
@@ -9,11 +11,7 @@ export interface IQueueManager {
     updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
     getQueue(): Promise<RetryObject[]>;
     updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]>;
-    startProcessing(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        processRequest: ProcessRequestFunction, // Deprecated: kept for backward compatibility, not used internally
-        options?: ProcessingOptions,
-    ): Promise<void>;
+    startProcessing(options?: ProcessingOptions): Promise<void>;
     stopProcessing(): void;
 }
 

@@ -1,5 +1,5 @@
 import type { RetryObject } from '../types/baltichub';
-import type { ProcessRequestFunction, ProcessingOptions } from '../types/queue';
+import type { ProcessingOptions } from '../types/queue';
 
 import type { QueueManager } from './queueManager';
 import { QueueManagerFactory } from './queueManagerFactory';
@@ -57,11 +57,8 @@ export class QueueManagerAdapter {
         return this.queueManager.updateEntireQueue(newQueue);
     }
 
-    async startProcessing(
-        processRequest: ProcessRequestFunction,
-        options: ProcessingOptions = {},
-    ): Promise<void> {
-        return this.queueManager.startProcessing(processRequest, options);
+    async startProcessing(options: ProcessingOptions = {}): Promise<void> {
+        return this.queueManager.startProcessing(options);
     }
 
     stopProcessing(): void {

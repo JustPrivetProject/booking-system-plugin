@@ -1,6 +1,6 @@
 import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import type { RetryObject } from '../../../src/types/baltichub';
-import type { ProcessRequestFunction, ProcessingOptions } from '../../../src/types/queue';
+import type { ProcessingOptions } from '../../../src/types/queue';
 
 // Mock QueueManagerFactory
 jest.mock('../../../src/services/queueManagerFactory', () => ({
@@ -13,6 +13,7 @@ jest.mock('../../../src/services/queueManagerFactory', () => ({
 const mockQueueManager = {
     addToQueue: jest.fn(),
     removeFromQueue: jest.fn(),
+    removeMultipleFromQueue: jest.fn(),
     updateQueueItem: jest.fn(),
     getQueue: jest.fn(),
     updateEntireQueue: jest.fn(),
@@ -42,7 +43,6 @@ describe('QueueManagerAdapter', () => {
         tvAppId: 'test-app',
     };
 
-    const testProcessRequest: ProcessRequestFunction = jest.fn();
     const testOptions: ProcessingOptions = { intervalMin: 5000, intervalMax: 10000 };
 
     beforeEach(() => {
@@ -170,6 +170,35 @@ describe('QueueManagerAdapter', () => {
             });
         });
 
+        describe('removeMultipleFromQueue', () => {
+            it('should forward removeMultipleFromQueue call to underlying QueueManager', async () => {
+                const expectedQueue: RetryObject[] = [];
+                mockQueueManager.removeMultipleFromQueue.mockResolvedValue(expectedQueue);
+
+                const result = await adapter.removeMultipleFromQueue(['id-1', 'id-2', 'id-3']);
+
+                expect(mockQueueManager.removeMultipleFromQueue).toHaveBeenCalledWith([
+                    'id-1',
+                    'id-2',
+                    'id-3',
+                ]);
+                expect(result).toEqual(expectedQueue);
+            });
+
+            it('should handle errors from underlying QueueManager', async () => {
+                const error = new Error('Remove multiple error');
+                mockQueueManager.removeMultipleFromQueue.mockRejectedValue(error);
+
+                await expect(adapter.removeMultipleFromQueue(['id-1', 'id-2'])).rejects.toThrow(
+                    'Remove multiple error',
+                );
+                expect(mockQueueManager.removeMultipleFromQueue).toHaveBeenCalledWith([
+                    'id-1',
+                    'id-2',
+                ]);
+            });
+        });
+
         describe('updateQueueItem', () => {
             it('should forward updateQueueItem call to underlying QueueManager', async () => {
                 const updateData = { status: 'success' };
@@ -252,36 +281,27 @@ describe('QueueManagerAdapter', () => {
             it('should forward startProcessing call to underlying QueueManager', async () => {
                 mockQueueManager.startProcessing.mockResolvedValue(undefined);
 
-                await adapter.startProcessing(testProcessRequest, testOptions);
+                await adapter.startProcessing(testOptions);
 
-                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(
-                    testProcessRequest,
-                    testOptions,
-                );
+                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(testOptions);
             });
 
             it('should forward startProcessing call with default options', async () => {
                 mockQueueManager.startProcessing.mockResolvedValue(undefined);
 
-                await adapter.startProcessing(testProcessRequest);
+                await adapter.startProcessing();
 
-                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(
-                    testProcessRequest,
-                    {},
-                );
+                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({});
             });
 
             it('should handle errors from underlying QueueManager', async () => {
                 const error = new Error('Start processing error');
                 mockQueueManager.startProcessing.mockRejectedValue(error);
 
-                await expect(
-                    adapter.startProcessing(testProcessRequest, testOptions),
-                ).rejects.toThrow('Start processing error');
-                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(
-                    testProcessRequest,
-                    testOptions,
+                await expect(adapter.startProcessing(testOptions)).rejects.toThrow(
+                    'Start processing error',
                 );
+                expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(testOptions);
             });
         });
 
@@ -380,7 +400,7 @@ describe('QueueManagerAdapter', () => {
             await adapter.addToQueue(testRetryObject);
             await adapter.updateQueueItem('test-id', { status: 'success' });
             const queue = await adapter.getQueue();
-            await adapter.startProcessing(testProcessRequest);
+            await adapter.startProcessing();
             adapter.stopProcessing();
             await adapter.removeFromQueue('test-id');
 
@@ -390,7 +410,7 @@ describe('QueueManagerAdapter', () => {
                 status: 'success',
             });
             expect(queue).toEqual(updatedQueue);
-            expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(testProcessRequest, {});
+            expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({});
             expect(mockQueueManager.stopProcessing).toHaveBeenCalled();
             expect(mockQueueManager.removeFromQueue).toHaveBeenCalledWith('test-id');
         });

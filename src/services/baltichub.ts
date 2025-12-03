@@ -1,6 +1,5 @@
 import { Statuses, Messages, urls } from '../data';
 import type { RetryObject } from '../types/baltichub';
-import { setStorage } from '../utils';
 import {
     parseSlotsIntoButtons,
     handleErrorResponse,
@@ -18,7 +17,6 @@ import {
     consoleLogWithoutSave,
     JSONstringify,
     formatDateToDMY,
-    ErrorType,
 } from '../utils/index';
 import { BrevoEmailData } from '../types';
 
@@ -238,118 +236,4 @@ export async function validateRequestBeforeSlotCheck(
 
     // Validation passed
     return null;
-}
-
-/**
- * Processes a request by normalizing its form data, checking task completion,
- * verifying authorization, checking slot availability, and executing the request if applicable.
- *
- * @async
- * @function
- * @param {Object} req - The request object containing the body and other details.
- * @param {Array} queue - The queue of tasks to check for task completion.
- * @returns {Promise<Object>} A promise that resolves to the updated request object with status and status_message.
- *
- * @throws {Error} Throws an error if there is an issue during slot retrieval or execution.
- *
- * @example
- * const req = {
- *   body: {
- *     TvAppId: ['12345'],
- *     SlotStart: ['2023-10-01 10:00']
- *   }
- * };
- * const queue = [];
- * const result = await processRequest(req, queue);
- * console.log(result);
- */
-export async function processRequest(req: RetryObject, queue: RetryObject[]): Promise<RetryObject> {
-    const body = normalizeFormData(req.body).formData;
-    const tvAppId = body.TvAppId[0];
-    const time = body.SlotStart[0].split(' ');
-    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]); // 26.06.2025 00:59:00
-    const currentTimeSlot = new Date(req.currentSlot);
-    const currentTIme = new Date();
-
-    if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTIme) {
-        consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
-        return {
-            ...req,
-            status: Statuses.EXPIRED,
-            status_message: Messages.EXPIRED,
-        };
-    }
-
-    if (currentTimeSlot < currentTIme) {
-        consoleLog('❌ Changing the time is no longer possible:', tvAppId, endTimeStr);
-        return {
-            ...req,
-            status: Statuses.EXPIRED,
-            status_message: Messages.AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL,
-        };
-    }
-
-    if (isTaskCompletedInAnotherQueue(req, queue)) {
-        consoleLog('✅ The request was executed in another task:', tvAppId, time.join(', '));
-        return {
-            ...req,
-            status: Statuses.ANOTHER_TASK,
-            status_message: 'Zadanie zakończone w innym wątku',
-        };
-    }
-    const slots = await getSlots(time[0]);
-    // Check Authorization
-    if (!slots.ok && 'error' in slots) {
-        consoleLog('❌ Problem with request:', tvAppId, time.join(', '), slots.error);
-
-        // Handle different error types
-        switch (slots.error.type) {
-            case ErrorType.CLIENT_ERROR:
-                if (slots.error.status === 401) {
-                    setStorage({ unauthorized: true });
-                    return {
-                        ...req,
-                        status: Statuses.AUTHORIZATION_ERROR,
-                        status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
-                    };
-                }
-                break;
-            case ErrorType.SERVER_ERROR:
-                return {
-                    ...req,
-                    status: Statuses.NETWORK_ERROR,
-                    status_message: 'Problem z serwerem - spróbuj ponownie później',
-                };
-            case ErrorType.HTML_ERROR:
-                return {
-                    ...req,
-                    status: Statuses.AUTHORIZATION_ERROR,
-                    status_message: 'Problem z autoryzacją - strona błędu',
-                };
-            case ErrorType.NETWORK:
-                return {
-                    ...req,
-                    status: Statuses.AUTHORIZATION_ERROR,
-                    status_message: 'Problem z połączeniem sieciowym',
-                };
-            default:
-                return {
-                    ...req,
-                    status: Statuses.NETWORK_ERROR,
-                    status_message: Messages.UNKNOWN,
-                };
-        }
-    }
-    const htmlText = await slots.text();
-    const isSlotAvailable = await checkSlotAvailability(htmlText, time);
-    if (!isSlotAvailable) {
-        consoleLogWithoutSave('❌ No slots, keeping in queue:', tvAppId, time.join(', '));
-        // Clear custom color if slots are not available (not the "Too many transactions" case)
-        if (req.status_color) {
-            return { ...req, status_color: undefined };
-        }
-        return req;
-    }
-    const objectToReturn = await executeRequest(req, tvAppId, time);
-    return objectToReturn;
 }
