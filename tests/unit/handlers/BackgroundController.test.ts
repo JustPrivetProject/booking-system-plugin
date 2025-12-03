@@ -128,14 +128,9 @@ describe('BackgroundController', () => {
 
     describe('startQueueProcessing', () => {
         it('should start queue processing with correct parameters', async () => {
-            const mockProcessRequest = jest.fn();
-            jest.doMock('../../../src/services/baltichub', () => ({
-                processRequest: mockProcessRequest,
-            }));
-
             await backgroundController['startQueueProcessing']();
 
-            expect(mockQueueManager.startProcessing).toHaveBeenCalledWith(expect.any(Function), {
+            expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({
                 intervalMin: 200,
                 intervalMax: 500,
                 retryEnabled: true,

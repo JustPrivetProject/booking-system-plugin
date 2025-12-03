@@ -7,6 +7,9 @@ const ESLintPlugin = require('eslint-webpack-plugin');
 
 module.exports = env => {
     const isProduction = env.production === true;
+    const isTest = env.test === true;
+
+    // Determine manifest and icon paths based on build type
     const manifestPath = isProduction ? 'public/manifest.json' : 'public/manifest-dev.json';
     const iconPath = isProduction ? 'public/icon-144x144.png' : 'public/icon-144x144-dev.png';
 
@@ -87,6 +90,7 @@ module.exports = env => {
             // Define process.env.NODE_ENV for runtime usage
             new webpack.DefinePlugin({
                 'process.env.NODE_ENV': JSON.stringify(isProduction ? 'production' : 'development'),
+                'process.env.TEST_MOCKS': isTest ? 'true' : 'false',
             }),
 
             // Генерация popup.html с подключённым popup.js

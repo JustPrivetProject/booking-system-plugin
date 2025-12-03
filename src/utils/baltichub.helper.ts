@@ -67,17 +67,20 @@ export function handleErrorResponse(
         };
     }
     if (parsedResponse.includes('YbqToMuchTransactionInSector')) {
+        const pauseDuration = 60 * 1000; // 1 minute pause
+        const pausedUntil = Date.now() + pauseDuration;
         consoleLog(
-            '⚠️ Too many transactions in sector, keeping in queue:',
+            '⚠️ Too many transactions in sector, pausing request for 1 minute:',
             tvAppId,
             time.join(', '),
-            parsedResponse,
+            `pausedUntil: ${new Date(pausedUntil).toLocaleTimeString()}`,
         );
         return {
             ...req,
             status_message: Messages.TOO_MANY_TRANSACTIONS_IN_SECTOR,
             status_color: 'orange',
             updated: true,
+            pausedUntil,
         };
     }
 

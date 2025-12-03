@@ -2,7 +2,9 @@ import {
     getSlots,
     getEditForm,
     getDriverNameAndContainer,
-    processRequest,
+    checkSlotAvailability,
+    executeRequest,
+    validateRequestBeforeSlotCheck,
 } from '../../../src/services/baltichub';
 import { RetryObject } from '../../../src/types/baltichub';
 import { Statuses, ErrorType } from '../../../src/data';
@@ -538,161 +540,300 @@ describe('Baltichub Service', () => {
         });
     });
 
-    describe('processRequest', () => {
-        it('should return expired status when end time is in the past', async () => {
-            // Arrange
-            testHelper.setupExpiredEndTime();
+    describe('checkSlotAvailability', () => {
+        it('should return true when slot is available', async () => {
+            const { parseSlotsIntoButtons } = require('../../../src/utils/baltichub.helper');
+            parseSlotsIntoButtons.mockReturnValue([
+                { text: '10:00-10:59', disabled: false },
+                { text: '11:00-11:59', disabled: true },
+            ]);
 
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
+            const result = await checkSlotAvailability('<html></html>', ['01.01.2025', '10:00:00']);
 
-            // Assert
-            expect(result.status).toBe(Statuses.EXPIRED);
-            expect(result.status_message).toBe('Czas zakończenia slotu już minął');
+            expect(result).toBe(true);
         });
 
-        it('should return expired status when current slot is in the past', async () => {
-            // Arrange
-            testHelper.setupExpiredCurrentSlot();
+        it('should return false when slot is disabled', async () => {
+            const { parseSlotsIntoButtons } = require('../../../src/utils/baltichub.helper');
+            parseSlotsIntoButtons.mockReturnValue([
+                { text: '10:00-10:59', disabled: true },
+                { text: '11:00-11:59', disabled: false },
+            ]);
 
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.EXPIRED_CURRENT_SLOT, []);
+            const result = await checkSlotAvailability('<html></html>', ['01.01.2025', '10:00:00']);
 
-            // Assert
-            expect(result.status).toBe(Statuses.EXPIRED);
-            expect(result.status_message).toBe(
-                'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
+            expect(result).toBe(false);
+        });
+
+        it('should return false when slot is not found', async () => {
+            const { parseSlotsIntoButtons } = require('../../../src/utils/baltichub.helper');
+            parseSlotsIntoButtons.mockReturnValue([
+                { text: '11:00-11:59', disabled: false },
+                { text: '12:00-12:59', disabled: false },
+            ]);
+
+            const result = await checkSlotAvailability('<html></html>', ['01.01.2025', '10:00:00']);
+
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('executeRequest', () => {
+        it('should return success status on successful request', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                text: jest.fn().mockResolvedValue('success'),
+            });
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(result.status).toBe(Statuses.SUCCESS);
+        });
+
+        it('should throw error when body or formData is missing', async () => {
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: undefined as any,
+            };
+
+            await expect(executeRequest(req, '123', ['01.01.2025', '10:00'])).rejects.toThrow(
+                'Request body or formData is missing',
             );
         });
 
-        it('should return another task status when task is completed in another queue', async () => {
-            // Arrange
-            testHelper.setupTaskCompletedInAnotherQueue();
+        it('should handle error response', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
 
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: false,
+                text: jest.fn().mockResolvedValue('{"error":"some error"}'),
+            });
+            handleErrorResponse.mockReturnValue({
+                ...TEST_RETRY_OBJECTS.VALID,
+                status: Statuses.ERROR,
+                status_message: 'Error',
+            });
 
-            // Assert
-            expect(result.status).toBe(Statuses.ANOTHER_TASK);
-            expect(result.status_message).toBe('Zadanie zakończone w innym wątku');
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(handleErrorResponse).toHaveBeenCalled();
+            expect(result.status).toBe(Statuses.ERROR);
         });
 
-        it('should handle authorization error (401)', async () => {
-            // Arrange
-            testHelper.setupAuthorizationError();
+        it('should send notifications on success', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                text: jest.fn().mockResolvedValue('success'),
+            });
 
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
-            expect(result.status_message).toBe('Problem z autoryzacją - nieautoryzowany dostęp');
-            testHelper.expectSetStorageCalledWith({ unauthorized: true });
-        });
-
-        it('should handle server error', async () => {
-            // Arrange
-            testHelper.setupServerError();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.NETWORK_ERROR);
-            expect(result.status_message).toBe('Problem z serwerem - spróbuj ponownie później');
-        });
-
-        it('should handle HTML error', async () => {
-            // Arrange
-            testHelper.setupHtmlError();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
-            expect(result.status_message).toBe('Problem z autoryzacją - strona błędu');
-        });
-
-        it('should handle network error', async () => {
-            // Arrange
-            testHelper.setupNetworkError();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
-            expect(result.status_message).toBe('Problem z połączeniem sieciowym');
-        });
-
-        it('should handle unknown error type', async () => {
-            // Arrange
-            testHelper.setupUnknownError();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.NETWORK_ERROR);
-            expect(result.status_message).toBe('Nieznany błąd (niepoprawny format odpowiedzi)');
-        });
-
-        it('should return request unchanged when slot is not available', async () => {
-            // Arrange
-            testHelper.setupNoSlotsAvailable();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result).toEqual(TEST_RETRY_OBJECTS.VALID);
-        });
-
-        it('should execute request successfully when slot is available', async () => {
-            // Arrange
-            testHelper.setupExecuteRequestSuccess();
-
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
-            expect(result.status).toBe(Statuses.SUCCESS);
-            expect(result.status_message).toBe('Zadanie zakończone sukcesem');
-            testHelper.expectNotificationCreated();
-        });
-
-        it('should send notification with correct booking data', async () => {
-            // Arrange
-            testHelper.setupExecuteRequestSuccess();
-
-            // Act
-            await processRequest(TEST_RETRY_OBJECTS.VALID, []);
-
-            // Assert
             const mockNotificationService = notificationService as jest.Mocked<
                 typeof notificationService
             >;
-            expect(mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    tvAppId: TEST_RETRY_OBJECTS.VALID.tvAppId,
-                    bookingTime: expect.any(String),
-                    driverName: TEST_RETRY_OBJECTS.VALID.driverName,
-                    containerNumber: TEST_RETRY_OBJECTS.VALID.containerNumber,
-                }),
-            );
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalled();
         });
 
-        it('should handle execute request error', async () => {
-            // Arrange
-            testHelper.setupExecuteRequestError();
+        it('should handle notification error gracefully', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                text: jest.fn().mockResolvedValue('success'),
+            });
 
-            // Act
-            const result = await processRequest(TEST_RETRY_OBJECTS.VALID, []);
+            const mockNotificationService = notificationService as jest.Mocked<
+                typeof notificationService
+            >;
+            mockNotificationService.sendBookingSuccessNotifications.mockRejectedValue(
+                new Error('Notification failed'),
+            );
 
-            // Assert
-            expect(result.status).toBe(Statuses.ERROR);
-            expect(result.status_message).toBe('Error occurred');
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            // Should not throw, but return success
+            const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
+            expect(result.status).toBe(Statuses.SUCCESS);
+        });
+    });
+
+    describe('validateRequestBeforeSlotCheck', () => {
+        it('should return null when validation passes', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            // Set future dates
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                currentSlot: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).toBeNull();
+        });
+
+        it('should return EXPIRED when end time is in the past', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            // Set past date for end time
+            const pastDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2024 11:00'], // Past date
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(pastDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                currentSlot: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).not.toBeNull();
+            expect(result?.status).toBe(Statuses.EXPIRED);
+        });
+
+        it('should return EXPIRED when current slot is in the past', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            // Set future end time but past current slot
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                currentSlot: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 hour ago
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).not.toBeNull();
+            expect(result?.status).toBe(Statuses.EXPIRED);
+        });
+
+        it('should return ANOTHER_TASK when task completed in another queue', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(true); // Task completed in another queue
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                currentSlot: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).not.toBeNull();
+            expect(result?.status).toBe(Statuses.ANOTHER_TASK);
+        });
+    });
+
+    describe('getDriverNameAndContainer edge cases', () => {
+        it('should skip cache lookup when retryQueue is undefined', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockResponse = {
+                ok: true,
+                text: jest.fn().mockResolvedValue(TEST_HTML_RESPONSES.WITH_DRIVER),
+            };
+            fetchRequest.mockResolvedValue(mockResponse);
+
+            const result = await getDriverNameAndContainer(TEST_TV_APP_IDS.VALID, undefined as any);
+
+            expect(fetchRequest).toHaveBeenCalled();
+            expect(result).toEqual({
+                driverName: 'John Doe',
+                containerNumber: 'MSNU2991953',
+            });
+        });
+
+        it('should skip cache lookup when retryQueue is not an array', async () => {
+            const { fetchRequest } = require('../../../src/utils');
+            const mockResponse = {
+                ok: true,
+                text: jest.fn().mockResolvedValue(TEST_HTML_RESPONSES.WITH_DRIVER),
+            };
+            fetchRequest.mockResolvedValue(mockResponse);
+
+            const result = await getDriverNameAndContainer(
+                TEST_TV_APP_IDS.VALID,
+                'not-an-array' as any,
+            );
+
+            expect(fetchRequest).toHaveBeenCalled();
+            expect(result).toEqual({
+                driverName: 'John Doe',
+                containerNumber: 'MSNU2991953',
+            });
         });
     });
 });

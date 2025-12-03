@@ -10,10 +10,69 @@ import { errorLogService } from '../services/errorLogService';
 
 import { consoleLog } from './logging';
 
+// Mock responses for test build
+const TEST_MOCKS: Record<string, { body: string; contentType: string }> = {
+    '/Home/GetSlots': {
+        body: `<div>
+    <span>
+        <button type="button" class="btn btn-outline btn-success-outlined btn-xs vbs-w-125 vbs-no-pointer">18:00-18:59</button>
+    </span>
+ <div>
+        <span>
+            <button type="button"  disabled="disabled" class="btn btn-outline btn-success-outlined btn-xs vbs-w-125 vbs-no-pointer">22:00-22:59</button>
+        </span>
+    </div>
+</div>`,
+        contentType: 'text/html',
+    },
+    '/TVApp/EditTvAppSubmit': {
+        body: '{"error":"DFSU1488716 - Za duża ilość transakcji w sektorze","messageCode":"YbqToMuchTransactionInSector|DFSU1488716"}',
+        contentType: 'application/json',
+    },
+};
+
+// Check if mocking is enabled (set by webpack DefinePlugin in test build)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MOCKING_ENABLED = (process.env as any).TEST_MOCKS === true;
+
+/**
+ * Check if URL matches a mock pattern and return mock response
+ */
+function getMockResponse(url: string): Response | null {
+    if (!MOCKING_ENABLED) {
+        return null;
+    }
+
+    consoleLog(`[MOCK] Checking URL: ${url}, Mocking enabled: ${MOCKING_ENABLED}`);
+
+    for (const [pattern, mock] of Object.entries(TEST_MOCKS)) {
+        if (url.includes(pattern)) {
+            consoleLog(`[MOCK] ✅ Intercepted request to ${pattern}`);
+            return new Response(mock.body, {
+                status: 200,
+                statusText: 'OK (Mocked)',
+                headers: {
+                    'Content-Type': mock.contentType,
+                    'X-Mocked': 'true',
+                },
+            });
+        }
+    }
+
+    consoleLog(`[MOCK] ❌ No mock found for: ${url}`);
+    return null;
+}
+
 export async function fetchRequest(
     url: string,
     options: FetchRequestOptions = {},
 ): Promise<Response | ErrorResponse> {
+    // Check for mock response in test build
+    const mockResponse = getMockResponse(url);
+    if (mockResponse) {
+        return mockResponse;
+    }
+
     const retryConfig = { ...DEFAULT_RETRY_CONFIG, ...options.retryConfig };
     let lastError: Error | null = null;
 

@@ -98,9 +98,7 @@ export class BackgroundController {
     }
 
     private async startQueueProcessing(): Promise<void> {
-        const { processRequest } = await import('../services/baltichub');
-
-        await this.queueManager.startProcessing(processRequest, {
+        await this.queueManager.startProcessing({
             intervalMin: 200,
             intervalMax: 500,
             retryEnabled: true,

@@ -58,6 +58,7 @@ describe('QueueManager', () => {
     let mockGetStorage: jest.Mock;
     let mockSetStorage: jest.Mock;
     let mockConsoleLog: jest.Mock;
+    let mockConsoleLogWithoutSave: jest.Mock;
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
 
@@ -88,12 +89,13 @@ describe('QueueManager', () => {
 
         // Get mock functions
         const { getStorage, setStorage, normalizeFormData } = require('../../../src/utils');
-        const { consoleLog, consoleError } = require('../../../src/utils');
+        const { consoleLog, consoleLogWithoutSave, consoleError } = require('../../../src/utils');
         const { clearBadge } = require('../../../src/utils/badge');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
         mockConsoleLog = consoleLog;
+        mockConsoleLogWithoutSave = consoleLogWithoutSave;
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
 
@@ -359,7 +361,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -372,8 +374,8 @@ describe('QueueManager', () => {
         });
 
         it('should not start processing if already running', async () => {
-            queueManager.startProcessing(null);
-            queueManager.startProcessing(null); // Second call
+            queueManager.startProcessing();
+            queueManager.startProcessing(); // Second call
 
             expect(mockConsoleLog).toHaveBeenCalledWith('Processing is already running');
         });
@@ -383,7 +385,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -397,7 +399,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
                 retryEnabled: false,
@@ -415,7 +417,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -442,7 +444,7 @@ describe('QueueManager', () => {
             // Mock getQueue to throw an error
             mockGetStorage.mockRejectedValue(new Error('Storage error'));
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -457,7 +459,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -484,7 +486,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -521,7 +523,7 @@ describe('QueueManager', () => {
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
             mockSetStorage.mockResolvedValue(undefined);
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -548,7 +550,7 @@ describe('QueueManager', () => {
             const existingQueue = [{ ...mockRetryObject, status: 'success' }];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -568,7 +570,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -592,7 +594,7 @@ describe('QueueManager', () => {
                 text: mockText,
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -617,7 +619,7 @@ describe('QueueManager', () => {
             // getSlots throws error, which gets caught and converted to ErrorResponse
             mockGetSlots.mockRejectedValue(new Error('Network error'));
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -645,7 +647,7 @@ describe('QueueManager', () => {
                 },
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -668,7 +670,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -697,7 +699,7 @@ describe('QueueManager', () => {
                 },
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -737,7 +739,7 @@ describe('QueueManager', () => {
                 },
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -772,7 +774,7 @@ describe('QueueManager', () => {
                 },
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -807,7 +809,7 @@ describe('QueueManager', () => {
                 },
             });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -833,7 +835,7 @@ describe('QueueManager', () => {
             // getSlots throws error, which gets caught and converted to ErrorResponse with ErrorType.NETWORK
             mockGetSlots.mockRejectedValue(new Error('Network error'));
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -866,7 +868,7 @@ describe('QueueManager', () => {
             // getSlots throws error, which gets caught and converted to ErrorResponse
             mockGetSlots.mockRejectedValue(new Error('Network error'));
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });
@@ -882,6 +884,196 @@ describe('QueueManager', () => {
                 expect.any(Error),
             );
         });
+
+        describe('pausedUntil functionality', () => {
+            it('should skip processing requests that are paused', async () => {
+                const pausedRequest = {
+                    ...mockRetryObject,
+                    id: 'paused-request',
+                    pausedUntil: Date.now() + 60 * 1000, // paused for 1 minute
+                };
+                mockGetStorage.mockResolvedValue({ testQueue: [pausedRequest] });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // executeRequest should NOT be called because request is paused
+                expect(mockExecuteRequest).not.toHaveBeenCalled();
+            });
+
+            it('should process requests after pause expires', async () => {
+                const expiredPauseRequest = {
+                    ...mockRetryObject,
+                    id: 'expired-pause-request',
+                    pausedUntil: Date.now() - 1000, // pause expired 1 second ago
+                };
+                mockGetStorage.mockResolvedValue({ testQueue: [expiredPauseRequest] });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                // Setup slots response
+                mockGetSlots.mockResolvedValue({
+                    ok: true,
+                    text: jest
+                        .fn()
+                        .mockResolvedValue(
+                            '<button>10:00-10:59</button><button disabled>22:00-22:59</button>',
+                        ),
+                });
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // getSlots SHOULD be called because pause expired
+                expect(mockGetSlots).toHaveBeenCalled();
+                // pausedUntil should be cleared
+                expect(mockSetStorage).toHaveBeenCalledWith({
+                    testQueue: expect.arrayContaining([
+                        expect.objectContaining({
+                            id: 'expired-pause-request',
+                            pausedUntil: undefined,
+                        }),
+                    ]),
+                });
+            });
+
+            it('should process non-paused requests while skipping paused ones', async () => {
+                const pausedRequest = {
+                    ...mockRetryObject,
+                    id: 'paused-request',
+                    tvAppId: 'paused-tv-app',
+                    pausedUntil: Date.now() + 60 * 1000, // still paused
+                };
+                const activeRequest = {
+                    ...mockRetryObject,
+                    id: 'active-request',
+                    tvAppId: 'active-tv-app',
+                    pausedUntil: undefined, // not paused
+                };
+                mockGetStorage.mockResolvedValue({ testQueue: [pausedRequest, activeRequest] });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                // Setup slots response
+                mockGetSlots.mockResolvedValue({
+                    ok: true,
+                    text: jest
+                        .fn()
+                        .mockResolvedValue(
+                            '<button>10:00-10:59</button><button disabled>22:00-22:59</button>',
+                        ),
+                });
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // getSlots should be called for active request date
+                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            });
+
+            it('should log remaining pause time when skipping paused request', async () => {
+                const pausedRequest = {
+                    ...mockRetryObject,
+                    id: 'paused-request',
+                    pausedUntil: Date.now() + 30 * 1000, // 30 seconds remaining
+                };
+                mockGetStorage.mockResolvedValue({ testQueue: [pausedRequest] });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Should log with remaining seconds
+                expect(mockConsoleLogWithoutSave).toHaveBeenCalledWith(
+                    expect.stringContaining('⏸️ Request paused for'),
+                    expect.any(String),
+                    expect.any(String),
+                );
+            });
+        });
+
+        describe('error handling in slot fetching', () => {
+            it('should handle rejected promise from getSlots', async () => {
+                const existingQueue = [mockRetryObject];
+                mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                // Mock getSlots to throw (will be caught by Promise.allSettled as rejected)
+                mockGetSlots.mockImplementation(() => {
+                    throw new Error('Unexpected error in getSlots');
+                });
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Should handle the error gracefully
+                expect(mockSetStorage).toHaveBeenCalled();
+            });
+
+            it('should handle getSlots returning null slots', async () => {
+                const existingQueue = [mockRetryObject];
+                mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                // Mock getSlots to return null
+                mockGetSlots.mockResolvedValue(null);
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Should handle null slots gracefully
+                expect(mockGetSlots).toHaveBeenCalled();
+            });
+
+            it('should handle getSlots returning error response', async () => {
+                const { ErrorType } = require('../../../src/data');
+                const existingQueue = [mockRetryObject];
+                mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+                mockSetStorage.mockResolvedValue(undefined);
+
+                // Mock getSlots to return ErrorResponse
+                mockGetSlots.mockResolvedValue({
+                    ok: false,
+                    error: {
+                        type: ErrorType.NETWORK,
+                        message: 'Network error',
+                    },
+                });
+
+                queueManager.startProcessing({
+                    intervalMin: 10,
+                    intervalMax: 20,
+                });
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Should handle error response
+                expect(mockGetSlots).toHaveBeenCalled();
+            });
+        });
     });
 
     describe('stopProcessing', () => {
@@ -889,7 +1081,7 @@ describe('QueueManager', () => {
             const existingQueue = [mockRetryObject];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
-            queueManager.startProcessing(null, {
+            queueManager.startProcessing({
                 intervalMin: 10,
                 intervalMax: 20,
             });

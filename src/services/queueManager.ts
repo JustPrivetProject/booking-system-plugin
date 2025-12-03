@@ -158,11 +158,7 @@ export class QueueManager implements IQueueManager {
         });
     }
 
-    async startProcessing(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        _processRequest: unknown, // Deprecated: no longer used, kept for backward compatibility
-        options: ProcessingOptions = {},
-    ): Promise<void> {
+    async startProcessing(options: ProcessingOptions = {}): Promise<void> {
         const { intervalMin = 1000, intervalMax = 5000, retryEnabled = true } = options;
 
         if (this.processingState.isProcessing) {
@@ -185,18 +181,25 @@ export class QueueManager implements IQueueManager {
                 if (!isAuthenticated) {
                     consoleLogWithoutSave('User is not authenticated. Skipping this cycle.');
                     clearBadge();
-                    this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests);
+                    this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests, false);
                     return;
                 }
 
-                await this.processQueueBatchWithSubscriptions();
+                const hasActiveSubscriptions = await this.processQueueBatchWithSubscriptions();
+                this.scheduleNextProcess(
+                    intervalMin,
+                    intervalMax,
+                    processNextRequests,
+                    hasActiveSubscriptions,
+                );
+                return;
             } catch (error) {
                 this.processingState.errorCount++;
                 consoleError('Error in queue processing:', error);
                 this.events.onProcessingError?.(error as Error);
             }
 
-            this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests);
+            this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests, false);
         };
 
         // Start initial processing
@@ -264,6 +267,7 @@ export class QueueManager implements IQueueManager {
         intervalMin: number,
         intervalMax: number,
         processNextRequests: () => void,
+        hasActiveSubscriptions: boolean = true,
     ): void {
         const randomInterval = Math.floor(
             Math.random() * (intervalMax - intervalMin + 1) + intervalMin,
@@ -272,7 +276,9 @@ export class QueueManager implements IQueueManager {
         this.processingState.currentInterval = randomInterval;
         this.processingTimeoutId = setTimeout(processNextRequests, randomInterval);
 
-        consoleLogWithoutSave(`Next processing cycle in ${randomInterval / 1000} seconds`);
+        if (hasActiveSubscriptions) {
+            consoleLogWithoutSave(`Next processing cycle in ${randomInterval / 1000} seconds`);
+        }
     }
 
     private calculateAverageProcessingTime(queue: RetryObject[]): number {
@@ -291,7 +297,8 @@ export class QueueManager implements IQueueManager {
     }
 
     // Subscription-based processing methods
-    private async processQueueBatchWithSubscriptions(): Promise<void> {
+    // Returns true if there were active subscriptions to process
+    private async processQueueBatchWithSubscriptions(): Promise<boolean> {
         const queue = await this.getQueue();
         updateBadge(queue.map(req => req.status));
 
@@ -299,7 +306,7 @@ export class QueueManager implements IQueueManager {
         const batch = inProgressRequests.slice(0, this.config.batchSize);
 
         if (batch.length === 0) {
-            return;
+            return false;
         }
 
         // Step 1: Create subscriptions by date
@@ -307,7 +314,7 @@ export class QueueManager implements IQueueManager {
         const uniqueDates = Array.from(subscriptions.keys());
 
         if (uniqueDates.length === 0) {
-            return;
+            return false;
         }
 
         // Step 2: Fetch slots for all dates in parallel (no caching, always fresh)
@@ -369,6 +376,7 @@ export class QueueManager implements IQueueManager {
         }
 
         this.processingState.lastProcessedAt = Date.now();
+        return true;
     }
 
     private createDateSubscriptions(requests: RetryObject[]): DateSubscriptionsMap {
@@ -413,6 +421,22 @@ export class QueueManager implements IQueueManager {
                 const body = normalizeFormData(req.body).formData;
                 const tvAppId = body.TvAppId[0];
                 const time = body.SlotStart[0].split(' ');
+
+                // Check if request is paused (e.g. after YbqToMuchTransactionInSector)
+                if (req.pausedUntil && Date.now() < req.pausedUntil) {
+                    const remainingSeconds = Math.ceil((req.pausedUntil - Date.now()) / 1000);
+                    consoleLogWithoutSave(
+                        `⏸️ Request paused for ${remainingSeconds}s:`,
+                        tvAppId,
+                        time.join(', '),
+                    );
+                    continue;
+                }
+
+                // Clear pausedUntil if pause has expired
+                if (req.pausedUntil && Date.now() >= req.pausedUntil) {
+                    await this.updateQueueItem(req.id, { pausedUntil: undefined });
+                }
 
                 // Validation checks before slot availability
                 const validationResult = await validateRequestBeforeSlotCheck(req, queue);
