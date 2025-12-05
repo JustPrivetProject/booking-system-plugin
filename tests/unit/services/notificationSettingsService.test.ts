@@ -166,6 +166,17 @@ describe('NotificationSettingsService', () => {
             expect(result).toBe(false);
             expect(mockSetStorage).not.toHaveBeenCalled();
         });
+
+        it('should return false on error', async () => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: validSettings,
+            });
+            mockSetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.updateSetting('email', 'enabled', true);
+
+            expect(result).toBe(false);
+        });
     });
 
     describe('isEmailNotificationEnabled', () => {
@@ -221,6 +232,14 @@ describe('NotificationSettingsService', () => {
 
             expect(result).toBe(false);
         });
+
+        it('should handle error in isEmailNotificationEnabled', async () => {
+            mockGetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.isEmailNotificationEnabled();
+
+            expect(result).toBe(false);
+        });
     });
 
     describe('isWindowsNotificationEnabled', () => {
@@ -240,6 +259,14 @@ describe('NotificationSettingsService', () => {
         });
 
         it('should return default true on error', async () => {
+            mockGetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.isWindowsNotificationEnabled();
+
+            expect(result).toBe(true);
+        });
+
+        it('should handle error in isWindowsNotificationEnabled', async () => {
             mockGetStorage.mockRejectedValue(new Error('Storage error'));
 
             const result = await service.isWindowsNotificationEnabled();
@@ -270,6 +297,14 @@ describe('NotificationSettingsService', () => {
         });
 
         it('should return null on error', async () => {
+            mockGetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.getUserEmail();
+
+            expect(result).toBe(null);
+        });
+
+        it('should handle error in getUserEmail', async () => {
             mockGetStorage.mockRejectedValue(new Error('Storage error'));
 
             const result = await service.getUserEmail();
@@ -331,6 +366,14 @@ describe('NotificationSettingsService', () => {
 
             expect(result).toEqual([]);
         });
+
+        it('should handle error in getUserEmailForNotifications', async () => {
+            mockGetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.getUserEmailForNotifications();
+
+            expect(result).toEqual([]);
+        });
     });
 
     describe('clearSettings', () => {
@@ -356,6 +399,14 @@ describe('NotificationSettingsService', () => {
         });
 
         it('should return false on error', async () => {
+            mockSetStorage.mockRejectedValue(new Error('Clear error'));
+
+            const result = await service.clearSettings();
+
+            expect(result).toBe(false);
+        });
+
+        it('should handle error in clearSettings', async () => {
             mockSetStorage.mockRejectedValue(new Error('Clear error'));
 
             const result = await service.clearSettings();
@@ -434,6 +485,20 @@ describe('NotificationSettingsService', () => {
                 totalValidEmails: 0,
             });
         });
+
+        it('should handle error in getSettingsSummary', async () => {
+            mockGetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.getSettingsSummary();
+
+            expect(result).toEqual({
+                emailEnabled: false,
+                windowsEnabled: true,
+                userEmail: '',
+                hasValidEmail: false,
+                totalValidEmails: 0,
+            });
+        });
     });
 
     describe('setUserEmailAndEnable', () => {
@@ -466,6 +531,99 @@ describe('NotificationSettingsService', () => {
                 const result = await service.setUserEmailAndEnable(email);
                 expect(result).toBe(false);
             }
+        });
+
+        it('should return false on error in setUserEmailAndEnable', async () => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: validSettings,
+            });
+            mockSetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.setUserEmailAndEnable('valid@example.com');
+
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('disableEmailNotifications', () => {
+        beforeEach(() => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: validSettings,
+            });
+            mockSetStorage.mockResolvedValue();
+        });
+
+        it('should disable email notifications successfully', async () => {
+            const result = await service.disableEmailNotifications();
+
+            expect(result).toBe(true);
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                notificationSettings: {
+                    ...validSettings,
+                    email: {
+                        ...validSettings.email,
+                        enabled: false,
+                    },
+                },
+            });
+        });
+
+        it('should return false on error', async () => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: validSettings,
+            });
+            mockSetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.disableEmailNotifications();
+
+            expect(result).toBe(false);
+        });
+    });
+
+    describe('enableEmailNotifications', () => {
+        beforeEach(() => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: {
+                    ...validSettings,
+                    email: {
+                        ...validSettings.email,
+                        enabled: false,
+                    },
+                },
+            });
+            mockSetStorage.mockResolvedValue();
+        });
+
+        it('should enable email notifications successfully', async () => {
+            const result = await service.enableEmailNotifications();
+
+            expect(result).toBe(true);
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                notificationSettings: {
+                    ...validSettings,
+                    email: {
+                        ...validSettings.email,
+                        enabled: true,
+                    },
+                },
+            });
+        });
+
+        it('should return false on error', async () => {
+            mockGetStorage.mockResolvedValue({
+                notificationSettings: {
+                    ...validSettings,
+                    email: {
+                        ...validSettings.email,
+                        enabled: false,
+                    },
+                },
+            });
+            mockSetStorage.mockRejectedValue(new Error('Storage error'));
+
+            const result = await service.enableEmailNotifications();
+
+            expect(result).toBe(false);
         });
     });
 

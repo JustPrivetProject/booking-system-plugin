@@ -1,6 +1,6 @@
 {
     "name": "booking-system-plugin",
-    "version": "2.2.0",
+    "version": "2.3.3",
     "description": "",
     "main": "index.js",
     "scripts": {
@@ -20,9 +20,12 @@
         "ci:lint": "npm run format:check && npm run lint:errors",
         "build": "webpack --mode=production --env production",
         "build:dev": "webpack --mode=development",
+        "build:test": "webpack --mode=development --env test",
         "dev": "webpack --watch --mode=development",
+        "dev:test": "webpack --watch --mode=development --env test",
         "zip": "npm run build && powershell Compress-Archive -Path dist/* -DestinationPath extension.zip -Force",
         "zip:dev": "npm run build:dev && powershell Compress-Archive -Path dist/* -DestinationPath extension-dev.zip -Force",
+        "zip:test": "npm run build:test && powershell Compress-Archive -Path dist/* -DestinationPath extension-test.zip -Force",
         "prepare": "husky"
     },
     "author": "Ilya Murashka",

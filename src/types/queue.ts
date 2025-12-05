@@ -1,4 +1,7 @@
 import type { RetryObject } from './baltichub';
+import type { ErrorResponse } from '../utils/index';
+
+// @deprecated ProcessRequestFunction is no longer used - processing logic is now internal to QueueManager
 
 // Core interfaces for Queue Management
 export interface IQueueManager {
@@ -8,10 +11,7 @@ export interface IQueueManager {
     updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
     getQueue(): Promise<RetryObject[]>;
     updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]>;
-    startProcessing(
-        processRequest: ProcessRequestFunction,
-        options?: ProcessingOptions,
-    ): Promise<void>;
+    startProcessing(options?: ProcessingOptions): Promise<void>;
     stopProcessing(): void;
 }
 
@@ -69,3 +69,21 @@ export interface QueueConfig {
     batchSize: number;
     enableLogging: boolean;
 }
+
+// Slot subscription types for date-based processing
+export type DateSubscription = {
+    date: string; // "07.08.2025"
+    requests: RetryObject[]; // All queue items with this date
+};
+
+export type DateSubscriptionsMap = Map<string, RetryObject[]>; // date -> requests[]
+
+export type DateProcessingResult = {
+    date: string;
+    htmlText?: string;
+    error?: ErrorResponse;
+    processedRequests: Array<{
+        request: RetryObject;
+        result: RetryObject;
+    }>;
+};

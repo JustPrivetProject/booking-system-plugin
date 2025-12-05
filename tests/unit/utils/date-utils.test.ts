@@ -58,6 +58,43 @@ describe('date-utils', () => {
             const result = formatTimeForEmail('2025-07-30 18:00');
             expect(result).toBe('18:00');
         });
+
+        it('should handle ISO format with T separator', () => {
+            const result = formatTimeForEmail('2025-07-30T18:00:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should handle ISO format with T separator and time only', () => {
+            const result = formatTimeForEmail('2025-07-30T18:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should handle ISO format with T but no time part', () => {
+            const result = formatTimeForEmail('2025-07-30T');
+            expect(result).toBe('2025-07-30T');
+        });
+
+        it('should handle date-time string format (YYYY-MM-DD HH:mm:ss)', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should handle date-time string format without seconds (YYYY-MM-DD HH:mm)', () => {
+            const result = formatTimeForEmail('2025-07-30 18:00');
+            expect(result).toBe('18:00');
+        });
+
+        it('should return original string if no format matches', () => {
+            const result = formatTimeForEmail('some-random-string');
+            expect(result).toBe('some-random-string');
+        });
+
+        it('should handle invalid date string gracefully', () => {
+            // This will go through the catch block when Date constructor fails
+            const result = formatTimeForEmail('not-a-date-format-123');
+            // Should return original string as fallback
+            expect(typeof result).toBe('string');
+        });
     });
 
     describe('formatDateToDMY', () => {

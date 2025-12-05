@@ -11,6 +11,7 @@ export type RetryObject = {
     status_message: string; // e.g. "Zadanie jest wstrzymane"
     status_color?: string; // e.g. "red"
     updated?: boolean; // e.g. true
+    pausedUntil?: number; // timestamp until which this request should be paused (e.g. after YbqToMuchTransactionInSector)
     timestamp: number;
     tvAppId: string;
     url: string;

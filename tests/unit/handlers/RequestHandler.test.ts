@@ -43,6 +43,166 @@ describe('RequestHandler', () => {
             expect(call[1]).toEqual({ urls: ['*://*/TVApp/EditTvAppSubmit/*'] });
             expect(call[2]).toEqual(['requestHeaders']);
         });
+
+        it('should call cacheRequestBody for POST requests with requestBody', async () => {
+            requestHandler.setupRequestListeners();
+
+            const listener = (chrome.webRequest.onBeforeRequest.addListener as jest.Mock).mock
+                .calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                method: 'POST',
+                requestBody: {
+                    formData: {
+                        test: ['value'],
+                    },
+                },
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+            } as chrome.webRequest.OnBeforeRequestDetails;
+
+            (getStorage as jest.Mock).mockResolvedValue({});
+            (setStorage as jest.Mock).mockResolvedValue(undefined);
+
+            listener(details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(getStorage).toHaveBeenCalledWith('requestCacheBody');
+        });
+
+        it('should handle error in cacheRequestBody callback', async () => {
+            requestHandler.setupRequestListeners();
+
+            const listener = (chrome.webRequest.onBeforeRequest.addListener as jest.Mock).mock
+                .calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                method: 'POST',
+                requestBody: {
+                    formData: {
+                        test: ['value'],
+                    },
+                },
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+            } as chrome.webRequest.OnBeforeRequestDetails;
+
+            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+
+            listener(details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(consoleLog).toHaveBeenCalledWith(
+                'Error caching request body:',
+                expect.any(Error),
+            );
+        });
+
+        it('should not call cacheRequestBody for non-POST requests', () => {
+            requestHandler.setupRequestListeners();
+
+            const listener = (chrome.webRequest.onBeforeRequest.addListener as jest.Mock).mock
+                .calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                method: 'GET',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+            } as chrome.webRequest.OnBeforeRequestDetails;
+
+            listener(details);
+
+            expect(getStorage).not.toHaveBeenCalled();
+        });
+
+        it('should call handleRequestHeaders in beforeSendHeaders listener', () => {
+            requestHandler.setupRequestListeners();
+
+            const listener = (chrome.webRequest.onBeforeSendHeaders.addListener as jest.Mock).mock
+                .calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+            } as chrome.webRequest.OnBeforeSendHeadersDetails;
+
+            (getStorage as jest.Mock).mockResolvedValue({});
+            (setStorage as jest.Mock).mockResolvedValue(undefined);
+
+            listener(details);
+
+            expect(consoleLog).toHaveBeenCalledWith('Checking for our header:', expect.any(String));
+        });
+
+        it('should handle error in removeCachedBody callback', async () => {
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                requestHeaders: [
+                    { name: 'x-extension-request', value: 'JustPrivetProject' },
+                    { name: 'Content-Type', value: 'application/json' },
+                ],
+            } as chrome.webRequest.OnBeforeSendHeadersDetails;
+
+            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+
+            requestHandler['handleRequestHeaders'](details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(consoleLog).toHaveBeenCalledWith(
+                'Error removing cached body:',
+                expect.any(Error),
+            );
+        });
+
+        it('should handle error in cacheRequestHeaders callback', async () => {
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+            } as chrome.webRequest.OnBeforeSendHeadersDetails;
+
+            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+
+            requestHandler['handleRequestHeaders'](details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(consoleLog).toHaveBeenCalledWith(
+                'Error caching request headers:',
+                expect.any(Error),
+            );
+        });
     });
 
     describe('cacheRequestBody', () => {

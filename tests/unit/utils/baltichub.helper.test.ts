@@ -166,12 +166,29 @@ describe('Baltichub Helper Functions', () => {
             expect(result.status_message).toBe('Zadanie zakończone w innym wątku');
         });
 
-        it('should handle ToMuchTransactionInSector error', () => {
+        it('should handle ToMuchTransactionInSector error with pause', () => {
+            const beforeTime = Date.now();
             const parsedResponse = 'YbqToMuchTransactionInSector';
             const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
+            const afterTime = Date.now();
 
             expect(result.status_message).toBe('Za duża ilość transakcji w sektorze');
             expect(result.status).toBe('in-progress'); // status should remain unchanged
+            expect(result.status_color).toBe('orange');
+            expect(result.updated).toBe(true);
+            // pausedUntil should be set to ~1 minute from now
+            expect(result.pausedUntil).toBeDefined();
+            expect(result.pausedUntil).toBeGreaterThanOrEqual(beforeTime + 60 * 1000);
+            expect(result.pausedUntil).toBeLessThanOrEqual(afterTime + 60 * 1000);
+        });
+
+        it('should set pausedUntil to approximately 1 minute in the future', () => {
+            const parsedResponse = 'YbqToMuchTransactionInSector';
+            const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
+
+            const expectedPauseEnd = Date.now() + 60 * 1000;
+            // Allow 1 second tolerance
+            expect(Math.abs(result.pausedUntil! - expectedPauseEnd)).toBeLessThan(1000);
         });
 
         it('should handle NoSlotsAvailable JSON error', () => {

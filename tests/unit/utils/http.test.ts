@@ -246,6 +246,146 @@ describe('HTTP Functions', () => {
                 }),
             );
         });
+
+        it('should handle HTML error in response', async () => {
+            const htmlErrorContent =
+                '<html><head><title>404 Not Found</title></head><body>Page not found</body></html>';
+            const mockResponse = {
+                ok: false,
+                status: 404,
+                statusText: 'Not Found',
+                text: jest.fn().mockResolvedValue(htmlErrorContent),
+                headers: {
+                    get: jest.fn(),
+                    has: jest.fn(),
+                    set: jest.fn(),
+                    append: jest.fn(),
+                    delete: jest.fn(),
+                    forEach: jest.fn(),
+                    entries: jest.fn(),
+                    keys: jest.fn(),
+                    values: jest.fn(),
+                },
+            };
+
+            (global as any).fetch.mockResolvedValue(mockResponse);
+
+            const result = await fetchRequest('https://api.test.com');
+
+            expect(result.ok).toBe(false);
+            if (!result.ok && 'error' in result) {
+                expect(result.error.message).toContain('HTML Error');
+            }
+        });
+
+        it('should handle error when logging fails', async () => {
+            const { errorLogService } = require('../../../src/services/errorLogService');
+            errorLogService.logRequestError.mockRejectedValue(new Error('Logging failed'));
+
+            const mockResponse = {
+                ok: false,
+                status: 500,
+                statusText: 'Internal Server Error',
+                text: jest.fn().mockResolvedValue('Server error'),
+                headers: {
+                    get: jest.fn(),
+                    has: jest.fn(),
+                    set: jest.fn(),
+                    append: jest.fn(),
+                    delete: jest.fn(),
+                    forEach: jest.fn(),
+                    entries: jest.fn(),
+                    keys: jest.fn(),
+                    values: jest.fn(),
+                },
+            };
+
+            (global as any).fetch.mockResolvedValue(mockResponse);
+
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 1, baseDelay: 10, maxDelay: 100 },
+            });
+
+            // Should still return error response even if logging fails
+            expect(result.ok).toBe(false);
+            if (!result.ok && 'error' in result) {
+                expect(result.error.type).toBe('SERVER_ERROR');
+            }
+        });
+
+        it('should handle logging failure on network error', async () => {
+            const { errorLogService } = require('../../../src/services/errorLogService');
+            errorLogService.logRequestError.mockRejectedValue(new Error('Logging failed'));
+
+            (global as any).fetch.mockRejectedValue(new Error('Network error'));
+
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 1, baseDelay: 10, maxDelay: 100 },
+            });
+
+            // Should still return error response even if logging fails
+            expect(result.ok).toBe(false);
+            if (!result.ok && 'error' in result) {
+                expect(result.error.type).toBe('NETWORK');
+            }
+        });
+
+        it('should retry on network errors', async () => {
+            (global as any).fetch
+                .mockRejectedValueOnce(new Error('Network error'))
+                .mockRejectedValueOnce(new Error('Network error'))
+                .mockResolvedValueOnce({
+                    ok: true,
+                    status: 200,
+                    statusText: 'OK',
+                    text: jest.fn().mockResolvedValue('Success'),
+                    headers: {
+                        get: jest.fn(),
+                        has: jest.fn(),
+                        set: jest.fn(),
+                        append: jest.fn(),
+                        delete: jest.fn(),
+                        forEach: jest.fn(),
+                        entries: jest.fn(),
+                        keys: jest.fn(),
+                        values: jest.fn(),
+                    },
+                });
+
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 3, baseDelay: 10, maxDelay: 100 },
+            });
+
+            expect((global as any).fetch).toHaveBeenCalledTimes(3);
+            expect(result.ok).toBe(true);
+        });
+
+        it('should return ErrorResponse with working text() method', async () => {
+            (global as any).fetch.mockRejectedValue(new Error('Network error'));
+
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 1, baseDelay: 10, maxDelay: 100 },
+            });
+
+            expect(result.ok).toBe(false);
+            if (!result.ok && 'error' in result && 'text' in result) {
+                const textContent = await result.text();
+                expect(textContent).toContain('Network error');
+            }
+        });
+
+        it('should handle non-Error exception in network catch block', async () => {
+            (global as any).fetch.mockRejectedValue('String error');
+
+            const result = await fetchRequest('https://api.test.com', {
+                retryConfig: { maxAttempts: 1, baseDelay: 10, maxDelay: 100 },
+            });
+
+            expect(result.ok).toBe(false);
+            if (!result.ok && 'error' in result) {
+                expect(result.error.message).toContain('Unknown error');
+            }
+        });
     });
 
     describe('detectHtmlError', () => {

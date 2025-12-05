@@ -8,8 +8,6 @@ export { StorageHandler } from './handlers/StorageHandler';
 const backgroundController = new BackgroundController();
 
 // Installation handler is now managed by BackgroundController
-
-// Initialize the background controller
 backgroundController.initialize().catch(error => {
     consoleError('Failed to initialize background controller:', error);
 });
