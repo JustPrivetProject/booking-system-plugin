@@ -144,7 +144,40 @@ export async function executeRequest(
     if (!req.body || !req.body.formData) {
         throw new Error('Request body or formData is missing');
     }
+
+    // Update SlotStart and SlotEnd in formData with values from req.startSlot and req.endSlot
+    // This ensures we send the correct time that we're searching for, not the cached time
+    const originalSlotStart = req.body.formData.SlotStart?.[0];
+    const originalSlotEnd = req.body.formData.SlotEnd?.[0];
+
+    if (req.startSlot && req.endSlot) {
+        req.body.formData.SlotStart = [req.startSlot];
+        req.body.formData.SlotEnd = [req.endSlot];
+        consoleLog(
+            '🔄 Updated slot time in request body:',
+            `Original: SlotStart=${originalSlotStart}, SlotEnd=${originalSlotEnd}`,
+            `→ New: SlotStart=${req.startSlot}, SlotEnd=${req.endSlot}`,
+            `tvAppId=${tvAppId}`,
+        );
+    } else {
+        consoleLog(
+            '📤 Sending request with cached slot time:',
+            `SlotStart=${originalSlotStart}, SlotEnd=${originalSlotEnd}`,
+            `tvAppId=${tvAppId}`,
+            `req.startSlot=${req.startSlot || 'not set'}, req.endSlot=${req.endSlot || 'not set'}`,
+        );
+    }
+
     const formData = createFormData(req.body.formData);
+
+    consoleLog(
+        '📤 Sending booking request:',
+        `URL=${req.url}`,
+        `tvAppId=${tvAppId}`,
+        `SlotStart=${req.body.formData.SlotStart?.[0]}`,
+        `SlotEnd=${req.body.formData.SlotEnd?.[0]}`,
+        `Time array=${time.join(', ')}`,
+    );
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -156,8 +189,26 @@ export async function executeRequest(
     });
 
     const parsedResponse = await response.text();
+
+    const responseStatus = 'status' in response ? response.status : 'N/A';
+    const responseOk = 'ok' in response ? response.ok : false;
+
+    consoleLog(
+        '📥 Received response:',
+        `Status=${responseStatus}`,
+        `OK=${responseOk}`,
+        `tvAppId=${tvAppId}`,
+        `Response length=${parsedResponse.length}`,
+        `Contains 'error'=${parsedResponse.includes('error')}`,
+    );
     if (!parsedResponse.includes('error') && response.ok) {
-        consoleLog('✅Request retried successfully:', tvAppId, time.join(', '));
+        consoleLog(
+            '✅ Request retried successfully:',
+            `tvAppId=${tvAppId}`,
+            `Time=${time.join(', ')}`,
+            `SlotStart=${req.body.formData.SlotStart?.[0]}`,
+            `SlotEnd=${req.body.formData.SlotEnd?.[0]}`,
+        );
 
         // Send centralized notifications (Windows + Email)
         try {
@@ -206,6 +257,18 @@ export async function validateRequestBeforeSlotCheck(
     const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]); // 26.06.2025 00:59:00
     const currentTimeSlot = new Date(req.currentSlot);
     const currentTime = new Date();
+
+    consoleLog(
+        '🔍 Validating request before slot check:',
+        `tvAppId=${tvAppId}`,
+        `SlotStart=${body.SlotStart[0]}`,
+        `SlotEnd=${body.SlotEnd[0]}`,
+        `req.startSlot=${req.startSlot || 'not set'}`,
+        `req.endSlot=${req.endSlot || 'not set'}`,
+        `currentSlot=${req.currentSlot}`,
+        `currentTime=${currentTime.toISOString()}`,
+        `endTimeStr=${endTimeStr.toISOString()}`,
+    );
 
     if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTime) {
         consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
