@@ -18,7 +18,7 @@ jest.mock('../../../src/utils/storage', () => {
         ...actual,
         getStorage: jest.fn(),
         setStorage: jest.fn(),
-        cleanupCache: jest.fn(),
+        removeCachedRequest: jest.fn(),
         getOrCreateDeviceId: jest.fn(),
     };
 });
@@ -63,7 +63,7 @@ async function waitForAsyncOperations(
     }
     // Wait for all microtasks and promises to resolve
     // Use multiple setTimeout calls to ensure all async operations complete
-    // This ensures addToQueue, cleanupCache, and sendResponse all complete
+    // This ensures addToQueue, removeCachedRequest, and sendResponse all complete
     await new Promise(resolve => setTimeout(resolve, 0));
     await new Promise(resolve => setTimeout(resolve, 0));
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -79,7 +79,7 @@ describe('MessageHandler', () => {
     let mockNormalizeFormData: jest.Mock;
     let mockGetStorage: jest.Mock;
     let mockSetStorage: jest.Mock;
-    let mockCleanupCache: jest.Mock;
+    let mockRemoveCachedRequest: jest.Mock;
     let mockGetDriverNameAndContainer: jest.Mock;
     let mockGetLogsFromSession: jest.Mock;
     let mockClearLogsInSession: jest.Mock;
@@ -106,7 +106,7 @@ describe('MessageHandler', () => {
         const storage = require('../../../src/utils/storage');
         mockGetStorage = storage.getStorage = jest.fn();
         mockSetStorage = storage.setStorage = jest.fn();
-        mockCleanupCache = storage.cleanupCache = jest.fn().mockResolvedValue(true);
+        mockRemoveCachedRequest = storage.removeCachedRequest = jest.fn().mockResolvedValue(true);
         mockGetOrCreateDeviceId = storage.getOrCreateDeviceId = jest.fn();
 
         // Setup mocks for utils (cleanupCache is re-exported from storage)
@@ -118,8 +118,6 @@ describe('MessageHandler', () => {
         mockGetLogsFromSession = utils.getLogsFromSession = jest.fn();
         mockClearLogsInSession = utils.clearLogsInSession = jest.fn();
         mockGetLocalStorageData = utils.getLocalStorageData = jest.fn();
-        // Make sure cleanupCache in utils points to the same mock as in storage
-        utils.cleanupCache = mockCleanupCache;
 
         // Setup mocks for baltichub
         const baltichub = require('../../../src/services/baltichub');
@@ -383,7 +381,7 @@ describe('MessageHandler', () => {
             });
         });
 
-        it('should call cleanupCache after adding to queue', async () => {
+        it('should call removeCachedRequest after adding to queue', async () => {
             // Arrange
             const message = { action: Actions.SHOW_ERROR };
             const sender = {} as chrome.runtime.MessageSender;
@@ -417,14 +415,28 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: null,
-            });
+            // Setup getStorage calls:
+            // 1. First call in handleMessage for requestCacheHeaders
+            // 2. Second call in processCachedRequest for [requestCacheBody, retryQueue, testEnv, tableData]
+            // 3-4. Two calls inside removeCachedRequest for requestCacheBody and requestCacheHeaders
+            mockGetStorage
+                .mockResolvedValueOnce(mockStorageData) // First call: requestCacheHeaders
+                .mockResolvedValueOnce({
+                    // Second call: [requestCacheBody, retryQueue, testEnv, tableData]
+                    requestCacheBody: mockRequestCacheBody,
+                    retryQueue: [],
+                    testEnv: false,
+                    tableData: null,
+                })
+                .mockResolvedValueOnce({
+                    // Third call: inside removeCachedRequest for requestCacheBody
+                    requestCacheBody: mockRequestCacheBody,
+                })
+                .mockResolvedValueOnce({
+                    // Fourth call: inside removeCachedRequest for requestCacheHeaders
+                    requestCacheHeaders: mockStorageData.requestCacheHeaders,
+                });
 
-            mockCleanupCache.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: 'TEST123',
@@ -454,7 +466,18 @@ describe('MessageHandler', () => {
 
             expect(mockGetStorage).toHaveBeenCalledWith('requestCacheHeaders');
             expect(mockQueueManager.addToQueue).toHaveBeenCalled();
-            expect(mockCleanupCache).toHaveBeenCalled();
+            // removeCachedRequest calls setStorage twice: once for body, once for headers
+            // After removing 'request-1', both caches should be empty (no 'request-1' key)
+            expect(mockSetStorage).toHaveBeenCalledTimes(2);
+            const setStorageCalls = mockSetStorage.mock.calls;
+            const bodyCall = setStorageCalls.find(call => call[0].requestCacheBody !== undefined);
+            const headersCall = setStorageCalls.find(
+                call => call[0].requestCacheHeaders !== undefined,
+            );
+            expect(bodyCall).toBeDefined();
+            expect(headersCall).toBeDefined();
+            expect(bodyCall[0].requestCacheBody).not.toHaveProperty('request-1');
+            expect(headersCall[0].requestCacheHeaders).not.toHaveProperty('request-1');
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
         });
 
@@ -511,7 +534,7 @@ describe('MessageHandler', () => {
                 tableData: mockTableData,
             });
 
-            mockCleanupCache.mockResolvedValue(true);
+            mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: 'TEST123',
@@ -594,7 +617,7 @@ describe('MessageHandler', () => {
                 tableData: mockTableData,
             });
 
-            mockCleanupCache.mockResolvedValue(true);
+            mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: '', // No container number
@@ -665,7 +688,7 @@ describe('MessageHandler', () => {
                 tableData: null,
             });
 
-            mockCleanupCache.mockResolvedValue(true);
+            mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: 'TEST123',
@@ -1272,7 +1295,7 @@ describe('MessageHandler', () => {
                 tableData: mockTableData,
             });
 
-            mockCleanupCache.mockResolvedValue(true);
+            mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: 'TEST123',
@@ -1355,7 +1378,7 @@ describe('MessageHandler', () => {
                 tableData: mockTableData,
             });
 
-            mockCleanupCache.mockResolvedValue(true);
+            mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
                 containerNumber: 'TEST123',

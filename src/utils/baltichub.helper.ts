@@ -48,17 +48,39 @@ export function handleErrorResponse(
     tvAppId: string,
     time: string[],
 ): RetryObject {
+    const errorData = {
+        tvAppId,
+        Time: time.join(', '),
+        SlotStart: req.body?.formData?.SlotStart?.[0] || 'not set',
+        SlotEnd: req.body?.formData?.SlotEnd?.[0] || 'not set',
+        'req.startSlot': req.startSlot || 'not set',
+        'req.endSlot': req.endSlot || 'not set',
+        'Response length': parsedResponse.length,
+        'Response preview': parsedResponse.substring(0, 200),
+    };
+    consoleLog('❌ Error response received:', JSON.stringify(errorData, null, 2));
+
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-        consoleLog('❌ Retry failed, keeping in queue:', tvAppId, time.join(', '), parsedResponse);
+        const retryFailedData = {
+            tvAppId,
+            Time: time.join(', '),
+            SlotStart: req.body?.formData?.SlotStart?.[0] || 'not set',
+            SlotEnd: req.body?.formData?.SlotEnd?.[0] || 'not set',
+            Response: parsedResponse,
+        };
+        consoleLog('❌ Retry failed, keeping in queue:', JSON.stringify(retryFailedData, null, 2));
         return req;
     }
 
     if (parsedResponse.includes('TaskWasUsedInAnotherTva')) {
+        const anotherTaskData = {
+            tvAppId,
+            Time: time.join(', '),
+            Response: parsedResponse,
+        };
         consoleLog(
             '✅ The request was executed in another task:',
-            tvAppId,
-            time.join(', '),
-            parsedResponse,
+            JSON.stringify(anotherTaskData, null, 2),
         );
         return {
             ...req,
@@ -69,11 +91,14 @@ export function handleErrorResponse(
     if (parsedResponse.includes('YbqToMuchTransactionInSector')) {
         const pauseDuration = 60 * 1000; // 1 minute pause
         const pausedUntil = Date.now() + pauseDuration;
+        const pauseData = {
+            tvAppId,
+            Time: time.join(', '),
+            pausedUntil: new Date(pausedUntil).toLocaleTimeString(),
+        };
         consoleLog(
             '⚠️ Too many transactions in sector, pausing request for 1 minute:',
-            tvAppId,
-            time.join(', '),
-            `pausedUntil: ${new Date(pausedUntil).toLocaleTimeString()}`,
+            JSON.stringify(pauseData, null, 2),
         );
         return {
             ...req,

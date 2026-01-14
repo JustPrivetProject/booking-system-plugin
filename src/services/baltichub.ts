@@ -14,7 +14,6 @@ import {
     normalizeFormData,
     createFormData,
     parseDateTimeFromDMY,
-    consoleLogWithoutSave,
     JSONstringify,
     formatDateToDMY,
 } from '../utils/index';
@@ -51,9 +50,34 @@ export async function getEditForm(tvAppId: string): Promise<Response | ErrorResp
 }
 
 export async function checkSlotAvailability(htmlText: string, time: string[]): Promise<boolean> {
+    // Validate time array format
+    if (!time || time.length < 2 || !time[1]) {
+        consoleError('❌ Invalid time format in checkSlotAvailability:', time);
+        return false;
+    }
+
     const buttons = parseSlotsIntoButtons(htmlText);
-    const slotButton = buttons.find(button => button.text.includes(time[1].slice(0, 5)));
-    consoleLogWithoutSave('Slot button:', slotButton);
+
+    // Extract time part (HH:MM) - handle both "22:00:00" and "2:00:00" formats
+    const timePart = time[1].trim();
+    const timeMatch = timePart.match(/^(\d{1,2}):(\d{2})/);
+
+    if (!timeMatch) {
+        consoleError('❌ Cannot parse time format:', timePart, 'from time array:', time);
+        return false;
+    }
+
+    // Normalize to HH:MM format (pad hour if needed)
+    const hour = timeMatch[1].padStart(2, '0');
+    const minute = timeMatch[2];
+    const normalizedTime = `${hour}:${minute}`;
+
+    const slotButton = buttons.find(button => {
+        // Check if button text contains the normalized time
+        const buttonText = button.text.trim();
+        return buttonText.includes(normalizedTime);
+    });
+
     return slotButton ? !slotButton.disabled : false;
 }
 
@@ -144,7 +168,89 @@ export async function executeRequest(
     if (!req.body || !req.body.formData) {
         throw new Error('Request body or formData is missing');
     }
+
+    // Update SlotStart and SlotEnd in formData with values from req.startSlot and req.endSlot
+    // This ensures we send the correct time that we're searching for, not the cached time
+    const originalSlotStart = req.body.formData.SlotStart?.[0];
+    const originalSlotEnd = req.body.formData.SlotEnd?.[0];
+
+    if (req.startSlot && req.endSlot) {
+        // CRITICAL: Verify we're updating with the correct time
+        const needsUpdate = req.body.formData.SlotStart?.[0] !== req.startSlot;
+
+        if (needsUpdate) {
+            const updateData = {
+                'Original in body': { SlotStart: originalSlotStart, SlotEnd: originalSlotEnd },
+                'Will update to': { SlotStart: req.startSlot, SlotEnd: req.endSlot },
+                tvAppId,
+                '⚠️ FIXING': 'Body had different time, updating to match req.startSlot',
+            };
+            consoleLog(
+                '🔄 Updating slot time (MISMATCH DETECTED):',
+                JSON.stringify(updateData, null, 2),
+            );
+        }
+
+        req.body.formData.SlotStart = [req.startSlot];
+        req.body.formData.SlotEnd = [req.endSlot];
+
+        // FINAL VERIFICATION: Ensure update was successful
+        const updatedSlotStart = req.body.formData.SlotStart[0];
+        const updatedSlotEnd = req.body.formData.SlotEnd[0];
+
+        if (updatedSlotStart !== req.startSlot || updatedSlotEnd !== req.endSlot) {
+            const errorData = {
+                Expected: { SlotStart: req.startSlot, SlotEnd: req.endSlot },
+                Actual: { SlotStart: updatedSlotStart, SlotEnd: updatedSlotEnd },
+                tvAppId,
+            };
+            consoleError('❌ CRITICAL: Time update failed!', JSON.stringify(errorData, null, 2));
+            throw new Error(
+                `Time update failed: expected ${req.startSlot}, got ${updatedSlotStart}`,
+            );
+        }
+
+        if (!needsUpdate) {
+            const matchData = {
+                SlotStart: updatedSlotStart,
+                SlotEnd: updatedSlotEnd,
+                tvAppId,
+                Status: 'Already matches',
+            };
+            consoleLog('🔄 Slot time already matches:', JSON.stringify(matchData, null, 2));
+        } else {
+            const verifiedData = {
+                SlotStart: updatedSlotStart,
+                SlotEnd: updatedSlotEnd,
+                tvAppId,
+                Status: '✅ Verified',
+            };
+            consoleLog('✅ Time update verified:', JSON.stringify(verifiedData, null, 2));
+        }
+    } else {
+        const cachedTimeData = {
+            SlotStart: originalSlotStart,
+            SlotEnd: originalSlotEnd,
+            tvAppId,
+            'req.startSlot': req.startSlot || 'not set',
+            'req.endSlot': req.endSlot || 'not set',
+        };
+        consoleLog(
+            '📤 Sending request with cached slot time:',
+            JSON.stringify(cachedTimeData, null, 2),
+        );
+    }
+
     const formData = createFormData(req.body.formData);
+
+    const requestData = {
+        URL: req.url,
+        tvAppId,
+        SlotStart: req.body.formData.SlotStart?.[0] || 'not set',
+        SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
+        'Time array': time.join(', '),
+    };
+    consoleLog('📤 Sending booking request:', JSON.stringify(requestData, null, 2));
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -156,8 +262,34 @@ export async function executeRequest(
     });
 
     const parsedResponse = await response.text();
+
+    const responseStatus = 'status' in response ? response.status : 'N/A';
+    const responseOk = 'ok' in response ? response.ok : false;
+
+    // CRITICAL: Log all identifiers to track which request was actually sent
+    const responseData = {
+        Status: responseStatus,
+        OK: responseOk,
+        tvAppId,
+        'Time sent': time.join(', '),
+        'SlotStart SENT': req.body.formData.SlotStart?.[0] || 'not set',
+        'SlotEnd SENT': req.body.formData.SlotEnd?.[0] || 'not set',
+        'req.startSlot': req.startSlot || 'not set',
+        'req.endSlot': req.endSlot || 'not set',
+        'Response length': parsedResponse.length,
+        "Contains 'error'": parsedResponse.includes('error'),
+        '⚠️ VERIFY':
+            req.body.formData.SlotStart?.[0] === req.startSlot ? '✅ YES' : '❌ NO - MISMATCH!',
+    };
+    consoleLog('📥 Received response:', JSON.stringify(responseData, null, 2));
     if (!parsedResponse.includes('error') && response.ok) {
-        consoleLog('✅Request retried successfully:', tvAppId, time.join(', '));
+        const successData = {
+            tvAppId,
+            Time: time.join(', '),
+            SlotStart: req.body.formData.SlotStart?.[0] || 'not set',
+            SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
+        };
+        consoleLog('✅ Request retried successfully:', JSON.stringify(successData, null, 2));
 
         // Send centralized notifications (Windows + Email)
         try {
@@ -208,7 +340,7 @@ export async function validateRequestBeforeSlotCheck(
     const currentTime = new Date();
 
     if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTime) {
-        consoleLog('❌ End time is in the past, cannot process:', tvAppId, endTimeStr);
+        consoleLog('❌ End time is in the past, cannot process:', tvAppId);
         return {
             ...req,
             status: Statuses.EXPIRED,
@@ -217,7 +349,7 @@ export async function validateRequestBeforeSlotCheck(
     }
 
     if (currentTimeSlot < currentTime) {
-        consoleLog('❌ Changing the time is no longer possible:', tvAppId, endTimeStr);
+        consoleLog('❌ Changing the time is no longer possible:', tvAppId);
         return {
             ...req,
             status: Statuses.EXPIRED,

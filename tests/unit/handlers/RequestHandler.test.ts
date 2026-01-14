@@ -20,11 +20,13 @@ describe('RequestHandler', () => {
     });
 
     describe('setupRequestListeners', () => {
-        it('should setup both request listeners', () => {
+        it('should setup all request listeners', () => {
             requestHandler.setupRequestListeners();
 
             expect(chrome.webRequest.onBeforeRequest.addListener).toHaveBeenCalled();
             expect(chrome.webRequest.onBeforeSendHeaders.addListener).toHaveBeenCalled();
+            expect(chrome.webRequest.onCompleted.addListener).toHaveBeenCalled();
+            expect(chrome.webRequest.onErrorOccurred.addListener).toHaveBeenCalled();
         });
 
         it('should setup beforeRequest listener with correct parameters', () => {
@@ -152,7 +154,10 @@ describe('RequestHandler', () => {
 
             listener(details);
 
-            expect(consoleLog).toHaveBeenCalledWith('Checking for our header:', expect.any(String));
+            expect(consoleLog).toHaveBeenCalledWith(
+                '🔍 Checking for our header:',
+                expect.any(String),
+            );
         });
 
         it('should handle error in removeCachedBody callback', async () => {
@@ -175,9 +180,10 @@ describe('RequestHandler', () => {
             requestHandler['handleRequestHeaders'](details);
 
             await new Promise(resolve => setTimeout(resolve, 50));
+            // With new approach, we just mark requestId, no immediate removal
             expect(consoleLog).toHaveBeenCalledWith(
-                'Error removing cached body:',
-                expect.any(Error),
+                '✅ Found X-Extension-Request header, marking request as ours:',
+                'test-request-1',
             );
         });
 
@@ -249,11 +255,7 @@ describe('RequestHandler', () => {
                     },
                 },
             });
-            expect(consoleLog).toHaveBeenCalledWith(
-                '✅ Cached Request Body:',
-                'test-request-1',
-                expect.any(String),
-            );
+            expect(consoleLog).toHaveBeenCalledWith('✅ Cached Request Body:', expect.any(String));
         });
 
         it('should handle storage errors gracefully', async () => {
@@ -341,7 +343,10 @@ describe('RequestHandler', () => {
             // Wait for async operations
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            expect(consoleLog).toHaveBeenCalledWith('Checking for our header:', expect.any(String));
+            expect(consoleLog).toHaveBeenCalledWith(
+                '🔍 Checking for our header:',
+                expect.any(String),
+            );
             expect(setStorage).toHaveBeenCalledWith({
                 requestCacheHeaders: {
                     'test-request-1': {
@@ -353,7 +358,7 @@ describe('RequestHandler', () => {
             });
         });
 
-        it('should remove cached body when extension header is present', async () => {
+        it('should mark request as ours when extension header is present', async () => {
             const details = {
                 requestId: 'test-request-1',
                 url: 'https://example.com/test',
@@ -368,17 +373,7 @@ describe('RequestHandler', () => {
                 ],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            const mockStorageData = {
-                requestCacheBody: {
-                    'test-request-1': {
-                        url: 'test-url',
-                        body: {},
-                        timestamp: Date.now(),
-                    },
-                },
-            };
-
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
+            (getStorage as jest.Mock).mockResolvedValue({});
             (setStorage as jest.Mock).mockResolvedValue(undefined);
 
             requestHandler['handleRequestHeaders'](details);
@@ -386,13 +381,13 @@ describe('RequestHandler', () => {
             // Wait for async operations
             await new Promise(resolve => setTimeout(resolve, 0));
 
+            // Should mark request as ours (will be cleaned up in onCompleted)
             expect(consoleLog).toHaveBeenCalledWith(
-                'Removed cacheBody by id (no header):',
+                '✅ Found X-Extension-Request header, marking request as ours:',
                 'test-request-1',
             );
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheBody: {},
-            });
+            // RequestId should be added to ourRequestIds Set
+            expect(requestHandler['ourRequestIds'].has('test-request-1')).toBe(true);
         });
 
         it('should handle storage errors gracefully', async () => {
@@ -451,8 +446,8 @@ describe('RequestHandler', () => {
                 },
             });
             expect(consoleLog).toHaveBeenCalledWith(
-                'Removed cacheBody by id (no header):',
-                'test-request-1',
+                '🗑️ Removed cacheBody (our request):',
+                expect.any(String),
             );
         });
 
@@ -474,8 +469,8 @@ describe('RequestHandler', () => {
             await requestHandler['removeCachedBody'](requestId);
 
             expect(setStorage).not.toHaveBeenCalled();
-            expect(consoleLog).not.toHaveBeenCalledWith(
-                'Removed cacheBody by id (no header):',
+            expect(consoleLog).toHaveBeenCalledWith(
+                '⚠️ cacheBody not found for requestId:',
                 'non-existent-request',
             );
         });
@@ -562,6 +557,146 @@ describe('RequestHandler', () => {
             expect(consoleLog).toHaveBeenCalledWith(
                 'Error caching request headers:',
                 expect.any(Error),
+            );
+        });
+    });
+
+    describe('setupCompletedListener', () => {
+        it('should setup onCompleted and onErrorOccurred listeners', () => {
+            requestHandler.setupRequestListeners();
+
+            expect(chrome.webRequest.onCompleted.addListener).toHaveBeenCalled();
+            expect(chrome.webRequest.onErrorOccurred.addListener).toHaveBeenCalled();
+        });
+
+        it('should clean up cache for our requests on completion', async () => {
+            requestHandler.setupRequestListeners();
+
+            // Mark request as ours
+            requestHandler['ourRequestIds'].add('test-request-1');
+
+            const mockStorageData = {
+                requestCacheBody: {
+                    'test-request-1': {
+                        url: 'test-url',
+                        body: {},
+                        timestamp: Date.now(),
+                    },
+                },
+                requestCacheHeaders: {
+                    'test-request-1': {
+                        url: 'test-url',
+                        headers: [],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
+            (setStorage as jest.Mock).mockResolvedValue(undefined);
+
+            const onCompletedListener = (chrome.webRequest.onCompleted.addListener as jest.Mock)
+                .mock.calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                statusCode: 200,
+                statusLine: 'HTTP/1.1 200 OK',
+            } as any;
+
+            onCompletedListener(details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(consoleLog).toHaveBeenCalledWith(
+                '🧹 Cleaning up cache for our completed request:',
+                'test-request-1',
+            );
+            expect(requestHandler['ourRequestIds'].has('test-request-1')).toBe(false);
+        });
+
+        it('should clean up cache for our requests on error', async () => {
+            requestHandler.setupRequestListeners();
+
+            // Mark request as ours
+            requestHandler['ourRequestIds'].add('test-request-1');
+
+            const mockStorageData = {
+                requestCacheBody: {
+                    'test-request-1': {
+                        url: 'test-url',
+                        body: {},
+                        timestamp: Date.now(),
+                    },
+                },
+                requestCacheHeaders: {
+                    'test-request-1': {
+                        url: 'test-url',
+                        headers: [],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
+            (setStorage as jest.Mock).mockResolvedValue(undefined);
+
+            const onErrorListener = (chrome.webRequest.onErrorOccurred.addListener as jest.Mock)
+                .mock.calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                error: 'net::ERR_FAILED',
+            } as any;
+
+            onErrorListener(details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(consoleLog).toHaveBeenCalledWith(
+                '🧹 Cleaning up cache for our failed request:',
+                'test-request-1',
+            );
+            expect(requestHandler['ourRequestIds'].has('test-request-1')).toBe(false);
+        });
+
+        it('should not clean up cache for non-our requests', async () => {
+            requestHandler.setupRequestListeners();
+
+            const onCompletedListener = (chrome.webRequest.onCompleted.addListener as jest.Mock)
+                .mock.calls[0][0];
+
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                statusCode: 200,
+                statusLine: 'HTTP/1.1 200 OK',
+            } as any;
+
+            onCompletedListener(details);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(consoleLog).not.toHaveBeenCalledWith(
+                '🧹 Cleaning up cache for our completed request:',
+                expect.any(String),
             );
         });
     });
