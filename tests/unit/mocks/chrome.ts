@@ -27,6 +27,14 @@ const chromeMock = {
             addListener: jest.fn(),
             removeListener: jest.fn(),
         },
+        onCompleted: {
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+        },
+        onErrorOccurred: {
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+        },
     },
     tabs: {
         query: jest.fn(),
