@@ -11,14 +11,13 @@ import type {
     RetryObject,
     LocalStorageData,
 } from '../../types/index';
+import type { RequestCacheBodes, RequestCacheHeaders } from '../../types/baltichub';
 import {
     consoleLog,
     consoleError,
     getLastProperty,
     normalizeFormData,
-    cleanupCache,
     getPropertyById,
-    extractFirstId,
     getLogsFromSession,
     clearLogsInSession,
     getLocalStorageData,
@@ -123,11 +122,54 @@ export class MessageHandler {
         message: any,
         sendResponse: (response?: any) => void,
     ): Promise<void> {
+        // Use the same requestId for both headers and body to avoid mismatch
+        // Get the last requestId (most recent) to match with getLastProperty
+        const requestIds = Object.keys(data.requestCacheHeaders || {});
+
+        if (requestIds.length === 0) {
+            consoleLog('No requestId found in cache headers');
+            sendResponse({ success: false, error: 'No cached request found' });
+            return;
+        }
+
+        // Get the most recent requestId (last in object, which should be the most recent)
+        const requestId = requestIds[requestIds.length - 1];
+
+        // Get headers for the selected requestId
         const requestCacheHeaders: RequestCacheHeaderBody | null = getLastProperty(
             data.requestCacheHeaders,
         );
 
-        const requestId = extractFirstId(data.requestCacheHeaders)!;
+        // Validate that the cached request is not too old (more than 5 minutes)
+        if (requestCacheHeaders) {
+            const cacheAge = Date.now() - requestCacheHeaders.timestamp;
+            const maxCacheAge = 5 * 60 * 1000; // 5 minutes
+
+            if (cacheAge > maxCacheAge) {
+                consoleLog(
+                    '⚠️ Cached request is too old:',
+                    `requestId=${requestId}`,
+                    `Age=${Math.round(cacheAge / 1000)}s`,
+                    `Max age=${maxCacheAge / 1000}s`,
+                    `Will process anyway, but this might be stale`,
+                );
+            } else {
+                consoleLog(
+                    '✅ Cached request age is acceptable:',
+                    `requestId=${requestId}`,
+                    `Age=${Math.round(cacheAge / 1000)}s`,
+                );
+            }
+        }
+
+        consoleLog(
+            '📦 Processing cached request:',
+            `requestId=${requestId}`,
+            `Total cached requests=${requestIds.length}`,
+            `Cache headers keys=${requestIds.join(', ')}`,
+            `Selected requestId=${requestId} (last in cache)`,
+            `⚠️ IMPORTANT: Verifying this is the correct request`,
+        );
 
         try {
             const storageData = await getStorage([
@@ -136,6 +178,14 @@ export class MessageHandler {
                 'testEnv',
                 'tableData',
             ]);
+
+            const cachedBodyKeys = Object.keys(storageData.requestCacheBody || {});
+            consoleLog(
+                '📦 Cache state:',
+                `requestId=${requestId}`,
+                `Cached body keys=${cachedBodyKeys.join(', ')}`,
+                `Total cached bodies=${cachedBodyKeys.length}`,
+            );
 
             const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
                 storageData.requestCacheBody || {},
@@ -151,18 +201,87 @@ export class MessageHandler {
                 );
 
                 await this.queueManager.addToQueue(retryObject);
-                await cleanupCache();
+
+                // Remove only the processed request from cache, not all
+                await this.removeCachedRequest(requestId);
+
+                consoleLog(
+                    '✅ Successfully processed and removed from cache:',
+                    `requestId=${requestId}`,
+                );
             } else {
-                consoleLog('No data in cache object');
+                consoleLog(
+                    '⚠️ No data in cache object for requestId:',
+                    requestId,
+                    `Available body keys=${cachedBodyKeys.join(', ')}`,
+                );
+                // Remove the requestId from headers cache even if body is missing
+                await this.removeCachedRequest(requestId);
             }
 
             sendResponse({ success: true });
         } catch (error) {
-            consoleError('Error in processCachedRequest:', error);
+            consoleError('❌ Error in processCachedRequest:', error);
+            // Try to clean up the failed request from cache
+            try {
+                await this.removeCachedRequest(requestId);
+                consoleLog('🧹 Cleaned up failed request from cache:', requestId);
+            } catch (cleanupError) {
+                consoleError('❌ Error cleaning up failed request:', cleanupError);
+            }
             sendResponse({
                 success: false,
                 error: 'Failed to process cached request',
             });
+        }
+    }
+
+    /**
+     * Removes a specific request from cache by requestId
+     * Instead of clearing all cache, removes only the processed request
+     */
+    private async removeCachedRequest(requestId: string): Promise<void> {
+        try {
+            const [bodyData, headersData] = await Promise.all([
+                getStorage('requestCacheBody'),
+                getStorage('requestCacheHeaders'),
+            ]);
+
+            const cacheBody: RequestCacheBodes = bodyData.requestCacheBody || {};
+            const cacheHeaders: RequestCacheHeaders = headersData.requestCacheHeaders || {};
+
+            let removed = false;
+
+            // Remove from body cache
+            if (cacheBody[requestId]) {
+                delete cacheBody[requestId];
+                removed = true;
+                consoleLog('🗑️ Removed from body cache:', requestId);
+            }
+
+            // Remove from headers cache
+            if (cacheHeaders[requestId]) {
+                delete cacheHeaders[requestId];
+                removed = true;
+                consoleLog('🗑️ Removed from headers cache:', requestId);
+            }
+
+            if (removed) {
+                await Promise.all([
+                    setStorage({ requestCacheBody: cacheBody }),
+                    setStorage({ requestCacheHeaders: cacheHeaders }),
+                ]);
+                consoleLog(
+                    '✅ Cache cleanup completed:',
+                    `requestId=${requestId}`,
+                    `Remaining body keys=${Object.keys(cacheBody).join(', ') || 'none'}`,
+                    `Remaining header keys=${Object.keys(cacheHeaders).join(', ') || 'none'}`,
+                );
+            } else {
+                consoleLog('ℹ️ Request not found in cache (already removed?):', requestId);
+            }
+        } catch (error) {
+            consoleError('❌ Error removing cached request:', requestId, error);
         }
     }
 

@@ -421,6 +421,14 @@ export class QueueManager implements IQueueManager {
                 const dateRequests = subscriptions.get(date);
                 if (dateRequests) {
                     dateRequests.push(req);
+                    consoleLogWithoutSave(
+                        '📅 Added request to date group:',
+                        `req.id=${req.id}`,
+                        `tvAppId=${req.tvAppId}`,
+                        `Date=${date}`,
+                        `req.startSlot=${req.startSlot || 'not set'}`,
+                        `Total in group=${dateRequests.length}`,
+                    );
                 }
             } catch (error) {
                 consoleError(`Error creating subscription for request ${req.id}:`, error);
@@ -447,6 +455,15 @@ export class QueueManager implements IQueueManager {
         }
 
         // Process all requests for this date
+        consoleLog(
+            '📋 Processing date group:',
+            `Date=${date}`,
+            `Total requests=${requests.length}`,
+            `Request IDs=${requests.map(r => r.id).join(', ')}`,
+            `Request tvAppIds=${requests.map(r => r.tvAppId).join(', ')}`,
+            `Request startSlots=${requests.map(r => r.startSlot || 'not set').join(', ')}`,
+        );
+
         for (const req of requests) {
             try {
                 const body = normalizeFormData(req.body).formData;
@@ -454,34 +471,29 @@ export class QueueManager implements IQueueManager {
 
                 // Use time from req.startSlot if available (the time we're actually searching for),
                 // otherwise fall back to cached time from body.SlotStart
+                // IMPORTANT: Do NOT mutate req.body.formData here - it will be updated in executeRequest
+                // This prevents race conditions and ensures consistency
                 let time: string[];
-                const cachedSlotStart = body.SlotStart[0];
-                const cachedSlotEnd = body.SlotEnd?.[0];
-
-                if (req.startSlot && req.body?.formData) {
-                    // Update formData with the correct time we're searching for
-                    req.body.formData.SlotStart = [req.startSlot];
-                    if (req.endSlot) {
-                        req.body.formData.SlotEnd = [req.endSlot];
-                    }
+                if (req.startSlot) {
                     time = req.startSlot.split(' ');
-                    consoleLog(
-                        '🔄 Using slot time from req.startSlot:',
-                        `tvAppId=${tvAppId}`,
-                        `Cached: SlotStart=${cachedSlotStart}, SlotEnd=${cachedSlotEnd}`,
-                        `→ Updated: SlotStart=${req.startSlot}, SlotEnd=${req.endSlot || 'not set'}`,
-                        `Time array=${time.join(', ')}`,
-                    );
                 } else {
                     time = body.SlotStart[0].split(' ');
-                    consoleLog(
-                        '📋 Using cached slot time (req.startSlot not available):',
+                }
+
+                // Validate time array format
+                if (!time || time.length < 2 || !time[1]) {
+                    consoleError(
+                        '❌ Invalid time format:',
                         `tvAppId=${tvAppId}`,
-                        `SlotStart=${cachedSlotStart}`,
-                        `SlotEnd=${cachedSlotEnd || 'not set'}`,
+                        `req.id=${req.id}`,
+                        `time=${JSON.stringify(time)}`,
                         `req.startSlot=${req.startSlot || 'not set'}`,
-                        `Time array=${time.join(', ')}`,
                     );
+                    await this.updateQueueItem(req.id, {
+                        status: 'error',
+                        status_message: 'Invalid time format in request',
+                    });
+                    continue;
                 }
 
                 // Check if request is paused (e.g. after YbqToMuchTransactionInSector)
@@ -508,34 +520,17 @@ export class QueueManager implements IQueueManager {
                 }
 
                 // Check slot availability using fresh HTML
-                consoleLog(
-                    '🔍 Checking slot availability:',
-                    `tvAppId=${tvAppId}`,
-                    `Date=${date}`,
-                    `Time=${time.join(', ')}`,
-                    `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
-                    `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
-                    `Looking for time: ${time[1]?.slice(0, 5) || 'unknown'}`,
-                );
-
                 const isSlotAvailable = await checkSlotAvailability(htmlText, time);
 
-                consoleLog(
-                    `📊 Slot availability result:`,
-                    `tvAppId=${tvAppId}`,
-                    `Time=${time.join(', ')}`,
-                    `Available=${isSlotAvailable}`,
-                );
+                const resultData = {
+                    tvAppId,
+                    Time: time[1]?.slice(0, 5) || 'unknown',
+                    Available: isSlotAvailable,
+                };
+                consoleLog('📊 Slot availability:', JSON.stringify(resultData, null, 2));
 
                 if (!isSlotAvailable) {
                     // Slot not available, keep in queue
-                    consoleLog(
-                        '❌ No slots, keeping in queue:',
-                        `tvAppId=${tvAppId}`,
-                        `Time=${time.join(', ')}`,
-                        `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
-                        `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
-                    );
                     // Clear custom color, updated flag, and reset message when slot is not available
                     // (this is normal "no slots" case, not "too many transactions")
                     if (req.status_color || req.updated) {
@@ -549,24 +544,39 @@ export class QueueManager implements IQueueManager {
                 }
 
                 // Reset updated flag before new attempt to allow fresh error detection
-                const reqForProcessing = req.updated ? { ...req, updated: false } : req;
+                // Create a copy to avoid mutating the original request object
+                const reqForProcessing = req.updated
+                    ? {
+                          ...req,
+                          updated: false,
+                          // Deep copy body to avoid mutations affecting other requests
+                          body: req.body
+                              ? {
+                                    ...req.body,
+                                    formData: req.body.formData
+                                        ? { ...req.body.formData }
+                                        : undefined,
+                                }
+                              : undefined,
+                      }
+                    : {
+                          ...req,
+                          // Deep copy body to avoid mutations affecting other requests
+                          body: req.body
+                              ? {
+                                    ...req.body,
+                                    formData: req.body.formData
+                                        ? { ...req.body.formData }
+                                        : undefined,
+                                }
+                              : undefined,
+                      };
 
                 // Slot available - execute request
-                consoleLog(
-                    '✅ Slot available, executing request:',
-                    `tvAppId=${tvAppId}`,
-                    `Time=${time.join(', ')}`,
-                    `SlotStart=${reqForProcessing.body?.formData?.SlotStart?.[0] || 'not set'}`,
-                    `SlotEnd=${reqForProcessing.body?.formData?.SlotEnd?.[0] || 'not set'}`,
-                    `req.startSlot=${reqForProcessing.startSlot || 'not set'}`,
-                    `req.endSlot=${reqForProcessing.endSlot || 'not set'}`,
-                );
 
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
                 await this.updateQueueItem(req.id, updatedReq);
                 this.processingState.processedCount++;
-
-                consoleLog(`Request ${req.id} processed successfully for date ${date}`, updatedReq);
             } catch (error) {
                 this.processingState.errorCount++;
                 consoleError(`Error processing request ${req.id} for date ${date}:`, error);
