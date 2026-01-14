@@ -567,7 +567,12 @@ describe('QueueManager', () => {
                 throw new Error('Parse error');
             });
 
-            const existingQueue = [mockRetryObject];
+            // Create a request without startSlot to test error handling in normalizeFormData
+            const requestWithoutStartSlot = {
+                ...mockRetryObject,
+                startSlot: '', // Empty startSlot forces use of normalizeFormData
+            };
+            const existingQueue = [requestWithoutStartSlot];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
             queueManager.startProcessing({
@@ -667,7 +672,12 @@ describe('QueueManager', () => {
                 throw new Error('Parse error');
             });
 
-            const existingQueue = [mockRetryObject];
+            // Create a request without startSlot to test error handling in normalizeFormData
+            const requestWithoutStartSlot = {
+                ...mockRetryObject,
+                startSlot: '', // Empty startSlot forces use of normalizeFormData
+            };
+            const existingQueue = [requestWithoutStartSlot];
             mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
 
             queueManager.startProcessing({

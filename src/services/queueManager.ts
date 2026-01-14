@@ -348,7 +348,11 @@ export class QueueManager implements IQueueManager {
         for (let i = 0; i < results.length; i++) {
             const date = uniqueDates[i];
             const result = results[i];
-            const requests = subscriptions.get(date)!;
+            const requests = subscriptions.get(date);
+            if (!requests) {
+                consoleError(`No requests found for date ${date}, skipping`);
+                continue;
+            }
 
             if (result.status === 'rejected') {
                 // Handle rejection
@@ -384,13 +388,40 @@ export class QueueManager implements IQueueManager {
 
         for (const req of requests) {
             try {
-                const body = normalizeFormData(req.body).formData;
-                const date = body.SlotStart[0].split(' ')[0]; // "07.08.2025"
+                // Use date from req.startSlot if available (the date we're actually searching for),
+                // otherwise fall back to cached date from body.SlotStart
+                let date: string;
+                if (req.startSlot) {
+                    date = req.startSlot.split(' ')[0]; // "07.08.2025"
+                    consoleLogWithoutSave(
+                        '📅 Using date from req.startSlot:',
+                        `RequestId=${req.id}`,
+                        `tvAppId=${req.tvAppId}`,
+                        `Date=${date}`,
+                        `req.startSlot=${req.startSlot}`,
+                    );
+                } else if (req.body) {
+                    const body = normalizeFormData(req.body).formData;
+                    date = body.SlotStart[0].split(' ')[0]; // "07.08.2025"
+                    consoleLogWithoutSave(
+                        '📅 Using date from cached body:',
+                        `RequestId=${req.id}`,
+                        `tvAppId=${req.tvAppId}`,
+                        `Date=${date}`,
+                        `Cached SlotStart=${body.SlotStart[0]}`,
+                    );
+                } else {
+                    consoleError(`Request ${req.id} has no startSlot and no body, skipping`);
+                    continue;
+                }
 
                 if (!subscriptions.has(date)) {
                     subscriptions.set(date, []);
                 }
-                subscriptions.get(date)!.push(req);
+                const dateRequests = subscriptions.get(date);
+                if (dateRequests) {
+                    dateRequests.push(req);
+                }
             } catch (error) {
                 consoleError(`Error creating subscription for request ${req.id}:`, error);
                 // Skip invalid requests
@@ -420,7 +451,38 @@ export class QueueManager implements IQueueManager {
             try {
                 const body = normalizeFormData(req.body).formData;
                 const tvAppId = body.TvAppId[0];
-                const time = body.SlotStart[0].split(' ');
+
+                // Use time from req.startSlot if available (the time we're actually searching for),
+                // otherwise fall back to cached time from body.SlotStart
+                let time: string[];
+                const cachedSlotStart = body.SlotStart[0];
+                const cachedSlotEnd = body.SlotEnd?.[0];
+
+                if (req.startSlot && req.body?.formData) {
+                    // Update formData with the correct time we're searching for
+                    req.body.formData.SlotStart = [req.startSlot];
+                    if (req.endSlot) {
+                        req.body.formData.SlotEnd = [req.endSlot];
+                    }
+                    time = req.startSlot.split(' ');
+                    consoleLog(
+                        '🔄 Using slot time from req.startSlot:',
+                        `tvAppId=${tvAppId}`,
+                        `Cached: SlotStart=${cachedSlotStart}, SlotEnd=${cachedSlotEnd}`,
+                        `→ Updated: SlotStart=${req.startSlot}, SlotEnd=${req.endSlot || 'not set'}`,
+                        `Time array=${time.join(', ')}`,
+                    );
+                } else {
+                    time = body.SlotStart[0].split(' ');
+                    consoleLog(
+                        '📋 Using cached slot time (req.startSlot not available):',
+                        `tvAppId=${tvAppId}`,
+                        `SlotStart=${cachedSlotStart}`,
+                        `SlotEnd=${cachedSlotEnd || 'not set'}`,
+                        `req.startSlot=${req.startSlot || 'not set'}`,
+                        `Time array=${time.join(', ')}`,
+                    );
+                }
 
                 // Check if request is paused (e.g. after YbqToMuchTransactionInSector)
                 if (req.pausedUntil && Date.now() < req.pausedUntil) {
@@ -446,14 +508,33 @@ export class QueueManager implements IQueueManager {
                 }
 
                 // Check slot availability using fresh HTML
+                consoleLog(
+                    '🔍 Checking slot availability:',
+                    `tvAppId=${tvAppId}`,
+                    `Date=${date}`,
+                    `Time=${time.join(', ')}`,
+                    `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
+                    `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
+                    `Looking for time: ${time[1]?.slice(0, 5) || 'unknown'}`,
+                );
+
                 const isSlotAvailable = await checkSlotAvailability(htmlText, time);
+
+                consoleLog(
+                    `📊 Slot availability result:`,
+                    `tvAppId=${tvAppId}`,
+                    `Time=${time.join(', ')}`,
+                    `Available=${isSlotAvailable}`,
+                );
 
                 if (!isSlotAvailable) {
                     // Slot not available, keep in queue
-                    consoleLogWithoutSave(
+                    consoleLog(
                         '❌ No slots, keeping in queue:',
-                        tvAppId,
-                        time.join(', '),
+                        `tvAppId=${tvAppId}`,
+                        `Time=${time.join(', ')}`,
+                        `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
+                        `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
                     );
                     // Clear custom color, updated flag, and reset message when slot is not available
                     // (this is normal "no slots" case, not "too many transactions")
@@ -471,6 +552,16 @@ export class QueueManager implements IQueueManager {
                 const reqForProcessing = req.updated ? { ...req, updated: false } : req;
 
                 // Slot available - execute request
+                consoleLog(
+                    '✅ Slot available, executing request:',
+                    `tvAppId=${tvAppId}`,
+                    `Time=${time.join(', ')}`,
+                    `SlotStart=${reqForProcessing.body?.formData?.SlotStart?.[0] || 'not set'}`,
+                    `SlotEnd=${reqForProcessing.body?.formData?.SlotEnd?.[0] || 'not set'}`,
+                    `req.startSlot=${reqForProcessing.startSlot || 'not set'}`,
+                    `req.endSlot=${reqForProcessing.endSlot || 'not set'}`,
+                );
+
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
                 await this.updateQueueItem(req.id, updatedReq);
                 this.processingState.processedCount++;

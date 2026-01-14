@@ -48,8 +48,27 @@ export function handleErrorResponse(
     tvAppId: string,
     time: string[],
 ): RetryObject {
+    consoleLog(
+        '❌ Error response received:',
+        `tvAppId=${tvAppId}`,
+        `Time=${time.join(', ')}`,
+        `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
+        `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
+        `req.startSlot=${req.startSlot || 'not set'}`,
+        `req.endSlot=${req.endSlot || 'not set'}`,
+        `Response length=${parsedResponse.length}`,
+        `Response preview=${parsedResponse.substring(0, 200)}`,
+    );
+
     if (parsedResponse.includes('CannotCreateTvaInSelectedSlot')) {
-        consoleLog('❌ Retry failed, keeping in queue:', tvAppId, time.join(', '), parsedResponse);
+        consoleLog(
+            '❌ Retry failed, keeping in queue:',
+            `tvAppId=${tvAppId}`,
+            `Time=${time.join(', ')}`,
+            `SlotStart=${req.body?.formData?.SlotStart?.[0] || 'not set'}`,
+            `SlotEnd=${req.body?.formData?.SlotEnd?.[0] || 'not set'}`,
+            `Response=${parsedResponse}`,
+        );
         return req;
     }
 
