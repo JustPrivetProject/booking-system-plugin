@@ -77,7 +77,22 @@ export async function fetchRequest(
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
+        // Keep-alive mechanism during fetch - Chrome API calls reset idle timer
+        let keepAliveIntervalId: NodeJS.Timeout | null = null;
+
         try {
+            // Start keep-alive during fetch to prevent service worker termination
+            // Call Chrome API every 20 seconds to reset idle timer
+            keepAliveIntervalId = setInterval(() => {
+                try {
+                    chrome.runtime.getPlatformInfo(() => {
+                        // Timer reset
+                    });
+                } catch {
+                    // Ignore errors - keep-alive attempt
+                }
+            }, 20000);
+
             const response = await fetch(url, {
                 ...options,
                 headers: {
@@ -88,6 +103,12 @@ export async function fetchRequest(
                 },
                 credentials: 'include',
             });
+
+            // Stop keep-alive after fetch starts (response received)
+            if (keepAliveIntervalId) {
+                clearInterval(keepAliveIntervalId);
+                keepAliveIntervalId = null;
+            }
 
             // Get response text for error analysis
             const responseText = await response.text();
@@ -158,6 +179,12 @@ export async function fetchRequest(
                 attempt,
             );
         } catch (error) {
+            // Stop keep-alive on error
+            if (keepAliveIntervalId) {
+                clearInterval(keepAliveIntervalId);
+                keepAliveIntervalId = null;
+            }
+
             lastError = error as Error;
 
             // Handle network errors

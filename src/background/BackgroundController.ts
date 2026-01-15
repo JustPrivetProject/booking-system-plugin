@@ -30,6 +30,9 @@ export class BackgroundController {
         // Initialize settings
         await this.initializeSettings();
 
+        // Setup keep-alive mechanism to prevent service worker from closing
+        this.setupKeepAlive();
+
         // Start queue processing
         await this.startQueueProcessing();
 
@@ -127,6 +130,30 @@ export class BackgroundController {
 
         // Storage change listener
         this.storageHandler.setupStorageListener();
+    }
+
+    private setupKeepAlive(): void {
+        // Use setInterval with Chrome API calls to reset idle timer
+        // Chrome API calls (like chrome.runtime.getPlatformInfo) reset the service worker idle timer
+        // This prevents service worker from being terminated during long-running requests
+        // Ping every 20 seconds (less than service worker idle timeout of ~30 seconds)
+        const keepAliveInterval = setInterval(() => {
+            try {
+                // Chrome API calls reset the idle timer - use lightweight APIs
+                // chrome.runtime.getPlatformInfo is recommended as it's very lightweight
+                chrome.runtime.getPlatformInfo(() => {
+                    // API call completed - timer reset
+                });
+            } catch (error) {
+                // Fallback to storage if runtime API fails
+                getStorage('retryEnabled').catch(() => {
+                    // Ignore errors - this is just a keep-alive ping
+                });
+            }
+        }, 20000); // 20 seconds
+
+        // Store interval ID for potential cleanup (though we want it to run forever)
+        (this as any).keepAliveIntervalId = keepAliveInterval;
     }
 
     private handleInstallation(_details: chrome.runtime.InstalledDetails): void {
