@@ -20,6 +20,7 @@ export interface ErrorResponse {
 
 export interface FetchRequestOptions extends RequestInit {
     retryConfig?: RetryConfig;
+    timeout?: number; // Timeout in milliseconds (default: 25000)
 }
 
 // User session types
