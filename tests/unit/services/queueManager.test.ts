@@ -27,6 +27,7 @@ jest.mock('../../../src/utils', () => ({
 // Mock baltichub helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({
     isTaskCompletedInAnotherQueue: jest.fn().mockReturnValue(false),
+    isSlotRefreshTooOftenResponse: jest.fn().mockReturnValue(false),
     parseSlotsIntoButtons: jest.fn(),
     handleErrorResponse: jest.fn(),
 }));
@@ -284,6 +285,29 @@ describe('QueueManager', () => {
             expect(result[0].status).toBe('success');
             expect(result[0].status_message).toBe('Completed');
             expect(mockEvents.onItemUpdated).toHaveBeenCalledWith(mockRetryObject.id, updates);
+        });
+    });
+
+    describe('updateMultipleQueueItems', () => {
+        it('should update multiple items by ids', async () => {
+            const item1 = { ...mockRetryObject, id: 'id-1', status: 'in-progress' };
+            const item2 = { ...mockRetryObject, id: 'id-2', status: 'in-progress' };
+            const item3 = { ...mockRetryObject, id: 'id-3', status: 'in-progress' };
+            const existingQueue = [item1, item2, item3];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const updates = { status: 'paused', status_message: 'Zadanie jest wstrzymane' };
+            const result = await queueManager.updateMultipleQueueItems(['id-1', 'id-3'], updates);
+
+            expect(result).toHaveLength(3);
+            expect(result[0].status).toBe('paused');
+            expect(result[0].status_message).toBe('Zadanie jest wstrzymane');
+            expect(result[1].status).toBe('in-progress');
+            expect(result[2].status).toBe('paused');
+            expect(mockEvents.onItemUpdated).toHaveBeenCalledTimes(2);
+            expect(mockEvents.onItemUpdated).toHaveBeenCalledWith('id-1', updates);
+            expect(mockEvents.onItemUpdated).toHaveBeenCalledWith('id-3', updates);
         });
     });
 
@@ -609,9 +633,10 @@ describe('QueueManager', () => {
 
             // getSlots should be called with the date extracted from SlotStart
             expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            // text() throws in main loop -> handleDateGroupError (not processDateGroup)
             expect(mockConsoleError).toHaveBeenCalledWith(
-                expect.stringContaining('Error reading slots text'),
-                expect.any(Error),
+                expect.stringContaining('Error processing date group'),
+                expect.any(Object),
             );
         });
 

@@ -49,6 +49,13 @@ export class QueueManagerAdapter {
         return this.queueManager.updateQueueItem(id, updateData);
     }
 
+    async updateMultipleQueueItems(
+        ids: string[],
+        updateData: Partial<RetryObject>,
+    ): Promise<RetryObject[]> {
+        return this.queueManager.updateMultipleQueueItems(ids, updateData);
+    }
+
     async getQueue(): Promise<RetryObject[]> {
         return this.queueManager.getQueue();
     }

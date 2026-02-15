@@ -172,6 +172,77 @@ td.actions .remove-button:hover {
     background-color: #d90000;
 }
 
+/* Group resume button - box-shadow instead of border to avoid layout shift */
+td.actions .group-resume-button {
+    background: var(--color-white);
+    box-shadow:
+        var(--shadow-button),
+        0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+td.actions .group-resume-button span {
+    color: var(--color-primary);
+}
+
+td.actions .group-resume-button:hover:not(:disabled) {
+    background-color: var(--color-background-light);
+    box-shadow:
+        var(--shadow-hover),
+        0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+td.actions .group-resume-button:hover:not(:disabled) span {
+    color: var(--color-primary-dark);
+}
+
+td.actions .group-resume-button:disabled {
+    background-color: inherit;
+}
+
+td.actions .group-resume-button:disabled span {
+    color: var(--color-border-light);
+}
+
+/* Group pause button */
+td.actions .group-pause-button {
+    background: var(--color-paused);
+    box-shadow:
+        var(--shadow-button),
+        0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+td.actions .group-pause-button span {
+    color: var(--color-white);
+}
+
+td.actions .group-pause-button:hover:not(:disabled) {
+    background-color: #e69500;
+    box-shadow:
+        var(--shadow-hover),
+        0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+td.actions .group-pause-button:disabled {
+    background-color: inherit;
+}
+
+td.actions .group-pause-button:disabled span {
+    color: var(--color-border-light);
+}
+
+/* Group remove button */
+td.actions .group-remove-button {
+    box-shadow:
+        var(--shadow-button),
+        0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+td.actions .group-remove-button:hover {
+    box-shadow:
+        var(--shadow-hover),
+        0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
 /* ===== ROW HOVER AND ALTERNATION ===== */
 tr {
     background: var(--color-white);
@@ -222,6 +293,7 @@ td.group-header {
 
 td.group-header.actions {
     width: 130px !important;
+    text-align: right;
 }
 
 tr.group-row:hover {
@@ -230,11 +302,6 @@ tr.group-row:hover {
 
 tr.group-row:hover td {
     background-color: transparent; /* Убираем фон у ячеек группы при наведении */
-}
-
-tr.group-row .remove-button {
-    float: right; /* Прижимаем кнопку вправо */
-    margin-right: 0; /* Убираем отступ справа */
 }
 
 tr.group-row td:first-child {
