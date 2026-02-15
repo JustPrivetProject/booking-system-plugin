@@ -46,6 +46,7 @@ const mockQueueManager = {
     removeFromQueue: jest.fn(),
     removeMultipleFromQueue: jest.fn(),
     updateQueueItem: jest.fn(),
+    updateMultipleQueueItems: jest.fn(),
     getQueue: jest.fn(),
 };
 
@@ -1081,6 +1082,60 @@ describe('MessageHandler', () => {
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 error: 'Remove error',
+            });
+        });
+
+        it('should handle UPDATE_MULTIPLE_REQUESTS_STATUS action', async () => {
+            const message = {
+                target: 'background',
+                action: Actions.UPDATE_MULTIPLE_REQUESTS_STATUS,
+                data: {
+                    ids: ['request-1', 'request-2'],
+                    status: Statuses.PAUSED,
+                    status_message: 'Zadanie jest wstrzymane',
+                },
+            };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            mockQueueManager.updateMultipleQueueItems = jest.fn().mockResolvedValue([]);
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockQueueManager.updateMultipleQueueItems).toHaveBeenCalledWith(
+                ['request-1', 'request-2'],
+                {
+                    status: Statuses.PAUSED,
+                    status_message: 'Zadanie jest wstrzymane',
+                },
+            );
+            expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
+        });
+
+        it('should handle UPDATE_MULTIPLE_REQUESTS_STATUS error', async () => {
+            const message = {
+                target: 'background',
+                action: Actions.UPDATE_MULTIPLE_REQUESTS_STATUS,
+                data: {
+                    ids: ['request-1', 'request-2'],
+                    status: Statuses.PAUSED,
+                    status_message: 'Zadanie jest wstrzymane',
+                },
+            };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            mockQueueManager.updateMultipleQueueItems = jest
+                .fn()
+                .mockRejectedValue(new Error('Update error'));
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockSendResponse).toHaveBeenCalledWith({
+                success: false,
+                error: 'Update error',
             });
         });
 

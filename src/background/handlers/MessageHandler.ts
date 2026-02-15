@@ -542,6 +542,19 @@ export class MessageHandler {
                     });
                 return true;
 
+            case Actions.UPDATE_MULTIPLE_REQUESTS_STATUS:
+                this.queueManager
+                    .updateMultipleQueueItems(message.data.ids, {
+                        status: message.data.status,
+                        status_message: message.data.status_message,
+                    })
+                    .then(() => sendResponse({ success: true }))
+                    .catch(error => {
+                        consoleError('Error updating multiple requests status:', error);
+                        sendResponse({ success: false, error: error.message });
+                    });
+                return true;
+
             case Actions.SEND_LOGS:
                 this.handleSendLogs(message, sendResponse);
                 return true;

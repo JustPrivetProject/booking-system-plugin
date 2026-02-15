@@ -23,7 +23,11 @@ export const Messages = {
     AWIZACJA_NIE_MOZE_ZOSTAC_ZMIENIONA_CZAS_MINAL:
         'Awizacja nie może zostać zmieniona, ponieważ czas na dokonanie zmian już minął',
     UNKNOWN: 'Nieznany błąd (niepoprawny format odpowiedzi)',
+    SLOT_REFRESH_TOO_OFTEN: 'Zbyt częste odświeżanie slotów - czekam 10s',
 };
+
+/** Server returns this when getSlots is called too frequently */
+export const SLOT_REFRESH_TOO_OFTEN_MESSAGE_CODE = 'SlotRefreshTooOftenInfo';
 
 export const urls = {
     getSlots: 'https://ebrama.baltichub.com/Home/GetSlots',
@@ -38,6 +42,7 @@ export const Actions = {
     REMOVE_REQUEST: 'removeRequest',
     REMOVE_MULTIPLE_REQUESTS: 'removeMultipleRequests',
     UPDATE_REQUEST_STATUS: 'updateRequestStatus',
+    UPDATE_MULTIPLE_REQUESTS_STATUS: 'updateMultipleRequestsStatus',
     UPDATE_STATUS: 'updateStatus',
     SEND_LOGS: 'SEND_LOGS_TO_SUPABASE',
     IS_AUTHENTICATED: 'IS_AUTHENTICATED',
@@ -78,6 +83,8 @@ export enum ErrorType {
     HTML_ERROR = 'HTML_ERROR',
     TIMEOUT = 'TIMEOUT',
     UNKNOWN = 'UNKNOWN',
+    /** Server rate limit: getSlots called too frequently */
+    SLOT_REFRESH_TOO_OFTEN = 'SLOT_REFRESH_TOO_OFTEN',
 }
 
 export enum HttpStatus {

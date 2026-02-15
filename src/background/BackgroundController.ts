@@ -67,7 +67,9 @@ export class BackgroundController {
                 },
                 createdAt: Date.now(),
             };
-            await setStorage({ notificationSettings: defaultNotificationSettings });
+            await setStorage({
+                notificationSettings: defaultNotificationSettings,
+            });
         }
 
         // Initialize table data if not exist
@@ -102,8 +104,8 @@ export class BackgroundController {
 
     private async startQueueProcessing(): Promise<void> {
         await this.queueManager.startProcessing({
-            intervalMin: 200,
-            intervalMax: 500,
+            intervalMin: 10000,
+            intervalMax: 10500,
             retryEnabled: true,
         });
     }

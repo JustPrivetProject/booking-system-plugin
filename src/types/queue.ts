@@ -9,6 +9,7 @@ export interface IQueueManager {
     removeFromQueue(id: string): Promise<RetryObject[]>;
     removeMultipleFromQueue(ids: string[]): Promise<RetryObject[]>;
     updateQueueItem(id: string, updates: Partial<RetryObject>): Promise<RetryObject[]>;
+    updateMultipleQueueItems(ids: string[], updates: Partial<RetryObject>): Promise<RetryObject[]>;
     getQueue(): Promise<RetryObject[]>;
     updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]>;
     startProcessing(options?: ProcessingOptions): Promise<void>;
@@ -40,6 +41,13 @@ export interface QueueProcessingState {
     lastProcessedAt: number;
     processedCount: number;
     errorCount: number;
+}
+
+/** Result of processQueueBatchWithSubscriptions */
+export interface ProcessBatchResult {
+    hasActiveSubscriptions: boolean;
+    /** True when server returned SlotRefreshTooOftenInfo - use extended pause before next cycle */
+    slotRefreshTooOften: boolean;
 }
 
 // Queue statistics
