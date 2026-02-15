@@ -15,6 +15,7 @@ const mockQueueManager = {
     removeFromQueue: jest.fn(),
     removeMultipleFromQueue: jest.fn(),
     updateQueueItem: jest.fn(),
+    updateMultipleQueueItems: jest.fn(),
     getQueue: jest.fn(),
     updateEntireQueue: jest.fn(),
     startProcessing: jest.fn(),
@@ -224,6 +225,38 @@ describe('QueueManagerAdapter', () => {
                 expect(mockQueueManager.updateQueueItem).toHaveBeenCalledWith('test-id', {
                     status: 'error',
                 });
+            });
+        });
+
+        describe('updateMultipleQueueItems', () => {
+            it('should forward updateMultipleQueueItems call to underlying QueueManager', async () => {
+                const updateData = { status: 'paused', status_message: 'Zadanie jest wstrzymane' };
+                const expectedQueue = [
+                    { ...testRetryObject, id: 'id-1', ...updateData },
+                    { ...testRetryObject, id: 'id-2', ...updateData },
+                ];
+                mockQueueManager.updateMultipleQueueItems.mockResolvedValue(expectedQueue);
+
+                const result = await adapter.updateMultipleQueueItems(['id-1', 'id-2'], updateData);
+
+                expect(mockQueueManager.updateMultipleQueueItems).toHaveBeenCalledWith(
+                    ['id-1', 'id-2'],
+                    updateData,
+                );
+                expect(result).toEqual(expectedQueue);
+            });
+
+            it('should handle errors from underlying QueueManager', async () => {
+                const error = new Error('Update multiple error');
+                mockQueueManager.updateMultipleQueueItems.mockRejectedValue(error);
+
+                await expect(
+                    adapter.updateMultipleQueueItems(['id-1', 'id-2'], { status: 'paused' }),
+                ).rejects.toThrow('Update multiple error');
+                expect(mockQueueManager.updateMultipleQueueItems).toHaveBeenCalledWith(
+                    ['id-1', 'id-2'],
+                    { status: 'paused' },
+                );
             });
         });
 

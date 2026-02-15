@@ -1,4 +1,4 @@
-import { Messages, Statuses } from '../data';
+import { Messages, Statuses, SLOT_REFRESH_TOO_OFTEN_MESSAGE_CODE } from '../data';
 import type { RetryObject } from '../types/baltichub';
 
 import { consoleLog, detectHtmlError, determineErrorType } from './index';
@@ -24,6 +24,19 @@ export const parseSlotsIntoButtons = (htmlText: string) => {
  */
 export function isTaskCompletedInAnotherQueue(req: RetryObject, queue: RetryObject[]) {
     return queue.some(task => task.tvAppId === req.tvAppId && task.status === 'success');
+}
+
+/**
+ * Checks if getSlots response body indicates rate limit (SlotRefreshTooOftenInfo).
+ * Server returns 200 OK with JSON when getSlots is called too frequently.
+ */
+export function isSlotRefreshTooOftenResponse(parsedResponse: string): boolean {
+    try {
+        const json = JSON.parse(parsedResponse);
+        return json.messageCode === SLOT_REFRESH_TOO_OFTEN_MESSAGE_CODE;
+    } catch {
+        return false;
+    }
 }
 
 /**

@@ -61,6 +61,14 @@ async function setStatusRequest(id, status, status_message) {
     });
 }
 
+async function setStatusMultipleRequests(ids: string[], status: string, status_message: string) {
+    return sendMessageToBackground(Actions.UPDATE_MULTIPLE_REQUESTS_STATUS, {
+        ids,
+        status,
+        status_message,
+    });
+}
+
 async function restoreGroupStates() {
     try {
         const { groupStates = {} } = await chrome.storage.local.get('groupStates');
@@ -176,6 +184,14 @@ function isPauseDisabled(status: string) {
     return isDisabled(status);
 }
 
+function canResumeStatus(status: string): boolean {
+    return isPlayDisabled(status) !== 'disabled';
+}
+
+function canPauseStatus(status: string): boolean {
+    return isPauseDisabled(status) !== 'disabled';
+}
+
 async function updateQueueDisplay() {
     consoleLog('updateQueueDisplay');
     const isAuthenticated = await authService.isAuthenticated();
@@ -217,6 +233,9 @@ async function updateQueueDisplay() {
             const prioritizedItem = items.find(item => item.status === statusForGroup);
             const statusColorForGroup = prioritizedItem?.status_color;
 
+            const canResumeGroup = items.some(item => canResumeStatus(item.status));
+            const canPauseGroup = items.some(item => canPauseStatus(item.status));
+
             const groupRow = document.createElement('tr');
             groupRow.dataset.groupId = tvAppId;
             groupRow.classList.add('group-row');
@@ -229,8 +248,14 @@ async function updateQueueDisplay() {
         <td class="group-header">${items[0].driverName ? items[0].driverName : 'Brak nazwy kierowcy'}</td>
         <td class="group-header" title="Nr kontenera">${items[0].containerNumber ? items[0].containerNumber : '-'}</td>
         <td class="group-header actions">
+            <button class="group-resume-button resume-button" title="Wznów grupę" ${canResumeGroup ? '' : 'disabled'}>
+                <span class="material-icons icon">play_arrow</span>
+            </button>
+            <button class="group-pause-button pause-button" title="Wstrzymaj grupę" ${canPauseGroup ? '' : 'disabled'}>
+                <span class="material-icons icon">pause</span>
+            </button>
             <button class="group-remove-button remove-button" title="Usuń grupę">
-                <span class="material-icons">delete</span>
+                <span class="material-icons icon">delete</span>
             </button>
         </td>`;
             tableBody.appendChild(groupRow);
@@ -244,6 +269,8 @@ async function updateQueueDisplay() {
             items.forEach((req: RetryObjectArray[0]) => {
                 const containerInfo = normalizeFormData(req.body).formData;
                 const row = document.createElement('tr');
+                row.dataset.status = req.status;
+                row.dataset.id = req.id;
                 row.innerHTML = `
                 <td></td>
                 <td class="status ${req.status}" title="${req.status_message}">
@@ -285,20 +312,24 @@ async function updateQueueDisplay() {
             .forEach(btn => {
                 btn.addEventListener('click', () => removeRequestFromRetryQueue(btn.dataset.id));
             });
-        document.querySelectorAll<HTMLElement>('.pause-button').forEach(btn => {
-            btn.addEventListener('click', () =>
-                setStatusRequest(btn.dataset.id, 'paused', 'Zadanie jest wstrzymane'),
-            );
-        });
-        document.querySelectorAll<HTMLElement>('.resume-button').forEach(btn => {
-            btn.addEventListener('click', () =>
-                setStatusRequest(
-                    btn.dataset.id,
-                    'in-progress',
-                    'Zadanie jest w trakcie realizacji',
-                ),
-            );
-        });
+        document
+            .querySelectorAll<HTMLElement>('.pause-button:not(.group-pause-button)')
+            .forEach(btn => {
+                btn.addEventListener('click', () =>
+                    setStatusRequest(btn.dataset.id!, 'paused', 'Zadanie jest wstrzymane'),
+                );
+            });
+        document
+            .querySelectorAll<HTMLElement>('.resume-button:not(.group-resume-button)')
+            .forEach(btn => {
+                btn.addEventListener('click', () =>
+                    setStatusRequest(
+                        btn.dataset.id!,
+                        'in-progress',
+                        'Zadanie jest w trakcie realizacji',
+                    ),
+                );
+            });
         document.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
             header.addEventListener('click', async function () {
                 const groupRow = this.closest<HTMLElement>('.group-row');
@@ -332,6 +363,70 @@ async function updateQueueDisplay() {
                 }
             });
         });
+        document
+            .querySelectorAll<HTMLElement>('.group-row .group-resume-button')
+            .forEach(resumeButton => {
+                resumeButton.addEventListener('click', async function (event) {
+                    event.stopPropagation();
+                    if ((this as HTMLButtonElement).disabled) return;
+
+                    const groupHeaderRow = this.closest<HTMLElement>('.group-row');
+                    if (!groupHeaderRow) return;
+
+                    const idsToResume: string[] = [];
+                    let nextRow = groupHeaderRow.nextElementSibling;
+                    while (nextRow && !nextRow.classList.contains('group-row')) {
+                        const status = nextRow.getAttribute('data-status');
+                        const id = nextRow.getAttribute('data-id');
+                        if (id && status && canResumeStatus(status)) {
+                            idsToResume.push(id);
+                        }
+                        nextRow = nextRow.nextElementSibling;
+                    }
+
+                    if (idsToResume.length > 0) {
+                        await setStatusMultipleRequests(
+                            idsToResume,
+                            Statuses.IN_PROGRESS,
+                            'Zadanie jest w trakcie realizacji',
+                        );
+                    } else {
+                        await showInfoModal('Brak zadań do wznowienia w tej grupie.');
+                    }
+                });
+            });
+        document
+            .querySelectorAll<HTMLElement>('.group-row .group-pause-button')
+            .forEach(pauseButton => {
+                pauseButton.addEventListener('click', async function (event) {
+                    event.stopPropagation();
+                    if ((this as HTMLButtonElement).disabled) return;
+
+                    const groupHeaderRow = this.closest<HTMLElement>('.group-row');
+                    if (!groupHeaderRow) return;
+
+                    const idsToPause: string[] = [];
+                    let nextRow = groupHeaderRow.nextElementSibling;
+                    while (nextRow && !nextRow.classList.contains('group-row')) {
+                        const status = nextRow.getAttribute('data-status');
+                        const id = nextRow.getAttribute('data-id');
+                        if (id && status && canPauseStatus(status)) {
+                            idsToPause.push(id);
+                        }
+                        nextRow = nextRow.nextElementSibling;
+                    }
+
+                    if (idsToPause.length > 0) {
+                        await setStatusMultipleRequests(
+                            idsToPause,
+                            Statuses.PAUSED,
+                            'Zadanie jest wstrzymane',
+                        );
+                    } else {
+                        await showInfoModal('Brak zadań do wstrzymania w tej grupie.');
+                    }
+                });
+            });
         document
             .querySelectorAll<HTMLElement>('.group-row .group-remove-button')
             .forEach(removeButton => {

@@ -131,8 +131,8 @@ describe('BackgroundController', () => {
             await backgroundController['startQueueProcessing']();
 
             expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({
-                intervalMin: 200,
-                intervalMax: 500,
+                intervalMin: 10000,
+                intervalMax: 10500,
                 retryEnabled: true,
             });
         });

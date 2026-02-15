@@ -8,6 +8,7 @@ import type {
     QueueEvents,
     QueueConfig,
     DateSubscriptionsMap,
+    ProcessBatchResult,
 } from '../types/queue';
 import type { ErrorResponse } from '../utils/index';
 import { updateBadge, clearBadge } from '../utils/badge';
@@ -27,6 +28,7 @@ import {
     executeRequest,
     validateRequestBeforeSlotCheck,
 } from './baltichub';
+import { isSlotRefreshTooOftenResponse } from '../utils/baltichub.helper';
 
 export class QueueManager implements IQueueManager {
     private authService: IAuthService;
@@ -145,6 +147,26 @@ export class QueueManager implements IQueueManager {
         });
     }
 
+    async updateMultipleQueueItems(
+        ids: string[],
+        updates: Partial<RetryObject>,
+    ): Promise<RetryObject[]> {
+        return this.withMutex(async () => {
+            const queue = await this.getQueue();
+            const idSet = new Set(ids);
+            const updatedQueue = queue.map(item =>
+                idSet.has(item.id) ? { ...item, ...updates } : item,
+            );
+
+            await setStorage({ [this.config.storageKey]: updatedQueue });
+
+            consoleLog(`Items updated in ${this.config.storageKey}. IDs:`, ids);
+            ids.forEach(id => this.events.onItemUpdated?.(id, updates));
+
+            return updatedQueue;
+        });
+    }
+
     async getQueue(): Promise<RetryObject[]> {
         const result = await getStorage(this.config.storageKey);
         return result[this.config.storageKey] || [];
@@ -185,10 +207,12 @@ export class QueueManager implements IQueueManager {
                     return;
                 }
 
-                const hasActiveSubscriptions = await this.processQueueBatchWithSubscriptions();
+                const { hasActiveSubscriptions, slotRefreshTooOften } =
+                    await this.processQueueBatchWithSubscriptions(intervalMin, intervalMax);
+                const pauseMs = slotRefreshTooOften ? 10000 : 0;
                 this.scheduleNextProcess(
-                    intervalMin,
-                    intervalMax,
+                    pauseMs > 0 ? pauseMs : intervalMin,
+                    pauseMs > 0 ? pauseMs : intervalMax,
                     processNextRequests,
                     hasActiveSubscriptions,
                 );
@@ -297,8 +321,11 @@ export class QueueManager implements IQueueManager {
     }
 
     // Subscription-based processing methods
-    // Returns true if there were active subscriptions to process
-    private async processQueueBatchWithSubscriptions(): Promise<boolean> {
+    // Returns ProcessBatchResult with hasActiveSubscriptions and slotRefreshTooOften flag
+    private async processQueueBatchWithSubscriptions(
+        intervalMin: number,
+        intervalMax: number,
+    ): Promise<ProcessBatchResult> {
         const queue = await this.getQueue();
         updateBadge(queue.map(req => req.status));
 
@@ -306,7 +333,7 @@ export class QueueManager implements IQueueManager {
         const batch = inProgressRequests.slice(0, this.config.batchSize);
 
         if (batch.length === 0) {
-            return false;
+            return { hasActiveSubscriptions: false, slotRefreshTooOften: false };
         }
 
         // Step 1: Create subscriptions by date
@@ -314,73 +341,100 @@ export class QueueManager implements IQueueManager {
         const uniqueDates = Array.from(subscriptions.keys());
 
         if (uniqueDates.length === 0) {
-            return false;
+            return { hasActiveSubscriptions: false, slotRefreshTooOften: false };
         }
 
-        // Step 2: Fetch slots for all dates in parallel (no caching, always fresh)
-        const slotPromises = uniqueDates.map(async date => {
-            try {
-                const slots = await getSlots(date);
-                return { date, slots, error: null };
-            } catch (error) {
-                // Convert error to ErrorResponse-like structure
-                const errorResponse: ErrorResponse = {
-                    ok: false,
-                    error: {
-                        type: ErrorType.NETWORK,
-                        message: error instanceof Error ? error.message : 'Unknown error',
-                        originalError: error instanceof Error ? error : undefined,
-                    },
-                    text: async () => (error instanceof Error ? error.message : 'Unknown error'),
-                };
-                return {
-                    date,
-                    slots: null,
-                    error: errorResponse,
-                };
-            }
-        });
+        let slotRefreshTooOften = false;
 
-        // Step 3: Process all dates in parallel
-        const results = await Promise.allSettled(slotPromises);
-
-        // Step 4: Process each date result reactively
-        for (let i = 0; i < results.length; i++) {
-            const date = uniqueDates[i];
-            const result = results[i];
+        // Step 2: Fetch slots SEQUENTIALLY per date (avoids rate limit from parallel bursts)
+        for (const date of uniqueDates) {
             const requests = subscriptions.get(date);
             if (!requests) {
                 consoleError(`No requests found for date ${date}, skipping`);
                 continue;
             }
 
-            if (result.status === 'rejected') {
-                // Handle rejection
-                await this.handleDateGroupError(date, requests, new Error('Failed to fetch slots'));
-                continue;
+            let slots: Response | ErrorResponse | null = null;
+            let error: ErrorResponse | null = null;
+
+            try {
+                slots = await getSlots(date);
+            } catch (err) {
+                error = {
+                    ok: false,
+                    error: {
+                        type: ErrorType.NETWORK,
+                        message: err instanceof Error ? err.message : 'Unknown error',
+                        originalError: err instanceof Error ? err : undefined,
+                    },
+                    text: async () => (err instanceof Error ? err.message : 'Unknown error'),
+                };
             }
 
-            const { slots, error } = result.value;
-
             if (error) {
-                // Handle error response
                 await this.handleDateGroupError(date, requests, error);
                 continue;
             }
 
             if (!slots || (!slots.ok && 'error' in slots)) {
-                // Handle error response from getSlots
                 const errorResponse = slots as ErrorResponse;
                 await this.handleDateGroupError(date, requests, errorResponse);
                 continue;
             }
 
+            // Parse body and check for business-level errors (200 OK + JSON error)
+            let slotsText: string;
+            try {
+                slotsText = await slots.text();
+            } catch (err) {
+                await this.handleDateGroupError(date, requests, {
+                    ok: false,
+                    error: {
+                        type: ErrorType.NETWORK,
+                        message: err instanceof Error ? err.message : 'Failed to read response',
+                    },
+                    text: async () => '',
+                });
+                continue;
+            }
+
+            if (isSlotRefreshTooOftenResponse(slotsText)) {
+                slotRefreshTooOften = true;
+                consoleLog(
+                    '⏸️ SlotRefreshTooOftenInfo: pausing 10s before next getSlots cycle',
+                    date,
+                );
+                await this.handleDateGroupError(date, requests, {
+                    ok: false,
+                    error: {
+                        type: ErrorType.SLOT_REFRESH_TOO_OFTEN,
+                        message: Messages.SLOT_REFRESH_TOO_OFTEN,
+                    },
+                    text: async () => slotsText,
+                });
+                break;
+            }
+
             // Success - process all subscriptions for this date
-            await this.processDateGroup(date, requests, slots, queue);
+            await this.processDateGroup(
+                date,
+                requests,
+                new Response(slotsText, { status: 200, statusText: 'OK' }),
+                queue,
+            );
+
+            // Delay between getSlots calls (same interval as between cycles) to avoid rate limit
+            const isLastDate = uniqueDates.indexOf(date) === uniqueDates.length - 1;
+            if (!isLastDate) {
+                const delayMs = Math.floor(
+                    Math.random() * (intervalMax - intervalMin + 1) + intervalMin,
+                );
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
         }
 
         this.processingState.lastProcessedAt = Date.now();
-        return true;
+        return { hasActiveSubscriptions: true, slotRefreshTooOften };
     }
 
     private createDateSubscriptions(requests: RetryObject[]): DateSubscriptionsMap {
@@ -598,6 +652,13 @@ export class QueueManager implements IQueueManager {
                 // Handle ErrorResponse
                 if ('ok' in error && error.ok === false && 'error' in error) {
                     const errorData = error.error;
+                    if (errorData.type === ErrorType.SLOT_REFRESH_TOO_OFTEN) {
+                        // Rate limit - keep in-progress, next cycle will be in 10s
+                        await this.updateQueueItem(req.id, {
+                            status_message: Messages.SLOT_REFRESH_TOO_OFTEN,
+                        });
+                        continue;
+                    }
                     if (errorData.type === ErrorType.CLIENT_ERROR && errorData.status === 401) {
                         setStorage({ unauthorized: true });
                         await this.updateQueueItem(req.id, {
@@ -645,7 +706,15 @@ export class QueueManager implements IQueueManager {
             }
         }
 
-        this.processingState.errorCount += requests.length;
-        consoleError(`Error processing date group ${date} for ${requests.length} requests:`, error);
+        const isSlotRefreshTooOften =
+            'error' in error && error.error?.type === ErrorType.SLOT_REFRESH_TOO_OFTEN;
+        if (!isSlotRefreshTooOften) {
+            this.processingState.errorCount += requests.length;
+            consoleError(
+                `Error processing date group ${date} for ${requests.length} requests:`,
+                error,
+            );
+        }
+        // SLOT_REFRESH_TOO_OFTEN is expected/recoverable - already logged with consoleLog at call site
     }
 }
