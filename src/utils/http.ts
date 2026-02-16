@@ -101,7 +101,7 @@ export async function fetchRequest(
                     Pragma: 'no-cache',
                     Expires: '0',
                 },
-                credentials: 'include',
+                credentials: options.credentials ?? 'include',
             });
 
             // Stop keep-alive after fetch starts (response received)

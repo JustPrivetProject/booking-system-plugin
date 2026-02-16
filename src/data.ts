@@ -31,6 +31,8 @@ export const SLOT_REFRESH_TOO_OFTEN_MESSAGE_CODE = 'SlotRefreshTooOftenInfo';
 
 export const urls = {
     getSlots: 'https://ebrama.baltichub.com/Home/GetSlots',
+    /** Public endpoint, no auth required, no rate limit */
+    getSlotsForPreview: 'https://ebrama.baltichub.com/Home/GetSlotsForPreview',
     editTvAppSubmit: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/',
     editTvAppModal: 'https://ebrama.baltichub.com/TVApp/EditTvAppModal',
 };
