@@ -23,7 +23,8 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
     const [day, month, year] = date.split('.').map(Number);
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const dateAfterTransfer = formatDateToDMY(newDate);
-    return fetchRequest(urls.getSlots, {
+    // Use GetSlotsForPreview - public endpoint, anonymous, no rate limit
+    return fetchRequest(urls.getSlotsForPreview, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
@@ -31,7 +32,8 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
             Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
         },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 07.08.2025 26.02.2025
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }),
+        credentials: 'omit',
     });
 }
 
