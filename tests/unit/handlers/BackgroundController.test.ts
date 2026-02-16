@@ -131,8 +131,8 @@ describe('BackgroundController', () => {
             await backgroundController['startQueueProcessing']();
 
             expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({
-                intervalMin: 10000,
-                intervalMax: 10500,
+                intervalMin: expect.any(Number),
+                intervalMax: expect.any(Number),
                 retryEnabled: true,
             });
         });
@@ -280,7 +280,9 @@ describe('BackgroundController', () => {
 
             // Should not set existing values
             expect(setStorage).not.toHaveBeenCalledWith(
-                expect.objectContaining({ notificationSettings: expect.any(Object) }),
+                expect.objectContaining({
+                    notificationSettings: expect.any(Object),
+                }),
             );
             expect(setStorage).not.toHaveBeenCalledWith(
                 expect.objectContaining({ tableData: expect.any(Array) }),

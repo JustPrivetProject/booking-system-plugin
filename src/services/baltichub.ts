@@ -31,7 +31,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
             Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
         },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }), // 07.08.2025 26.02.2025
+        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }),
     });
 }
 
