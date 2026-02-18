@@ -104,8 +104,8 @@ export class BackgroundController {
 
     private async startQueueProcessing(): Promise<void> {
         await this.queueManager.startProcessing({
-            intervalMin: 2000,
-            intervalMax: 2100,
+            intervalMin: 500,
+            intervalMax: 1500,
             retryEnabled: true,
         });
     }

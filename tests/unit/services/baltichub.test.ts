@@ -389,16 +389,20 @@ describe('Baltichub Service', () => {
 
             // Assert
             expect(formatDateToDMY).toHaveBeenCalled();
-            testHelper.expectFetchRequestCalledWith('https://ebrama.baltichub.com/Home/GetSlots', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    Referer: 'https://ebrama.baltichub.com/tv-apps',
-                    Accept: '*/*',
+            testHelper.expectFetchRequestCalledWith(
+                'https://ebrama.baltichub.com/Home/GetSlotsForPreview',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        Referer: 'https://ebrama.baltichub.com/tv-apps',
+                        Accept: '*/*',
+                    },
+                    body: JSON.stringify({ date: '25.12.2024', type: 1 }),
+                    credentials: 'omit',
                 },
-                body: JSON.stringify({ date: '25.12.2024', type: 1 }),
-            });
+            );
             expect(result).toEqual(TEST_RESPONSES.SUCCESS);
         });
 
