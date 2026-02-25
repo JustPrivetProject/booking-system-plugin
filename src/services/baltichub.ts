@@ -19,11 +19,15 @@ import {
 } from '../utils/index';
 import { BrevoEmailData } from '../types';
 
-export async function getSlots(date: string): Promise<Response | ErrorResponse> {
+export async function getSlots(
+    date: string,
+    slotType: number = 1,
+): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number);
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const dateAfterTransfer = formatDateToDMY(newDate);
     // Use GetSlotsForPreview - public endpoint, anonymous, no rate limit
+    // slotType: 1 = default, 4 = PUSTE (empty container)
     return fetchRequest(urls.getSlotsForPreview, {
         method: 'POST',
         headers: {
@@ -32,7 +36,7 @@ export async function getSlots(date: string): Promise<Response | ErrorResponse> 
             Referer: 'https://ebrama.baltichub.com/tv-apps',
             Accept: '*/*',
         },
-        body: JSON.stringify({ date: dateAfterTransfer, type: 1 }),
+        body: JSON.stringify({ date: dateAfterTransfer, type: slotType }),
         credentials: 'omit',
     });
 }

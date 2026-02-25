@@ -7,6 +7,13 @@ import { clearBadge } from '../utils/badge';
 import { MessageHandler } from './handlers/MessageHandler';
 import { RequestHandler } from './handlers/RequestHandler';
 import { StorageHandler } from './handlers/StorageHandler';
+import { getContainerCheckerState } from '../containerChecker/storage';
+import {
+    updateContainerCheckerAlarm,
+    runContainerCheckCycle,
+} from '../services/containerChecker/containerCheckerService';
+
+const CONTAINER_CHECK_ALARM_NAME = 'container-check';
 
 export class BackgroundController {
     private messageHandler: MessageHandler;
@@ -100,6 +107,18 @@ export class BackgroundController {
         if (!requestCacheHeaders) {
             await setStorage({ requestCacheHeaders: {} });
         }
+
+        // Initialize Container Checker if not exist
+        const { containerCheckerWatchlist } = await getStorage('containerCheckerWatchlist');
+        if (containerCheckerWatchlist === undefined) {
+            await setStorage({ containerCheckerWatchlist: [] });
+        }
+        const { containerCheckerSettings } = await getStorage('containerCheckerSettings');
+        if (containerCheckerSettings === undefined) {
+            await setStorage({
+                containerCheckerSettings: { pollingMinutes: 10 },
+            });
+        }
     }
 
     private async startQueueProcessing(): Promise<void> {
@@ -132,6 +151,27 @@ export class BackgroundController {
 
         // Storage change listener
         this.storageHandler.setupStorageListener();
+
+        // Container Checker alarm listener
+        chrome.alarms.onAlarm.addListener(alarm => {
+            if (alarm.name === CONTAINER_CHECK_ALARM_NAME) {
+                runContainerCheckCycle().catch(error => {
+                    consoleError('[background] Container Check cycle failed:', error);
+                });
+            }
+        });
+
+        // Initialize Container Checker alarm
+        this.initContainerChecker();
+    }
+
+    private async initContainerChecker(): Promise<void> {
+        try {
+            const state = await getContainerCheckerState();
+            await updateContainerCheckerAlarm(state.settings.pollingMinutes);
+        } catch (error) {
+            consoleError('[background] Failed to init Container Checker:', error);
+        }
     }
 
     private setupKeepAlive(): void {
@@ -164,6 +204,11 @@ export class BackgroundController {
 
         // Welcome page is now handled by checkIfFreshInstall()
         // This method only handles installation-specific tasks
+
+        // Initialize Container Checker alarm on install/update
+        this.initContainerChecker().catch(error => {
+            consoleError('[background] Failed to init Container Checker on install:', error);
+        });
 
         // Migrate auto-login data to fix encoding issues
         autoLoginService.migrateAndCleanData().catch(error => {

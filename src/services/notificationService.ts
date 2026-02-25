@@ -157,6 +157,106 @@ export class NotificationService {
     }
 
     /**
+     * Send notifications for container status change (Container Checker)
+     */
+    async sendContainerChangeNotification(data: {
+        containerNumber: string;
+        port: string;
+        previousMilestone: string;
+        currentMilestone: string;
+        previousStatusText: string;
+        currentStatusText: string;
+        previousStateText: string;
+        currentStateText: string;
+        dataTimestamp: string | null;
+    }): Promise<void> {
+        try {
+            consoleLog('🔔 Sending container change notifications:', data.containerNumber);
+
+            await Promise.allSettled([
+                this.sendContainerChangeWindowsNotification(data),
+                this.sendContainerChangeEmailNotification(data),
+            ]);
+        } catch (error) {
+            consoleError('❌ Error in sendContainerChangeNotification:', error);
+        }
+    }
+
+    private async sendContainerChangeWindowsNotification(data: {
+        containerNumber: string;
+        port: string;
+        currentStatusText: string;
+    }): Promise<void> {
+        try {
+            const isEnabled = await notificationSettingsService.isWindowsNotificationEnabled();
+            if (!isEnabled) return;
+
+            chrome.notifications.create({
+                type: 'basic',
+                iconUrl: './icon-144x144.png',
+                title: 'Container status changed',
+                message: `${data.containerNumber} (${data.port}): ${data.currentStatusText}`,
+                priority: 2,
+            });
+            consoleLog('✅ Container change Windows notification sent');
+        } catch (error) {
+            consoleError('❌ Error sending container change Windows notification:', error);
+        }
+    }
+
+    private async sendContainerChangeEmailNotification(data: {
+        containerNumber: string;
+        port: string;
+        previousMilestone: string;
+        currentMilestone: string;
+        previousStatusText: string;
+        currentStatusText: string;
+        previousStateText: string;
+        currentStateText: string;
+        dataTimestamp: string | null;
+    }): Promise<void> {
+        try {
+            const isEmailEnabled = await notificationSettingsService.isEmailNotificationEnabled();
+            if (!isEmailEnabled) return;
+
+            const emailAddresses = await notificationSettingsService.getUserEmailForNotifications();
+            if (emailAddresses.length === 0) return;
+
+            const effectiveTimestamp = data.dataTimestamp
+                ? new Date(data.dataTimestamp).toLocaleString()
+                : '';
+            const textContent = [
+                `Container: ${data.containerNumber}`,
+                `Port: ${data.port}`,
+                `Milestone: ${data.previousMilestone} -> ${data.currentMilestone}`,
+                `Status: ${data.previousStatusText} -> ${data.currentStatusText}`,
+                `State: ${data.previousStateText} -> ${data.currentStateText}`,
+                `Data timestamp: ${effectiveTimestamp}`,
+            ].join('\n');
+
+            const subject = `[Monitor kontenerów] ${data.containerNumber}: ${data.previousMilestone} -> ${data.currentMilestone}`;
+
+            const sent = await brevoEmailService.sendSimpleTextEmail(
+                emailAddresses,
+                subject,
+                textContent,
+            );
+
+            if (sent) {
+                consoleLog(
+                    '✅ Container change email sent to:',
+                    emailAddresses.length,
+                    'recipients',
+                );
+            } else {
+                consoleLog('❌ Failed to send container change email');
+            }
+        } catch (error) {
+            consoleError('❌ Error sending container change email:', error);
+        }
+    }
+
+    /**
      * Check notification settings status
      */
     async getNotificationStatus(): Promise<{

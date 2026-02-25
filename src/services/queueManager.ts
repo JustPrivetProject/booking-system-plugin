@@ -336,21 +336,23 @@ export class QueueManager implements IQueueManager {
             return { hasActiveSubscriptions: false, slotRefreshTooOften: false };
         }
 
-        // Step 1: Create subscriptions by date
-        const subscriptions = this.createDateSubscriptions(batch);
-        const uniqueDates = Array.from(subscriptions.keys());
+        // Step 1: Create subscriptions by date and slotType (PUSTE uses type 4)
+        const subscriptions = this.createDateSlotTypeSubscriptions(batch);
+        const subscriptionKeys = Array.from(subscriptions.keys());
 
-        if (uniqueDates.length === 0) {
+        if (subscriptionKeys.length === 0) {
             return { hasActiveSubscriptions: false, slotRefreshTooOften: false };
         }
 
         let slotRefreshTooOften = false;
 
-        // Step 2: Fetch slots SEQUENTIALLY per date (avoids rate limit from parallel bursts)
-        for (const date of uniqueDates) {
-            const requests = subscriptions.get(date);
+        // Step 2: Fetch slots SEQUENTIALLY per (date, slotType) (avoids rate limit from parallel bursts)
+        for (const key of subscriptionKeys) {
+            const [date, slotTypeStr] = key.split('|');
+            const slotType = slotTypeStr ? parseInt(slotTypeStr, 10) : 1;
+            const requests = subscriptions.get(key);
             if (!requests) {
-                consoleError(`No requests found for date ${date}, skipping`);
+                consoleError(`No requests found for key ${key}, skipping`);
                 continue;
             }
 
@@ -358,7 +360,7 @@ export class QueueManager implements IQueueManager {
             let error: ErrorResponse | null = null;
 
             try {
-                slots = await getSlots(date);
+                slots = await getSlots(date, slotType);
             } catch (err) {
                 error = {
                     ok: false,
@@ -424,8 +426,8 @@ export class QueueManager implements IQueueManager {
             );
 
             // Delay between getSlots calls (same interval as between cycles) to avoid rate limit
-            const isLastDate = uniqueDates.indexOf(date) === uniqueDates.length - 1;
-            if (!isLastDate) {
+            const isLastKey = subscriptionKeys.indexOf(key) === subscriptionKeys.length - 1;
+            if (!isLastKey) {
                 const delayMs = Math.floor(
                     Math.random() * (intervalMax - intervalMin + 1) + intervalMin,
                 );
@@ -437,7 +439,7 @@ export class QueueManager implements IQueueManager {
         return { hasActiveSubscriptions: true, slotRefreshTooOften };
     }
 
-    private createDateSubscriptions(requests: RetryObject[]): DateSubscriptionsMap {
+    private createDateSlotTypeSubscriptions(requests: RetryObject[]): DateSubscriptionsMap {
         const subscriptions = new Map<string, RetryObject[]>();
 
         for (const req of requests) {
@@ -469,17 +471,22 @@ export class QueueManager implements IQueueManager {
                     continue;
                 }
 
-                if (!subscriptions.has(date)) {
-                    subscriptions.set(date, []);
+                // Group by date + slotType (1 = default, 4 = PUSTE)
+                const slotType = req.slotType ?? 1;
+                const key = `${date}|${slotType}`;
+
+                if (!subscriptions.has(key)) {
+                    subscriptions.set(key, []);
                 }
-                const dateRequests = subscriptions.get(date);
+                const dateRequests = subscriptions.get(key);
                 if (dateRequests) {
                     dateRequests.push(req);
                     consoleLogWithoutSave(
-                        '📅 Added request to date group:',
+                        '📅 Added request to date/slotType group:',
                         `req.id=${req.id}`,
                         `tvAppId=${req.tvAppId}`,
                         `Date=${date}`,
+                        `slotType=${slotType}`,
                         `req.startSlot=${req.startSlot || 'not set'}`,
                         `Total in group=${dateRequests.length}`,
                     );

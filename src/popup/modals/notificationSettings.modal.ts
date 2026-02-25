@@ -1,5 +1,6 @@
 import type { NotificationSettings } from '../../types/general';
 import { notificationSettingsService } from '../../services/notificationSettingsService';
+import { createConfirmationModal } from './confirmation.modal';
 
 export interface NotificationSettingsResult {
     email: {
@@ -338,7 +339,10 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
 
         // Reset button handler
         resetButton.addEventListener('click', async () => {
-            if (confirm('Czy na pewno chcesz zresetować ustawienia powiadomień do domyślnych?')) {
+            const confirmed = await createConfirmationModal(
+                'Czy na pewno chcesz zresetować ustawienia powiadomień do domyślnych?',
+            );
+            if (confirmed) {
                 try {
                     showStatusMessage('🔄 Resetowanie ustawień...', true);
 

@@ -32,11 +32,13 @@
     --shadow-hover: 0 4px 10px rgba(0, 0, 0, 0.2);
     --shadow-card: 0 4px 10px rgba(0, 0, 0, 0.1);
 
-    /* Fonts */
-    --font-size-small: 12px;
-    --font-size-medium: 14px;
-    --font-size-large: 18px;
-    --font-size-super-large: 24px;
+    /* Font sizes - semantic scale (slightly increased for readability) */
+    --font-size-xs: 10px; /* badges, tiny labels */
+    --font-size-small: 13px; /* buttons, links, secondary text */
+    --font-size-medium: 15px; /* main content, inputs, table cells */
+    --font-size-large: 18px; /* headings, primary buttons, icons */
+    --font-size-xl: 22px; /* modal titles, auth form headings */
+    --font-size-icon: 24px; /* action icons (play, pause, delete) */
 
     /* Borders */
     --border-radius: 8px;
@@ -45,8 +47,11 @@
     --color-primary-dark: #0099cc;
     --color-primary-light: #00bbee;
 
-    --app-width: 440px;
-    --modal-width: 420px;
+    --app-width: 520px;
+    --modal-width: 500px;
+
+    /* Table row hover */
+    --color-row-hover: #daf5ff;
 }
 
 /* ===== GLOBAL STYLES ===== */
@@ -55,6 +60,7 @@ body {
     height: 35px;
     overflow: auto;
     font-family: Arial, sans-serif;
+    font-size: var(--font-size-medium);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -91,7 +97,7 @@ tr:last-child td {
 #queueTableBody:empty::after {
     content: 'Proszę dodać zadania do realizacji';
     display: block;
-    font-size: 14px;
+    font-size: var(--font-size-medium);
     text-align: center;
     color: var(--color-text-light);
     padding: var(--spacing-medium);
@@ -100,6 +106,14 @@ tr:last-child td {
 
 #queueTableBody:empty + tr {
     display: none;
+}
+
+/* Empty watchlist row - same as main table empty state */
+.watchlist-empty-cell {
+    text-align: center;
+    font-size: var(--font-size-medium);
+    color: var(--color-text-light);
+    padding: var(--spacing-medium);
 }
 
 /* ===== HEADERS ===== */
@@ -131,7 +145,7 @@ button {
     padding: var(--spacing-tiny) var(--spacing-small);
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--font-size-small);
     transition: all 0.2s ease-in-out;
 }
 
@@ -254,7 +268,7 @@ tr:nth-child(even) {
 }
 
 tr:hover {
-    background-color: #daf5ff;
+    background-color: var(--color-row-hover);
 }
 
 /* Исправляем наследование фона */
@@ -262,9 +276,9 @@ tr:hover td {
     background-color: transparent; /* Убираем фон у ячеек при наведении */
 }
 
-td:first-child {
-    width: 35px;
-    padding-left: var(--spacing-small); /* 4px вместо 12px */
+#queueTable td:first-child {
+    width: 28px;
+    padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
 }
 
@@ -284,7 +298,7 @@ td.group-header {
     color: var(--color-white);
     font-weight: bold;
     text-align: left;
-    font-size: 12px;
+    font-size: var(--font-size-small);
     letter-spacing: 0.5px;
     padding: var(--spacing-tiny) var(--spacing-medium);
     border-top: 2px solid var(--color-white);
@@ -296,8 +310,40 @@ td.group-header.actions {
     text-align: right;
 }
 
+td.group-header.toggle-cell,
+td.group-header.toggle-cell.open {
+    width: 28px !important;
+    min-width: 28px;
+    max-width: 28px;
+}
+
+td.group-header.status {
+    width: 50px !important;
+    min-width: 50px;
+    max-width: 50px;
+    text-align: center;
+}
+
+/* Center date/time columns - less empty space appearance */
+td.slot-date,
+td.slot-time {
+    text-align: center;
+}
+
+/* PUSTE indicator - empty container slot type 4 */
+.puste-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: var(--font-size-xs);
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
 tr.group-row:hover {
-    background-color: #018fac;
+    background-color: var(--color-primary-dark);
 }
 
 tr.group-row:hover td {
@@ -307,11 +353,11 @@ tr.group-row:hover td {
 tr.group-row td:first-child {
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
-    width: 35px;
+    width: 28px;
 }
 
 .toggle-icon {
-    font-size: 18px;
+    font-size: var(--font-size-large);
     transition: transform 0.3s ease;
 }
 
@@ -319,7 +365,7 @@ tr.group-row td:first-child {
 
 /* ===== ICONS AND STATUSES ===== */
 .icon {
-    font-size: 24px;
+    font-size: var(--font-size-icon);
     color: #333;
     cursor: pointer;
 }
@@ -405,14 +451,14 @@ tr[data-is-open='false'] .status-icon {
     margin: 0 0 var(--spacing-medium) 0;
     text-align: center;
     color: var(--color-primary);
-    font-size: --font-size-super-large;
+    font-size: var(--font-size-xl);
 }
 
 .auth-form input {
     padding: var(--spacing-medium);
     border: 1px solid var(--color-border-light);
     border-radius: 4px;
-    font-size: --font-size-large;
+    font-size: var(--font-size-large);
     transition: border-color 0.2s ease-in-out;
 }
 
@@ -428,7 +474,7 @@ tr[data-is-open='false'] .status-icon {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: --font-size-large;
+    font-size: var(--font-size-large);
     transition: all 0.2s ease-in-out;
     box-shadow: var(--shadow-button);
 }
@@ -464,7 +510,7 @@ tr[data-is-open='false'] .status-icon {
     border-radius: 4px;
     padding: var(--spacing-medium);
     margin-bottom: var(--spacing-medium);
-    font-size: --font-size-large;
+    font-size: var(--font-size-large);
     text-align: center;
     box-shadow: var(--shadow-light);
 }
@@ -474,7 +520,7 @@ tr[data-is-open='false'] .status-icon {
     animation: fadeIn 0.3s ease-in-out;
 }
 
-/* User Info */
+/* User Info - left block (account, disconnect, logout) */
 .user-info {
     display: flex;
     flex-direction: column;
@@ -485,7 +531,6 @@ tr[data-is-open='false'] .status-icon {
     margin-bottom: var(--spacing-small);
     border-radius: 0;
     gap: var(--spacing-small);
-    margin-bottom: var(--spacing-small);
 }
 
 #logoutButton {
@@ -513,7 +558,7 @@ tr[data-is-open='false'] .status-icon {
     border: 1px solid var(--color-border-light);
     border-radius: 8px;
     color: var(--color-primary);
-    font-size: 14px;
+    font-size: var(--font-size-medium);
     text-align: center;
     max-width: 320px;
     box-shadow: var(--shadow-light);
@@ -556,6 +601,7 @@ tr[data-is-open='false'] .status-icon {
     min-height: 80px;
 }
 
+/* User actions - right block (settings, auto-login, notifications) */
 .user-actions {
     display: flex;
     flex-direction: column;
@@ -721,6 +767,13 @@ tr[data-is-open='false'] .status-icon {
 }
 #mainContent {
     position: relative;
+    width: 100%;
+    min-width: var(--app-width);
+}
+
+.queue-container {
+    width: 100%;
+    min-width: var(--app-width);
 }
 
 /* Полупрозрачная кнопка, если хедер скрыт */
@@ -753,7 +806,7 @@ tr[data-is-open='false'] .status-icon {
         box-shadow 0.2s;
 }
 .bug-report-btn .material-icons {
-    font-size: 16px;
+    font-size: var(--font-size-large);
     color: #1976d2;
 }
 .bug-report-btn:hover {
@@ -776,7 +829,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .instruction-btn .material-icons {
-    font-size: 16px;
+    font-size: var(--font-size-large);
     color: #1976d2;
 }
 
@@ -808,7 +861,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .auto-login-toggle .material-icons {
-    font-size: 14px;
+    font-size: var(--font-size-medium);
     color: var(--color-primary);
 }
 
@@ -850,7 +903,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .toggle-button .material-icons {
-    font-size: 14px;
+    font-size: var(--font-size-medium);
     color: var(--color-white);
 }
 
@@ -870,4 +923,228 @@ tr[data-is-open='false'] .status-icon {
 /* Notification Settings Button */
 #notificationSettingsToggle {
     /* Inherits from .toggle-button */
+}
+
+/* ===== TABS (notebook-style labels) ===== */
+.tabs-row {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.tab-label {
+    padding: var(--spacing-small) var(--spacing-medium);
+    background: var(--color-background-light);
+    color: var(--color-text-light);
+    border: 1px solid var(--color-border-light);
+    border-bottom: none;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    cursor: pointer;
+    font-size: var(--font-size-small);
+    margin-bottom: -1px;
+    transition: all 0.2s ease;
+}
+
+.tab-label:hover {
+    background: #e8e8e8;
+    color: inherit;
+}
+
+.tab-label.active {
+    background: var(--color-success);
+    color: var(--color-white);
+    font-weight: bold;
+    border-color: var(--color-success);
+    border-bottom: 1px solid var(--color-success);
+    z-index: 1;
+}
+
+.tab-content {
+    padding: 0;
+}
+
+/* ===== CONTAINER CHECKER ===== */
+#containerCheckerView {
+    width: 100%;
+    min-width: var(--app-width);
+}
+
+.container-checker-controls {
+    margin-bottom: var(--spacing-medium);
+    width: 100%;
+}
+
+#containerCheckerView .queue-container {
+    margin-top: var(--spacing-tiny);
+}
+
+.container-checker-input {
+    flex: 1;
+    min-width: 140px;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: var(--spacing-small);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-small);
+    resize: none;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.container-checker-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--spacing-small);
+}
+
+.container-checker-row select {
+    padding: var(--spacing-small);
+    height: 32px;
+    min-height: 32px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--border-radius);
+    font-size: var(--font-size-small);
+    min-width: 70px;
+    box-sizing: border-box;
+}
+
+.container-checker-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-small);
+    flex-shrink: 0;
+}
+
+.container-checker-actions .container-checker-btn {
+    padding: var(--spacing-small) var(--spacing-medium);
+    font-size: var(--font-size-small);
+    min-height: 32px;
+    white-space: nowrap;
+    margin-left: 0;
+}
+
+.container-checker-polling {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-tiny);
+    font-size: var(--font-size-small);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.container-checker-polling input {
+    width: 28px;
+    padding: var(--spacing-tiny) 0;
+    font-size: var(--font-size-small);
+    text-align: center;
+    border: none;
+    border-bottom: 1px solid var(--color-border-light);
+    background: transparent;
+    -moz-appearance: textfield;
+}
+
+.container-checker-polling input::-webkit-outer-spin-button,
+.container-checker-polling input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Watchlist table - matches main table fonts and spacing */
+#watchlistTable {
+    font-size: var(--font-size-medium);
+    table-layout: fixed;
+}
+
+#watchlistTable th {
+    padding: var(--spacing-small) var(--spacing-medium);
+    font-size: var(--font-size-medium);
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+#watchlistTable td {
+    padding: var(--spacing-medium);
+}
+
+#watchlistTable tbody tr {
+    transition: background-color 0.15s ease-in-out;
+}
+
+#watchlistTable tbody tr:hover {
+    background-color: var(--color-row-hover);
+}
+
+#watchlistTable tbody tr:hover td {
+    background-color: transparent;
+}
+
+#watchlistTable tbody tr.watchlist-empty-row:hover {
+    background-color: transparent;
+}
+
+#watchlistTable .col-kontener {
+    width: 22%;
+}
+#watchlistTable .col-port {
+    width: 8%;
+}
+#watchlistTable .col-status {
+    width: 26%;
+}
+#watchlistTable .col-stan {
+    width: 14%;
+}
+#watchlistTable .col-last-change {
+    width: 10%;
+}
+#watchlistTable .col-last-update {
+    width: 10%;
+}
+#watchlistTable .col-actions {
+    width: 10%;
+}
+
+#watchlistTable td:nth-child(2),
+#watchlistTable th.col-port {
+    text-align: center;
+}
+
+#watchlistTable td:nth-child(3),
+#watchlistTable th.col-status {
+    text-align: center;
+}
+
+#watchlistTable td:nth-child(5),
+#watchlistTable td:nth-child(6) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#watchlistTable td:nth-child(6),
+#watchlistTable th.col-last-update {
+    text-align: center;
+}
+
+#watchlistTable td.actions {
+    min-width: 0;
+    width: auto;
+}
+
+.changed-cell {
+    background: #fff3cd;
+}
+
+.value-bold {
+    font-weight: 700;
+}
+
+.error-indicator {
+    color: var(--color-error);
+    font-weight: 700;
+    margin-left: 4px;
 }

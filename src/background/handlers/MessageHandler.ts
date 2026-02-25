@@ -24,9 +24,14 @@ import {
     consoleLogWithoutSave,
 } from '../../utils';
 import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
+import { ContainerCheckerHandler } from './ContainerCheckerHandler';
 
 export class MessageHandler {
-    constructor(private queueManager: QueueManagerAdapter) {}
+    private containerCheckerHandler: ContainerCheckerHandler;
+
+    constructor(private queueManager: QueueManagerAdapter) {
+        this.containerCheckerHandler = new ContainerCheckerHandler();
+    }
 
     handleMessage(
         message: any,
@@ -80,6 +85,11 @@ export class MessageHandler {
         // Handle background-specific actions
         if (message.target === 'background') {
             return this.handleBackgroundActions(message, sendResponse);
+        }
+
+        // Handle Container Checker actions
+        if (message.target === 'containerChecker') {
+            return this.handleContainerCheckerActions(message, sendResponse);
         }
 
         return true;
@@ -349,6 +359,15 @@ export class MessageHandler {
                 if (containerNumber) {
                     retryObject.containerNumber = containerNumber;
                 }
+
+                // PUSTE status (empty container) requires type 4 for getSlots API
+                const statusIndex = tableData[0].indexOf(TABLE_DATA_NAMES.STATUS);
+                if (statusIndex >= 0 && tableRow[statusIndex]) {
+                    const statusValue = String(tableRow[statusIndex]).toUpperCase().trim();
+                    if (statusValue === 'PUSTE') {
+                        retryObject.slotType = 4;
+                    }
+                }
             }
         }
 
@@ -564,6 +583,22 @@ export class MessageHandler {
                 sendResponse({ success: false });
                 return true;
         }
+    }
+
+    private handleContainerCheckerActions(
+        message: any,
+        sendResponse: (response?: any) => void,
+    ): boolean {
+        this.containerCheckerHandler
+            .handleMessage(message)
+            .then(result => sendResponse({ ok: true, result }))
+            .catch(error =>
+                sendResponse({
+                    ok: false,
+                    error: (error as Error)?.message || String(error),
+                }),
+            );
+        return true;
     }
 
     private async handleSendLogs(

@@ -52,7 +52,7 @@ export async function showExtensionWarningModal() {
           color: white;
           font-weight: bold;
         ">⚠</div>
-        <h2 style='margin-bottom: var(--spacing-small, 8px); font-size: var(--font-size-medium, 16px); color: var(--color-primary, #00aacc);'>Problem z wtyczką Booking System Plugin</h2>
+        <h2 style='margin-bottom: var(--spacing-small, 8px); font-size: var(--font-size-medium, 16px); color: var(--color-primary, #00aacc);'>Problem z wtyczką Plugin systemu rezerwacji</h2>
         <p style='margin-bottom: var(--spacing-medium, 16px); color: var(--color-text-light, #888); font-size: var(--font-size-small, 13px); line-height: 1.4;'>
           Wykryto problem z wtyczką-asystentem do strony eBrama. Odświeżenie strony może rozwiązać ten problem.
         </p>

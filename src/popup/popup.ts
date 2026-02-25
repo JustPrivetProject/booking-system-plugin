@@ -18,6 +18,7 @@ import { showEmailConfirmationModal } from './modals/emailConfirm.modal';
 import { showInfoModal } from './modals/info.modal';
 import { showNotificationSettingsModal } from './modals/notificationSettings.modal';
 import { notificationSettingsService } from '../services/notificationSettingsService';
+import { initContainerCheckerUI } from './containerChecker';
 
 function sendMessageToBackground(action, data, options = { updateQueue: true }) {
     chrome.runtime.sendMessage(
@@ -235,6 +236,13 @@ async function updateQueueDisplay() {
 
             const canResumeGroup = items.some(item => canResumeStatus(item.status));
             const canPauseGroup = items.some(item => canPauseStatus(item.status));
+            const hasPusteSlotType = items.some(item => item.slotType === 4);
+            const containerTitle = hasPusteSlotType
+                ? 'Nr kontenera (PUSTE - wyszukiwanie slotów typu 4)'
+                : 'Nr kontenera';
+            const containerContent = items[0].containerNumber
+                ? `${items[0].containerNumber}${hasPusteSlotType ? ' <span class="puste-badge">PUSTE</span>' : ''}`
+                : '-';
 
             const groupRow = document.createElement('tr');
             groupRow.dataset.groupId = tvAppId;
@@ -245,8 +253,8 @@ async function updateQueueDisplay() {
                     <span class="status-icon material-icons" style="font-size: 28px;">
                         ${statusIconForGroup}
                     </span></td>
-        <td class="group-header">${items[0].driverName ? items[0].driverName : 'Brak nazwy kierowcy'}</td>
-        <td class="group-header" title="Nr kontenera">${items[0].containerNumber ? items[0].containerNumber : '-'}</td>
+        <td class="group-header slot-date">${items[0].driverName ? items[0].driverName : 'Brak nazwy kierowcy'}</td>
+        <td class="group-header container-cell slot-time" title="${containerTitle}">${containerContent}</td>
         <td class="group-header actions">
             <button class="group-resume-button resume-button" title="Wznów grupę" ${canResumeGroup ? '' : 'disabled'}>
                 <span class="material-icons icon">play_arrow</span>
@@ -278,8 +286,8 @@ async function updateQueueDisplay() {
                         ${getStatusIcon(req.status)}
                     </span>
                 </td>
-                <td>${containerInfo.SlotStart[0].split(' ')[0]}</td>
-                <td>${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
+                <td class="slot-date">${containerInfo.SlotStart[0].split(' ')[0]}</td>
+                <td class="slot-time">${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
                 <td class="actions">
                     <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
                         <span class="material-icons icon">play_arrow</span>
@@ -603,6 +611,28 @@ async function updateNotificationButtonState() {
     }
 }
 
+function initTabs(): void {
+    const tabBooking = document.getElementById('tabBooking');
+    const tabContainerChecker = document.getElementById('tabContainerChecker');
+    const bookingView = document.getElementById('bookingView');
+    const containerCheckerView = document.getElementById('containerCheckerView');
+
+    const switchToTab = (tab: 'booking' | 'containerChecker') => {
+        tabBooking?.classList.toggle('active', tab === 'booking');
+        tabContainerChecker?.classList.toggle('active', tab === 'containerChecker');
+        bookingView?.classList.toggle('hidden', tab !== 'booking');
+        containerCheckerView?.classList.toggle('hidden', tab !== 'containerChecker');
+        if (tab === 'containerChecker') {
+            initContainerCheckerUI();
+        }
+    };
+
+    tabBooking?.addEventListener('click', () => switchToTab('booking'));
+    tabContainerChecker?.addEventListener('click', () => switchToTab('containerChecker'));
+
+    initContainerCheckerUI();
+}
+
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
     restoreGroupStates();
@@ -611,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
     restoreHeaderState();
     updateAutoLoginButtonState();
     updateNotificationButtonState();
+    initTabs();
     // Удаляем тестовую кнопку, если она есть
     const testBtn = document.getElementById('testEmailConfirmBtn');
     if (testBtn) testBtn.remove();
