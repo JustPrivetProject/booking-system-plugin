@@ -115,6 +115,76 @@ export class BrevoApiClient {
     }
 
     /**
+     * Send simple text email (for container change notifications, etc.)
+     */
+    async sendSimpleTextEmail(
+        toEmails: string[],
+        subject: string,
+        textContent: string,
+    ): Promise<boolean> {
+        consoleLog('🚀 Sending simple email to', toEmails.length, 'recipients');
+
+        if (!this.apiKey) {
+            consoleError('❌ Brevo API key is not configured');
+            return false;
+        }
+
+        if (toEmails.length === 0) {
+            consoleError('❌ No recipients provided');
+            return false;
+        }
+
+        if (toEmails.length > EMAIL_CONFIG.MAX_RECIPIENTS) {
+            consoleError(
+                `❌ Too many recipients: ${toEmails.length} (max: ${EMAIL_CONFIG.MAX_RECIPIENTS})`,
+            );
+            return false;
+        }
+
+        try {
+            const payload = {
+                sender: {
+                    name: BREVO_CONFIG.SENDER_NAME,
+                    email: BREVO_CONFIG.SENDER_EMAIL,
+                },
+                to: toEmails.map(email => ({
+                    email,
+                    name: email.split('@')[0],
+                })),
+                subject,
+                htmlContent: `<pre>${textContent.replace(/</g, '&lt;')}</pre>`,
+                textContent,
+            };
+
+            const response = await fetch(BREVO_CONFIG.API_URL, {
+                method: 'POST',
+                headers: {
+                    ...BREVO_HEADERS,
+                    'api-key': this.apiKey,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (response.ok) {
+                consoleLog('✅ Simple email sent successfully via Brevo API');
+                return true;
+            } else {
+                const errorText = await response.text();
+                consoleError(
+                    '❌ Brevo API error:',
+                    response.status,
+                    response.statusText,
+                    errorText,
+                );
+                return false;
+            }
+        } catch (error) {
+            consoleError('❌ Error sending simple email via Brevo:', error);
+            return false;
+        }
+    }
+
+    /**
      * Test Brevo API connection
      */
     async testConnection(): Promise<boolean> {

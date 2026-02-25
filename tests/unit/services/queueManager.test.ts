@@ -492,7 +492,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // Verify that getSlots was called with the date
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             // Verify that validateRequestBeforeSlotCheck was called
             expect(mockValidateRequest).toHaveBeenCalled();
             // Verify that checkSlotAvailability was called
@@ -632,7 +632,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date extracted from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             // text() throws in main loop -> handleDateGroupError (not processDateGroup)
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error processing date group'),
@@ -659,7 +659,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -687,7 +687,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -783,7 +783,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -818,7 +818,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -853,7 +853,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalledWith(
                 expect.objectContaining({
                     unauthorized: true,
@@ -879,7 +879,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -913,7 +913,7 @@ describe('QueueManager', () => {
 
             // Should have error updating request (when setStorage rejects in updateQueueItem)
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error updating request'),
                 expect.any(Error),
@@ -1014,7 +1014,7 @@ describe('QueueManager', () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 // getSlots should be called for active request date
-                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025');
+                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
             });
 
             it('should log remaining pause time when skipping paused request', async () => {

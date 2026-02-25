@@ -64,6 +64,17 @@ const chromeMock = {
         getAll: jest.fn(),
         getPermissionLevel: jest.fn(),
     },
+    alarms: {
+        create: jest.fn(() => Promise.resolve()),
+        clear: jest.fn(() => Promise.resolve()),
+        clearAll: jest.fn(() => Promise.resolve()),
+        get: jest.fn(() => Promise.resolve([])),
+        getAll: jest.fn(() => Promise.resolve([])),
+        onAlarm: {
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+        },
+    },
 };
 
 // Mock chrome globally

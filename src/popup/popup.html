@@ -109,10 +109,86 @@
                     </div>
                 </div>
             </div>
-            <div class="queue-container">
-                <table id="queueTable">
-                    <tbody id="queueTableBody"></tbody>
-                </table>
+            <div class="tabs-row">
+                <button id="tabBooking" class="tab-label active" data-tab="booking">
+                    Rezerwacje
+                </button>
+                <button id="tabContainerChecker" class="tab-label" data-tab="containerChecker">
+                    Monitor kontenerów
+                </button>
+            </div>
+            <div id="bookingView" class="tab-content">
+                <div class="queue-container">
+                    <table id="queueTable">
+                        <tbody id="queueTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="containerCheckerView" class="tab-content hidden">
+                <div class="container-checker-controls">
+                    <div class="container-checker-row">
+                        <textarea
+                            id="containerInput"
+                            class="container-checker-input"
+                            placeholder="Numery kontenerów"
+                            rows="1"
+                        ></textarea>
+                        <select id="portInput" aria-label="Port">
+                            <option value="DCT">DCT</option>
+                            <option value="BCT">BCT</option>
+                            <option value="GCT">GCT</option>
+                        </select>
+                        <div class="container-checker-actions">
+                            <button
+                                id="addContainerBtn"
+                                type="button"
+                                class="secondary-button container-checker-btn"
+                            >
+                                Dodaj
+                            </button>
+                            <button
+                                id="checkNowBtn"
+                                type="button"
+                                class="secondary-button container-checker-btn"
+                            >
+                                Sprawdź teraz
+                            </button>
+                            <label class="container-checker-polling" title="Sprawdź co X minut">
+                                Co
+                                <input
+                                    id="pollingMinutes"
+                                    type="number"
+                                    min="1"
+                                    max="99"
+                                    value="10"
+                                />
+                                min
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="queue-container">
+                    <table id="watchlistTable">
+                        <thead>
+                            <tr>
+                                <th class="col-kontener">Kontener</th>
+                                <th class="col-port">Port</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-stan">Stan</th>
+                                <th class="col-last-change" title="Ostatnia zmiana">Zm.</th>
+                                <th class="col-last-update" title="Ostatnia aktualizacja">Ost.</th>
+                                <th class="col-actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="watchlistBody">
+                            <tr class="watchlist-empty-row">
+                                <td colspan="7" class="watchlist-empty-cell">
+                                    Dodaj kontenery do śledzenia
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </body>

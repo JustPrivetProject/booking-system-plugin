@@ -50,6 +50,12 @@ This directory contains comprehensive technical documentation for the Chrome Boo
     - Performance optimizations
     - Migration guide
 
+- **[PUSTE Status Feature](./architecture/PUSTE_STATUS_FEATURE.md)** - PUSTE container slot search
+    - Different getSlots payload (type 4 vs type 1)
+    - UI indicator for PUSTE containers
+    - Popup width increase
+    - Edge cases and E2E flow analysis
+
 ### 🧪 Testing & Quality Assurance
 
 #### Testing Strategy

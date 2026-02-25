@@ -10,6 +10,8 @@ export type RetryObject = {
     status: string; // e.g. "paused"
     status_message: string; // e.g. "Zadanie jest wstrzymane"
     status_color?: string; // e.g. "red"
+    /** Slot type for getSlots API: 1 = default, 4 = PUSTE status (empty container) */
+    slotType?: number;
     updated?: boolean; // e.g. true
     pausedUntil?: number; // timestamp until which this request should be paused (e.g. after YbqToMuchTransactionInSector)
     timestamp: number;

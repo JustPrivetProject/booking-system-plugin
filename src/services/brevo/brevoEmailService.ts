@@ -103,6 +103,17 @@ export class BrevoEmailService {
     }
 
     /**
+     * Send simple text email (for container change notifications)
+     */
+    async sendSimpleTextEmail(
+        toEmails: string[],
+        subject: string,
+        textContent: string,
+    ): Promise<boolean> {
+        return this.apiClient.sendSimpleTextEmail(toEmails, subject, textContent);
+    }
+
+    /**
      * Get service status and configuration
      */
     getStatus(): {
