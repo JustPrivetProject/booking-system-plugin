@@ -335,9 +335,10 @@ td.group-header {
 }
 
 td.group-header.actions {
-    padding-top: 3px;
-    padding-bottom: 3px;
+    padding: var(--spacing-small);
     width: 90px !important;
+    min-width: 90px;
+    max-width: 90px;
     text-align: right;
 }
 
@@ -1100,7 +1101,7 @@ tr[data-is-open='false'] .status-icon {
 .container-checker-polling {
     display: inline-flex;
     align-items: center;
-    gap: var(--spacing-tiny);
+    gap: var(--spacing-small);
     font-size: var(--font-size-small);
     white-space: nowrap;
     flex-shrink: 0;
