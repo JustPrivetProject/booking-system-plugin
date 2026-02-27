@@ -611,17 +611,23 @@ async function updateNotificationButtonState() {
     }
 }
 
-function initTabs(): void {
+async function initTabs(): Promise<void> {
     const tabBooking = document.getElementById('tabBooking');
     const tabContainerChecker = document.getElementById('tabContainerChecker');
     const bookingView = document.getElementById('bookingView');
     const containerCheckerView = document.getElementById('containerCheckerView');
+    const tabStorageKey = 'popupActiveTab';
 
     const switchToTab = (tab: 'booking' | 'containerChecker') => {
         tabBooking?.classList.toggle('active', tab === 'booking');
         tabContainerChecker?.classList.toggle('active', tab === 'containerChecker');
         bookingView?.classList.toggle('hidden', tab !== 'booking');
         containerCheckerView?.classList.toggle('hidden', tab !== 'containerChecker');
+
+        chrome.storage.local.set({ [tabStorageKey]: tab }).catch(error => {
+            consoleError('Save active tab failed:', error);
+        });
+
         if (tab === 'containerChecker') {
             initContainerCheckerUI();
         }
@@ -629,6 +635,16 @@ function initTabs(): void {
 
     tabBooking?.addEventListener('click', () => switchToTab('booking'));
     tabContainerChecker?.addEventListener('click', () => switchToTab('containerChecker'));
+
+    try {
+        const { [tabStorageKey]: storedTab } = await chrome.storage.local.get(tabStorageKey);
+        if (storedTab === 'containerChecker' || storedTab === 'booking') {
+            switchToTab(storedTab);
+            return;
+        }
+    } catch (error) {
+        consoleError('Restore active tab failed:', error);
+    }
 
     initContainerCheckerUI();
 }
@@ -641,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
     restoreHeaderState();
     updateAutoLoginButtonState();
     updateNotificationButtonState();
-    initTabs();
+    initTabs().catch(error => consoleError('Init tabs failed:', error));
     // Удаляем тестовую кнопку, если она есть
     const testBtn = document.getElementById('testEmailConfirmBtn');
     if (testBtn) testBtn.remove();

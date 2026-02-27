@@ -10,14 +10,11 @@ function byId(id: string): HTMLElement | null {
 
 function formatDateTime(value: string | null): string {
     if (!value) return '';
-    return new Date(value).toLocaleString(undefined, {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    });
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const twoDigit = (num: number) => String(num).padStart(2, '0');
+    return `${twoDigit(date.getDate())}-${twoDigit(date.getMonth() + 1)}-${date.getFullYear()}, ${twoDigit(date.getHours())}:${twoDigit(date.getMinutes())}:${twoDigit(date.getSeconds())}`;
 }
 
 function relativeFromNow(value: string | null, compact = true): string {
@@ -59,20 +56,44 @@ async function sendContainerCheckerMessage(
     return response.result;
 }
 
+let hasAcknowledgedUiChanges = false;
+let suppressNextStorageRefresh = false;
+let liveRefreshIntervalId: number | null = null;
+
+function getLastCheckedTimestamp(state: ContainerCheckerState): string | null {
+    if (state.lastRunAt) return state.lastRunAt;
+    const timestamps = state.watchlist
+        .map(item => item.lastCheckedAt)
+        .filter((value): value is string => Boolean(value));
+    if (!timestamps.length) return null;
+    return timestamps.sort().at(-1) || null;
+}
+
 function renderWatchlist(state: ContainerCheckerState): void {
     const watchlistBody = byId('watchlistBody');
     const pollingMinutes = byId('pollingMinutes') as HTMLInputElement;
+    const lastCheckedLabel = byId('lastCheckedLabel');
 
     if (!watchlistBody) return;
 
-    const buildCell = (text: string, changed: boolean): HTMLTableCellElement => {
+    const buildCell = (
+        text: string,
+        changed: boolean,
+        options: { truncate?: boolean; titlePrefix?: string } = {},
+    ): HTMLTableCellElement => {
         const td = document.createElement('td');
         if (changed) td.classList.add('changed-cell');
         const normalized = (text || '-').trim() || '-';
-        const strong = document.createElement('span');
-        strong.className = 'value-bold';
-        strong.textContent = normalized;
-        td.append(strong);
+
+        const content = document.createElement('span');
+        content.textContent = normalized;
+
+        if (options.truncate) {
+            content.className = 'status-truncate';
+            td.title = options.titlePrefix ? `${options.titlePrefix}: ${normalized}` : normalized;
+        }
+
+        td.append(content);
         return td;
     };
 
@@ -103,20 +124,16 @@ function renderWatchlist(state: ContainerCheckerState): void {
         const portCell = document.createElement('td');
         portCell.textContent = item.port || '-';
 
-        const statusCell = buildCell(item.status || '-', !!item.statusChanged);
+        const statusCell = buildCell(item.status || '-', !!item.statusChanged, {
+            truncate: true,
+            titlePrefix: 'Status',
+        });
         const stateCell = buildCell(item.state || '-', !!item.stateChanged);
 
         const lastChangeCell = document.createElement('td');
         lastChangeCell.textContent = relativeFromNow(item.lastChangeAt);
         if (item.lastChangeAt) {
             lastChangeCell.title = `Zmiana: ${relativeFromNow(item.lastChangeAt, false)}`;
-        }
-
-        const lastUpdateCell = document.createElement('td');
-        const lastUpdate = item.lastCheckedAt || item.lastUpdate;
-        lastUpdateCell.textContent = relativeFromNow(lastUpdate);
-        if (lastUpdate) {
-            lastUpdateCell.title = `Ostatnia aktualizacja: ${formatDateTime(lastUpdate)}`;
         }
 
         const actionsCell = document.createElement('td');
@@ -128,16 +145,13 @@ function renderWatchlist(state: ContainerCheckerState): void {
         removeBtn.addEventListener('click', () => handleRemove(item.containerNumber, item.port));
         actionsCell.append(removeBtn);
 
-        tr.append(
-            containerCell,
-            portCell,
-            statusCell,
-            stateCell,
-            lastChangeCell,
-            lastUpdateCell,
-            actionsCell,
-        );
+        tr.append(containerCell, portCell, statusCell, stateCell, lastChangeCell, actionsCell);
         watchlistBody.appendChild(tr);
+    }
+
+    if (lastCheckedLabel) {
+        const lastChecked = getLastCheckedTimestamp(state);
+        lastCheckedLabel.textContent = `Ostatnio sprawdziłem: ${formatDateTime(lastChecked) || '-'}`;
     }
 
     if (pollingMinutes) pollingMinutes.value = String(state.settings.pollingMinutes);
@@ -147,6 +161,20 @@ async function refreshState(): Promise<void> {
     try {
         const state = await sendContainerCheckerMessage('GET_STATE');
         renderWatchlist(state);
+
+        if (!hasAcknowledgedUiChanges) {
+            const hasChangedCells = state.watchlist.some(
+                item => item.statusChanged || item.stateChanged,
+            );
+            if (hasChangedCells) {
+                hasAcknowledgedUiChanges = true;
+                suppressNextStorageRefresh = true;
+                sendContainerCheckerMessage('ACK_UI_CHANGES').catch(error => {
+                    suppressNextStorageRefresh = false;
+                    consoleError('Acknowledge UI changes:', error);
+                });
+            }
+        }
     } catch (error) {
         consoleError('Container checker refresh:', error);
         /* Empty row stays from HTML fallback when renderWatchlist never runs */
@@ -234,7 +262,7 @@ export function initContainerCheckerUI(): void {
 
     containerInput?.addEventListener('keydown', (e: Event) => {
         const ev = e as KeyboardEvent;
-        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+        if (ev.key === 'Enter') {
             ev.preventDefault();
             handleAdd().catch(consoleError);
         }
@@ -244,12 +272,31 @@ export function initContainerCheckerUI(): void {
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;
+
+        if (suppressNextStorageRefresh && changes.containerCheckerWatchlist) {
+            suppressNextStorageRefresh = false;
+            return;
+        }
+
         if (
             changes.containerCheckerWatchlist ||
             changes.containerCheckerLastRunAt ||
             changes.containerCheckerSettings
         ) {
             refreshState().catch(consoleError);
+        }
+    });
+
+    if (liveRefreshIntervalId === null) {
+        liveRefreshIntervalId = window.setInterval(() => {
+            refreshState().catch(consoleError);
+        }, 30000);
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (liveRefreshIntervalId !== null) {
+            window.clearInterval(liveRefreshIntervalId);
+            liveRefreshIntervalId = null;
         }
     });
 

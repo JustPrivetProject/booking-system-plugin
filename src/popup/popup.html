@@ -110,9 +110,7 @@
                 </div>
             </div>
             <div class="tabs-row">
-                <button id="tabBooking" class="tab-label active" data-tab="booking">
-                    Rezerwacje
-                </button>
+                <button id="tabBooking" class="tab-label active" data-tab="booking">DCT</button>
                 <button id="tabContainerChecker" class="tab-label" data-tab="containerChecker">
                     Monitor kontenerów
                 </button>
@@ -153,18 +151,17 @@
                             >
                                 Sprawdź teraz
                             </button>
-                            <label class="container-checker-polling" title="Sprawdź co X minut">
-                                Co
-                                <input
-                                    id="pollingMinutes"
-                                    type="number"
-                                    min="1"
-                                    max="99"
-                                    value="10"
-                                />
-                                min
-                            </label>
                         </div>
+                    </div>
+                    <div class="container-checker-meta-row">
+                        <div id="lastCheckedLabel" class="container-checker-last-checked">
+                            Ostatnio sprawdziłem: -
+                        </div>
+                        <label class="container-checker-polling" title="Sprawdzaj co X minut">
+                            Sprawdzaj co
+                            <input id="pollingMinutes" type="number" min="1" max="99" value="10" />
+                            min
+                        </label>
                     </div>
                 </div>
                 <div class="queue-container">
@@ -176,13 +173,12 @@
                                 <th class="col-status">Status</th>
                                 <th class="col-stan">Stan</th>
                                 <th class="col-last-change" title="Ostatnia zmiana">Zm.</th>
-                                <th class="col-last-update" title="Ostatnia aktualizacja">Ost.</th>
                                 <th class="col-actions"></th>
                             </tr>
                         </thead>
                         <tbody id="watchlistBody">
                             <tr class="watchlist-empty-row">
-                                <td colspan="7" class="watchlist-empty-cell">
+                                <td colspan="6" class="watchlist-empty-cell">
                                     Dodaj kontenery do śledzenia
                                 </td>
                             </tr>
