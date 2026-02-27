@@ -314,6 +314,7 @@ td.status .status-icon {
 /* ===== GROUPING ===== */
 tr.group-row {
     background-color: var(--color-primary);
+    height: 32px; /* explicit height — matches Monitor th */
 }
 
 td.group-header {
@@ -323,7 +324,7 @@ td.group-header {
     font-size: var(--font-size-table);
     letter-spacing: 0.5px;
     padding: var(--cell-padding-table);
-    border-top: 2px solid var(--color-white);
+    border-top: none;
     cursor: pointer;
 }
 
@@ -1112,6 +1113,7 @@ tr[data-is-open='false'] .status-icon {
 
 #watchlistTable th {
     white-space: nowrap;
+    text-transform: uppercase;
 }
 
 #watchlistTable td {
