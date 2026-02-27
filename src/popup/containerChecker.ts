@@ -65,11 +65,6 @@ function autoResizeContainerInput(textarea: HTMLTextAreaElement): void {
     textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-function clampPollingMinutes(value: number): number {
-    if (Number.isNaN(value)) return 10;
-    return Math.min(99, Math.max(1, value));
-}
-
 function getLastCheckedTimestamp(state: ContainerCheckerState): string | null {
     if (state.lastRunAt) return state.lastRunAt;
     const timestamps = state.watchlist
@@ -268,8 +263,6 @@ export function initContainerCheckerUI(): void {
     const checkNowBtn = byId('checkNowBtn');
     const containerInput = byId('containerInput') as HTMLTextAreaElement | null;
     const pollingMinutes = byId('pollingMinutes') as HTMLInputElement | null;
-    const pollingMinusBtn = byId('pollingMinusBtn');
-    const pollingPlusBtn = byId('pollingPlusBtn');
 
     addBtn?.addEventListener('click', () => handleAdd().catch(consoleError));
     checkNowBtn?.addEventListener('click', () => handleCheckNow().catch(consoleError));
@@ -291,23 +284,6 @@ export function initContainerCheckerUI(): void {
     }
 
     pollingMinutes?.addEventListener('change', () => handleSaveSettings().catch(consoleError));
-
-    const adjustPollingMinutes = (delta: number): void => {
-        if (!pollingMinutes) return;
-        const current = Number(pollingMinutes.value || '10');
-        const nextValue = clampPollingMinutes(current + delta);
-        if (nextValue === current) return;
-        pollingMinutes.value = String(nextValue);
-        pollingMinutes.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    pollingMinusBtn?.addEventListener('click', () => {
-        adjustPollingMinutes(-1);
-    });
-
-    pollingPlusBtn?.addEventListener('click', () => {
-        adjustPollingMinutes(1);
-    });
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;

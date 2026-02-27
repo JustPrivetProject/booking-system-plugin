@@ -1088,7 +1088,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .container-checker-last-checked {
-    color: inherit;
+    color: #444;
     font-size: 12px;
     line-height: 1;
     white-space: nowrap;
@@ -1107,38 +1107,10 @@ tr[data-is-open='false'] .status-icon {
     margin-left: auto;
 }
 
-.polling-step-btn {
-    width: 20px;
-    height: 20px;
-    min-width: 20px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--color-border-light);
-    border-radius: 5px;
-    background: var(--color-white);
-    color: #444;
-    font-size: 12px;
-    line-height: 1;
-    box-shadow: var(--shadow-button);
-}
-
-.polling-step-btn:hover {
-    border-color: var(--color-primary-dark);
-    background: var(--color-background-light);
-}
-
-.polling-step-btn:focus-visible {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: var(--shadow-hover);
-}
-
 .container-checker-polling input {
-    width: 40px;
-    height: 22px;
-    padding: 0 var(--spacing-small);
+    width: 56px;
+    height: 24px;
+    padding: 0 4px;
     font-size: var(--font-size-small);
     font-weight: 600;
     line-height: 1;
@@ -1151,7 +1123,6 @@ tr[data-is-open='false'] .status-icon {
         border-color 0.2s ease,
         box-shadow 0.2s ease,
         background-color 0.2s ease;
-    -moz-appearance: textfield;
 }
 
 .container-checker-polling input:hover {
@@ -1162,12 +1133,6 @@ tr[data-is-open='false'] .status-icon {
     outline: none;
     border-color: var(--color-primary);
     box-shadow: var(--shadow-hover);
-}
-
-.container-checker-polling input::-webkit-outer-spin-button,
-.container-checker-polling input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
 }
 
 /* Watchlist table - inherits shared table scale from global th/td */
