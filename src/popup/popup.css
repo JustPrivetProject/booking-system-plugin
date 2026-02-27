@@ -43,6 +43,7 @@
     /* Shared table scale — used by both DCT and Monitor tabs */
     --font-size-table: 13px;
     --cell-padding-table: 8px;
+    --header-row-height: 32px;
 
     /* Borders */
     --border-radius: 8px;
@@ -128,6 +129,9 @@ th {
     text-align: left;
     padding: var(--cell-padding-table);
     font-size: var(--font-size-table);
+    line-height: 1.2;
+    height: var(--header-row-height);
+    vertical-align: middle;
     border-bottom: none; /* Убираем границу у заголовков */
 }
 
@@ -314,7 +318,6 @@ td.status .status-icon {
 /* ===== GROUPING ===== */
 tr.group-row {
     background-color: var(--color-primary);
-    height: 32px; /* explicit height — matches Monitor th */
 }
 
 td.group-header {
@@ -322,25 +325,34 @@ td.group-header {
     font-weight: bold;
     text-align: left;
     font-size: var(--font-size-table);
+    line-height: 1.2;
     letter-spacing: 0.5px;
     padding: var(--cell-padding-table);
+    height: var(--header-row-height);
+    vertical-align: middle;
     border-top: none;
     cursor: pointer;
 }
 
 td.group-header.actions {
+    padding-top: 3px;
+    padding-bottom: 3px;
     width: 90px !important;
     text-align: right;
 }
 
 td.group-header.toggle-cell,
 td.group-header.toggle-cell.open {
+    padding-top: 3px;
+    padding-bottom: 3px;
     width: 22px !important;
     min-width: 22px;
     max-width: 22px;
 }
 
 td.group-header.status {
+    padding-top: 3px;
+    padding-bottom: 3px;
     width: 30px !important;
     min-width: 30px;
     max-width: 30px;
@@ -1007,10 +1019,10 @@ tr[data-is-open='false'] .status-icon {
 .container-checker-input {
     flex: 1;
     min-width: 140px;
-    min-height: 26px;
-    padding: 4px var(--spacing-small);
-    line-height: 16px;
-    border: 1px solid var(--color-border-light);
+    min-height: 32px;
+    padding: 6px var(--spacing-small);
+    line-height: 18px;
+    border: 1px solid var(--color-primary-dark);
     border-radius: var(--border-radius);
     font-size: var(--font-size-small);
     resize: none;
@@ -1021,7 +1033,13 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .container-checker-input::placeholder {
-    line-height: 16px;
+    line-height: 18px;
+}
+
+.container-checker-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-button);
 }
 
 .container-checker-row {
@@ -1089,15 +1107,61 @@ tr[data-is-open='false'] .status-icon {
     margin-left: auto;
 }
 
+.polling-step-btn {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border-light);
+    border-radius: 5px;
+    background: var(--color-white);
+    color: #444;
+    font-size: 12px;
+    line-height: 1;
+    box-shadow: var(--shadow-button);
+}
+
+.polling-step-btn:hover {
+    border-color: var(--color-primary-dark);
+    background: var(--color-background-light);
+}
+
+.polling-step-btn:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-hover);
+}
+
 .container-checker-polling input {
-    width: 34px;
-    padding: var(--spacing-tiny) 0;
+    width: 40px;
+    height: 22px;
+    padding: 0 var(--spacing-small);
     font-size: var(--font-size-small);
+    font-weight: 600;
+    line-height: 1;
     text-align: center;
-    border: none;
-    border-bottom: 1px solid var(--color-border-light);
-    background: transparent;
+    border: 1px solid var(--color-border-light);
+    border-radius: 6px;
+    background: var(--color-white);
+    box-shadow: var(--shadow-button);
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background-color 0.2s ease;
     -moz-appearance: textfield;
+}
+
+.container-checker-polling input:hover {
+    border-color: var(--color-primary-dark);
+}
+
+.container-checker-polling input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-hover);
 }
 
 .container-checker-polling input::-webkit-outer-spin-button,
@@ -1113,7 +1177,6 @@ tr[data-is-open='false'] .status-icon {
 
 #watchlistTable th {
     white-space: nowrap;
-    text-transform: uppercase;
 }
 
 #watchlistTable td {
