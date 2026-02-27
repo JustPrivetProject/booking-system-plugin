@@ -138,12 +138,23 @@ td {
 }
 
 td.actions {
-    padding: var(--cell-padding-table);
-    text-align: right; /* Выравнивание вместо flex */
+    padding: var(--spacing-small);
+    text-align: right;
     white-space: nowrap;
-    min-width: 110px;
-    width: 110px;
+    min-width: 90px;
+    width: 90px;
     box-sizing: border-box;
+}
+
+/* Constrain all action buttons to 26×26 — same as Monitor delete */
+td.actions button {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ===== BUTTONS ===== */
@@ -283,7 +294,7 @@ tr:hover td {
 }
 
 #queueTable td:first-child {
-    width: 28px;
+    width: 22px;
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
 }
@@ -291,8 +302,13 @@ tr:hover td {
 td.status {
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
-    width: 30px;
+    width: 26px;
     text-align: center;
+}
+
+/* Constrain status icons to match table row height */
+td.status .status-icon {
+    font-size: 20px !important; /* override inline 28px */
 }
 
 /* ===== GROUPING ===== */
@@ -304,29 +320,29 @@ td.group-header {
     color: var(--color-white);
     font-weight: bold;
     text-align: left;
-    font-size: var(--font-size-small);
+    font-size: var(--font-size-table);
     letter-spacing: 0.5px;
-    padding: var(--spacing-tiny) var(--spacing-medium);
+    padding: var(--cell-padding-table);
     border-top: 2px solid var(--color-white);
     cursor: pointer;
 }
 
 td.group-header.actions {
-    width: 110px !important;
+    width: 90px !important;
     text-align: right;
 }
 
 td.group-header.toggle-cell,
 td.group-header.toggle-cell.open {
-    width: 28px !important;
-    min-width: 28px;
-    max-width: 28px;
+    width: 22px !important;
+    min-width: 22px;
+    max-width: 22px;
 }
 
 td.group-header.status {
-    width: 50px !important;
-    min-width: 50px;
-    max-width: 50px;
+    width: 30px !important;
+    min-width: 30px;
+    max-width: 30px;
     text-align: center;
 }
 
@@ -359,11 +375,11 @@ tr.group-row:hover td {
 tr.group-row td:first-child {
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
-    width: 28px;
+    width: 22px;
 }
 
 .toggle-icon {
-    font-size: var(--font-size-large);
+    font-size: 16px;
     transition: transform 0.3s ease;
 }
 
