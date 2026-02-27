@@ -60,6 +60,11 @@ let hasAcknowledgedUiChanges = false;
 let suppressNextStorageRefresh = false;
 let liveRefreshIntervalId: number | null = null;
 
+function autoResizeContainerInput(textarea: HTMLTextAreaElement): void {
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 function getLastCheckedTimestamp(state: ContainerCheckerState): string | null {
     if (state.lastRunAt) return state.lastRunAt;
     const timestamps = state.watchlist
@@ -203,6 +208,7 @@ async function handleAdd(): Promise<void> {
             await sendContainerCheckerMessage('ADD_CONTAINER', { containerNumber, port });
         }
         containerInput.value = '';
+        autoResizeContainerInput(containerInput);
         await refreshState();
     } catch (error) {
         consoleError('Add container:', error);
@@ -255,7 +261,7 @@ export function initContainerCheckerUI(): void {
 
     const addBtn = byId('addContainerBtn');
     const checkNowBtn = byId('checkNowBtn');
-    const containerInput = byId('containerInput');
+    const containerInput = byId('containerInput') as HTMLTextAreaElement | null;
     const pollingMinutes = byId('pollingMinutes');
 
     addBtn?.addEventListener('click', () => handleAdd().catch(consoleError));
@@ -268,6 +274,14 @@ export function initContainerCheckerUI(): void {
             handleAdd().catch(consoleError);
         }
     });
+
+    containerInput?.addEventListener('input', () => {
+        autoResizeContainerInput(containerInput);
+    });
+
+    if (containerInput) {
+        autoResizeContainerInput(containerInput);
+    }
 
     pollingMinutes?.addEventListener('change', () => handleSaveSettings().catch(consoleError));
 

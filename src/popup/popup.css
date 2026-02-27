@@ -969,6 +969,15 @@ tr[data-is-open='false'] .status-icon {
 #containerCheckerView {
     width: 100%;
     min-width: var(--app-width);
+    font-size: 12px;
+}
+
+#containerCheckerView input,
+#containerCheckerView textarea,
+#containerCheckerView select,
+#containerCheckerView td {
+    font-size: 12px;
+    font-weight: 400;
 }
 
 .container-checker-controls {
@@ -983,21 +992,21 @@ tr[data-is-open='false'] .status-icon {
 .container-checker-input {
     flex: 1;
     min-width: 140px;
-    height: 22px;
-    min-height: 22px;
-    max-height: 22px;
-    padding: 2px var(--spacing-small);
-    line-height: 18px;
+    min-height: 26px;
+    padding: 4px var(--spacing-small);
+    line-height: 16px;
     border: 1px solid var(--color-border-light);
     border-radius: var(--border-radius);
     font-size: var(--font-size-small);
     resize: none;
+    overflow-y: hidden;
+    overflow-x: hidden;
     box-sizing: border-box;
     flex-shrink: 0;
 }
 
 .container-checker-input::placeholder {
-    line-height: 18px;
+    line-height: 16px;
 }
 
 .container-checker-row {
@@ -1005,12 +1014,13 @@ tr[data-is-open='false'] .status-icon {
     flex-wrap: nowrap;
     align-items: center;
     gap: var(--spacing-small);
+    min-height: 26px;
 }
 
 .container-checker-row select {
-    padding: 2px var(--spacing-small);
-    height: 22px;
-    min-height: 22px;
+    padding: 4px var(--spacing-small);
+    height: 26px;
+    min-height: 26px;
     border: 1px solid var(--color-border-light);
     border-radius: var(--border-radius);
     font-size: var(--font-size-small);
@@ -1026,9 +1036,9 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .container-checker-actions .container-checker-btn {
-    padding: 2px var(--spacing-small);
+    padding: 4px var(--spacing-small);
     font-size: var(--font-size-small);
-    min-height: 22px;
+    min-height: 26px;
     white-space: nowrap;
     margin-left: 0;
 }
@@ -1037,13 +1047,16 @@ tr[data-is-open='false'] .status-icon {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: var(--spacing-small);
-    min-height: 20px;
+    margin-top: 2px;
+    min-height: 16px;
+    line-height: 1;
     font-size: var(--font-size-small);
 }
 
 .container-checker-last-checked {
     color: inherit;
+    font-size: 10px;
+    line-height: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1083,7 +1096,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 #watchlistTable th {
-    padding: 4px 8px;
+    padding: 6px 8px;
     font-size: 12px;
     font-weight: 400;
     white-space: nowrap;
@@ -1113,19 +1126,19 @@ tr[data-is-open='false'] .status-icon {
 }
 
 #watchlistTable .col-kontener {
-    width: 22%;
+    width: 20%;
 }
 #watchlistTable .col-port {
     width: 8%;
 }
 #watchlistTable .col-status {
-    width: 30%;
+    width: 36%;
 }
 #watchlistTable .col-stan {
-    width: 16%;
+    width: 14%;
 }
 #watchlistTable .col-last-change {
-    width: 12%;
+    width: 10%;
 }
 #watchlistTable .col-actions {
     width: 12%;
@@ -1160,17 +1173,18 @@ tr[data-is-open='false'] .status-icon {
 }
 
 #watchlistTable td.actions .remove-button {
-    width: 22px;
-    height: 22px;
-    min-width: 22px;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
     padding: 0;
+    margin-left: 5px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 
 #watchlistTable td.actions .remove-button .icon {
-    font-size: 16px;
+    font-size: 19px;
 }
 
 #watchlistTable .status-truncate {
