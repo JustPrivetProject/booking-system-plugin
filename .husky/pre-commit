@@ -1,2 +1,4 @@
+export FORCE_COLOR=0
+
 npx lint-staged
 npm test

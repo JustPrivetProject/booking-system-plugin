@@ -66,7 +66,8 @@ function getLastCheckedTimestamp(state: ContainerCheckerState): string | null {
         .map(item => item.lastCheckedAt)
         .filter((value): value is string => Boolean(value));
     if (!timestamps.length) return null;
-    return timestamps.sort().at(-1) || null;
+    const sortedTimestamps = timestamps.sort();
+    return sortedTimestamps[sortedTimestamps.length - 1] || null;
 }
 
 function renderWatchlist(state: ContainerCheckerState): void {

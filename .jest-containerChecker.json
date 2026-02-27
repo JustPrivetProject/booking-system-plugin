@@ -1,0 +1,158 @@
+{
+    "numFailedTestSuites": 1,
+    "numFailedTests": 6,
+    "numPassedTestSuites": 0,
+    "numPassedTests": 0,
+    "numPendingTestSuites": 0,
+    "numPendingTests": 0,
+    "numRuntimeErrorTestSuites": 0,
+    "numTodoTests": 0,
+    "numTotalTestSuites": 1,
+    "numTotalTests": 6,
+    "openHandles": [],
+    "snapshot": {
+        "added": 0,
+        "didUpdate": false,
+        "failure": false,
+        "filesAdded": 0,
+        "filesRemoved": 0,
+        "filesRemovedList": [],
+        "filesUnmatched": 0,
+        "filesUpdated": 0,
+        "matched": 0,
+        "total": 0,
+        "unchecked": 0,
+        "uncheckedKeysByFile": [],
+        "unmatched": 0,
+        "updated": 0
+    },
+    "startTime": 1772221198304,
+    "success": false,
+    "testResults": [
+        {
+            "assertionResults": [
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 322,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should call GET_STATE on init",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should call GET_STATE on init"
+                },
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 112,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should render empty watchlist when state has no items",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should render empty watchlist when state has no items"
+                },
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 22,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should render watchlist items when state has items",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should render watchlist items when state has items"
+                },
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 14,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should register storage change listener",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should register storage change listener"
+                },
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 15,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should refresh state when storage changes for container checker keys",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should refresh state when storage changes for container checker keys"
+                },
+                {
+                    "ancestorTitles": ["Container Checker Popup", "initContainerCheckerUI"],
+                    "duration": 14,
+                    "failureDetails": [
+                        {
+                            "name": "TSError",
+                            "diagnosticText": "\u001b[96msrc/popup/containerChecker.ts\u001b[0m:\u001b[93m69\u001b[0m:\u001b[93m30\u001b[0m - \u001b[91merror\u001b[0m\u001b[90m TS2550: \u001b[0mProperty 'at' does not exist on type 'string[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.\n\n\u001b[7m69\u001b[0m     return timestamps.sort().at(-1) || null;\n\u001b[7m  \u001b[0m \u001b[91m                             ~~\u001b[0m\n",
+                            "diagnosticCodes": [2550]
+                        }
+                    ],
+                    "failureMessages": [""],
+                    "fullName": "Container Checker Popup initContainerCheckerUI should not refresh when storage changes in non-local area",
+                    "invocations": 1,
+                    "location": null,
+                    "numPassingAsserts": 0,
+                    "retryReasons": [],
+                    "status": "failed",
+                    "title": "should not refresh when storage changes in non-local area"
+                }
+            ],
+            "endTime": 1772221202376,
+            "message": "  ● Container Checker Popup › initContainerCheckerUI › should call GET_STATE on init\n\n\n\n\n\n  ● Container Checker Popup › initContainerCheckerUI › should render empty watchlist when state has no items\n\n\n\n\n\n  ● Container Checker Popup › initContainerCheckerUI › should render watchlist items when state has items\n\n\n\n\n\n  ● Container Checker Popup › initContainerCheckerUI › should register storage change listener\n\n\n\n\n\n  ● Container Checker Popup › initContainerCheckerUI › should refresh state when storage changes for container checker keys\n\n\n\n\n\n  ● Container Checker Popup › initContainerCheckerUI › should not refresh when storage changes in non-local area\n\n\n\n\n",
+            "name": "C:\\Users\\krozmysl\\OneDrive - London Stock Exchange Group\\Desktop\\My Drive\\ELF\\booking-system-plugin\\tests\\unit\\popup\\containerChecker.test.ts",
+            "startTime": 1772221200072,
+            "status": "failed",
+            "summary": ""
+        }
+    ],
+    "wasInterrupted": false
+}
