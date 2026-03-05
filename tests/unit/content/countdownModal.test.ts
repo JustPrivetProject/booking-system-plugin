@@ -60,7 +60,7 @@ describe('Countdown Modal', () => {
             expect(html).toContain('Automatyczne logowanie');
             expect(html).toContain('Kliknięcie przycisku logowania za');
             expect(html).toContain('Zaloguj teraz');
-            expect(html).toContain('Anuluj');
+            expect(html).toContain('Zamknij');
         });
 
         it('should have login and cancel buttons', async () => {
@@ -72,7 +72,7 @@ describe('Countdown Modal', () => {
             expect(loginBtn).toBeTruthy();
             expect(cancelBtn).toBeTruthy();
             expect(loginBtn?.textContent).toBe('Zaloguj teraz');
-            expect(cancelBtn?.textContent).toBe('Anuluj');
+            expect(cancelBtn?.textContent).toBe('Zamknij');
         });
 
         it('should display initial countdown of 60 seconds', async () => {
@@ -183,7 +183,7 @@ describe('Countdown Modal', () => {
             expect(mockClickLoginButton).toHaveBeenCalledTimes(1);
         });
 
-        it('should close modal when "Anuluj" is clicked', async () => {
+        it('should close modal when "Zamknij" is clicked', async () => {
             await showCountdownModal();
 
             const cancelBtn = document.getElementById('cancel-login');

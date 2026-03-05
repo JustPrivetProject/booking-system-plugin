@@ -42,11 +42,11 @@ describe('ConfirmationModal', () => {
             // Check button texts
             const buttonTexts = Array.from(buttons || []).map(btn => btn.textContent);
             expect(buttonTexts).toContain('Potwierdź');
-            expect(buttonTexts).toContain('Anuluj');
+            expect(buttonTexts).toContain('Zamknij');
 
             // Click "Cancel" button
             const cancelButton = Array.from(buttons || []).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
 
@@ -77,7 +77,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -103,7 +103,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(buttons || []).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
 
@@ -138,7 +138,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -167,7 +167,7 @@ describe('ConfirmationModal', () => {
             expect(overlay).toBeTruthy();
 
             // Close with cancel
-            const cancelButton = Array.from(buttons).find(btn => btn.textContent === 'Anuluj');
+            const cancelButton = Array.from(buttons).find(btn => btn.textContent === 'Zamknij');
             (cancelButton as HTMLElement)?.click();
 
             const result = await modalPromise;
@@ -228,7 +228,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -243,7 +243,7 @@ describe('ConfirmationModal', () => {
             expect(overlay).toBeTruthy();
 
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
 
@@ -263,7 +263,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -281,7 +281,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -302,7 +302,7 @@ describe('ConfirmationModal', () => {
 
             // Close modal
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             );
             (cancelButton as HTMLElement)?.click();
             await modalPromise;
@@ -314,7 +314,7 @@ describe('ConfirmationModal', () => {
             await new Promise(resolve => setTimeout(resolve, 10));
 
             const cancelButton = Array.from(document.querySelectorAll('button')).find(
-                btn => btn.textContent === 'Anuluj',
+                btn => btn.textContent === 'Zamknij',
             ) as HTMLElement;
             expect(cancelButton?.style.backgroundColor).toBeTruthy();
             // Cancel button has no explicit color set, so we check it exists

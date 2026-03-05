@@ -54,7 +54,7 @@ export function createConfirmationModal(message, withInput = false) {
         buttonsContainer.style.gap = '10px';
 
         const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Anuluj';
+        cancelButton.textContent = 'Zamknij';
         cancelButton.style.padding = '10px 20px';
         cancelButton.style.backgroundColor = '#f0f0f0';
         cancelButton.style.border = 'none';

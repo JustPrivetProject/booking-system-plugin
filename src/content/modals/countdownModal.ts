@@ -46,7 +46,7 @@ export async function showCountdownModal() {
             box-shadow: var(--shadow-button, 0 0 2px rgba(0,0,0,0.2));
             cursor: pointer;
             transition: background 0.2s;
-          '>Anuluj</button>
+          '>Zamknij</button>
         </div>
       </div>
     `;

@@ -79,7 +79,7 @@ describe('Session Expire Modal', () => {
             expect(html).toContain('Twoja sesja wkrótce wygaśnie!');
             expect(html).toContain('Strona zostanie odświeżona za');
             expect(html).toContain('Odśwież teraz');
-            expect(html).toContain('Anuluj');
+            expect(html).toContain('Zamknij');
         });
 
         it('should have reload and cancel buttons', async () => {
@@ -91,7 +91,7 @@ describe('Session Expire Modal', () => {
             expect(reloadBtn).toBeTruthy();
             expect(cancelBtn).toBeTruthy();
             expect(reloadBtn?.textContent).toBe('Odśwież teraz');
-            expect(cancelBtn?.textContent).toBe('Anuluj');
+            expect(cancelBtn?.textContent).toBe('Zamknij');
         });
 
         it('should display initial countdown of 60 seconds', async () => {
@@ -204,7 +204,7 @@ describe('Session Expire Modal', () => {
             expect(window.location.reload).toHaveBeenCalledTimes(1);
         });
 
-        it('should switch to waiting mode when "Anuluj" is clicked', async () => {
+        it('should switch to waiting mode when "Zamknij" is clicked', async () => {
             await showSessionExpireModal();
 
             const cancelBtn = document.getElementById('cancel-reload');
