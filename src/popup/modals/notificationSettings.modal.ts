@@ -225,7 +225,7 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
         resetButton.style.gap = '6px';
 
         const cancelButton = document.createElement('button');
-        cancelButton.innerHTML = '✕ Anuluj';
+        cancelButton.innerHTML = '✕ Zamknij';
         cancelButton.style.padding = '10px 20px';
         cancelButton.style.backgroundColor = '#e9ecef'; // Light gray color like in the other modal
         cancelButton.style.color = '#6c757d';
