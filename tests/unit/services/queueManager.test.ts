@@ -794,6 +794,93 @@ describe('QueueManager', () => {
             });
         });
 
+        it('should treat repeated 500 errors within 2 minutes as authorization error', async () => {
+            const { Statuses, ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const serverErrorResponse = {
+                ok: false,
+                error: {
+                    type: ErrorType.SERVER_ERROR,
+                    message: 'Server error',
+                },
+                text: async () => 'Server error',
+            };
+
+            const dateNowSpy = jest.spyOn(Date, 'now');
+            dateNowSpy.mockReturnValue(1_000_000);
+            await (queueManager as any).handleDateGroupError(
+                '01.01.2025',
+                [mockRetryObject],
+                serverErrorResponse,
+            );
+
+            dateNowSpy.mockReturnValue(1_000_000 + 60_000);
+            await (queueManager as any).handleDateGroupError(
+                '01.01.2025',
+                [mockRetryObject],
+                serverErrorResponse,
+            );
+            dateNowSpy.mockRestore();
+
+            expect(mockSetStorage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    unauthorized: true,
+                }),
+            );
+            expect(mockSetStorage).toHaveBeenCalledWith({
+                testQueue: expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'test-id-1',
+                        status: Statuses.AUTHORIZATION_ERROR,
+                        status_message: expect.stringContaining('błąd serwera (500)'),
+                    }),
+                ]),
+            });
+        });
+
+        it('should not treat repeated 500 errors outside 2 minutes as authorization error', async () => {
+            const { ErrorType } = require('../../../src/data');
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const serverErrorResponse = {
+                ok: false,
+                error: {
+                    type: ErrorType.SERVER_ERROR,
+                    message: 'Server error',
+                },
+                text: async () => 'Server error',
+            };
+
+            const dateNowSpy = jest.spyOn(Date, 'now');
+            dateNowSpy.mockReturnValue(2_000_000);
+            await (queueManager as any).handleDateGroupError(
+                '01.01.2025',
+                [mockRetryObject],
+                serverErrorResponse,
+            );
+
+            mockSetStorage.mockClear();
+
+            dateNowSpy.mockReturnValue(2_000_000 + 121_000);
+            await (queueManager as any).handleDateGroupError(
+                '01.01.2025',
+                [mockRetryObject],
+                serverErrorResponse,
+            );
+            dateNowSpy.mockRestore();
+
+            expect(mockSetStorage).not.toHaveBeenCalledWith(
+                expect.objectContaining({
+                    unauthorized: true,
+                }),
+            );
+        });
+
         it('should handle HTML error', async () => {
             const { Statuses, ErrorType } = require('../../../src/data');
             const existingQueue = [mockRetryObject];

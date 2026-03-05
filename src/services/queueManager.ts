@@ -36,6 +36,9 @@ export class QueueManager implements IQueueManager {
     private events: QueueEvents;
     private processingState: QueueProcessingState;
     private processingTimeoutId: NodeJS.Timeout | null = null;
+    private recentServer500Timestamps: number[] = [];
+    private readonly server500WindowMs = 2 * 60 * 1000;
+    private readonly server500Threshold = 2;
 
     constructor(
         authService: IAuthService,
@@ -417,6 +420,8 @@ export class QueueManager implements IQueueManager {
                 break;
             }
 
+            this.clearRecentServer500Errors();
+
             // Success - process all subscriptions for this date
             await this.processDateGroup(
                 date,
@@ -656,16 +661,15 @@ export class QueueManager implements IQueueManager {
     ): Promise<void> {
         for (const req of requests) {
             try {
-                // Handle ErrorResponse
                 if ('ok' in error && error.ok === false && 'error' in error) {
                     const errorData = error.error;
                     if (errorData.type === ErrorType.SLOT_REFRESH_TOO_OFTEN) {
-                        // Rate limit - keep in-progress, next cycle will be in 10s
                         await this.updateQueueItem(req.id, {
                             status_message: Messages.SLOT_REFRESH_TOO_OFTEN,
                         });
                         continue;
                     }
+
                     if (errorData.type === ErrorType.CLIENT_ERROR && errorData.status === 401) {
                         setStorage({ unauthorized: true });
                         await this.updateQueueItem(req.id, {
@@ -673,13 +677,27 @@ export class QueueManager implements IQueueManager {
                             status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
                         });
                         continue;
-                    } else if (errorData.type === ErrorType.SERVER_ERROR) {
+                    }
+
+                    if (errorData.type === ErrorType.SERVER_ERROR) {
+                        if (this.shouldTreatServer500AsUnauthorized()) {
+                            await setStorage({ unauthorized: true });
+                            await this.updateQueueItem(req.id, {
+                                status: Statuses.AUTHORIZATION_ERROR,
+                                status_message:
+                                    'Problem z autoryzacją - powtarzający się błąd serwera (500)',
+                            });
+                            continue;
+                        }
+
                         await this.updateQueueItem(req.id, {
                             status: Statuses.NETWORK_ERROR,
                             status_message: 'Problem z serwerem - spróbuj ponownie później',
                         });
                         continue;
-                    } else if (errorData.type === ErrorType.HTML_ERROR) {
+                    }
+
+                    if (errorData.type === ErrorType.HTML_ERROR) {
                         await this.updateQueueItem(req.id, {
                             status: Statuses.AUTHORIZATION_ERROR,
                             status_message: 'Problem z autoryzacją - strona błędu',
@@ -687,7 +705,7 @@ export class QueueManager implements IQueueManager {
                         continue;
                     }
                 }
-                // Handle simple error objects or Error instances
+
                 if (
                     'type' in error &&
                     error.type === ErrorType.CLIENT_ERROR &&
@@ -702,7 +720,6 @@ export class QueueManager implements IQueueManager {
                     continue;
                 }
 
-                // Default: network error
                 await this.updateQueueItem(req.id, {
                     status: Statuses.NETWORK_ERROR,
                     status_message:
@@ -722,6 +739,24 @@ export class QueueManager implements IQueueManager {
                 error,
             );
         }
-        // SLOT_REFRESH_TOO_OFTEN is expected/recoverable - already logged with consoleLog at call site
+    }
+
+    private shouldTreatServer500AsUnauthorized(): boolean {
+        const now = Date.now();
+        this.recentServer500Timestamps = this.recentServer500Timestamps.filter(
+            timestamp => now - timestamp <= this.server500WindowMs,
+        );
+        this.recentServer500Timestamps.push(now);
+
+        if (this.recentServer500Timestamps.length < this.server500Threshold) {
+            return false;
+        }
+
+        this.clearRecentServer500Errors();
+        return true;
+    }
+
+    private clearRecentServer500Errors(): void {
+        this.recentServer500Timestamps = [];
     }
 }
