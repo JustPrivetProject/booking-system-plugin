@@ -237,9 +237,6 @@ async function updateQueueDisplay() {
             const canResumeGroup = items.some(item => canResumeStatus(item.status));
             const canPauseGroup = items.some(item => canPauseStatus(item.status));
             const hasPusteSlotType = items.some(item => item.slotType === 4);
-            const containerTitle = hasPusteSlotType
-                ? 'Nr kontenera (PUSTE - wyszukiwanie slotów typu 4)'
-                : 'Nr kontenera';
             const containerContent = items[0].containerNumber
                 ? `${items[0].containerNumber}${hasPusteSlotType ? ' <span class="puste-badge">PUSTE</span>' : ''}`
                 : '-';
@@ -254,7 +251,7 @@ async function updateQueueDisplay() {
                         ${statusIconForGroup}
                     </span></td>
         <td class="group-header slot-date">${items[0].driverName ? items[0].driverName : 'Brak nazwy kierowcy'}</td>
-        <td class="group-header container-cell slot-time" title="${containerTitle}">${containerContent}</td>
+        <td class="group-header container-cell slot-time">${containerContent}</td>
         <td class="group-header actions">
             <button class="group-resume-button resume-button" title="Wznów grupę" ${canResumeGroup ? '' : 'disabled'}>
                 <span class="material-icons icon">play_arrow</span>
