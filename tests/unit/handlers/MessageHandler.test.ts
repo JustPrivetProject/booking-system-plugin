@@ -1380,6 +1380,172 @@ describe('MessageHandler', () => {
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
         });
 
+        it('should set retry slotType from cached formData SlotType', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            const { TABLE_DATA_NAMES } = require('../../../src/data');
+
+            const mockStorageData = {
+                requestCacheHeaders: {
+                    'request-1': {
+                        url: 'test-url',
+                        headers: [{ name: 'test', value: 'test' }],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            const mockRequestCacheBody = {
+                'request-1': {
+                    url: 'test-url',
+                    body: {
+                        formData: {
+                            TvAppId: ['test-tv-id'],
+                            SlotStart: ['01.01.2025 10:00'],
+                            SlotEnd: ['01.01.2025 11:00'],
+                            SlotType: ['4'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+            };
+
+            const mockTableData = [
+                [
+                    TABLE_DATA_NAMES.CONTAINER_NUMBER,
+                    TABLE_DATA_NAMES.ID,
+                    TABLE_DATA_NAMES.SELECTED_DATE,
+                    TABLE_DATA_NAMES.START,
+                    TABLE_DATA_NAMES.STATUS,
+                ],
+                ['TEST123', 'test-tv-id', '01.01.2025', '10:00', 'STANDARDOWE'],
+            ];
+
+            (authService.getCurrentUser as jest.Mock).mockResolvedValue({
+                id: 'user-1',
+                email: 'test@example.com',
+            });
+
+            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
+                requestCacheBody: mockRequestCacheBody,
+                retryQueue: [],
+                testEnv: false,
+                tableData: mockTableData,
+            });
+
+            mockRemoveCachedRequest.mockResolvedValue(true);
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: 'TEST123',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['test-tv-id'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                    SlotType: ['4'],
+                },
+            });
+
+            mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
+            mockExtractFirstId.mockReturnValue('request-1');
+            mockGetPropertyById.mockReturnValue(mockRequestCacheBody['request-1']);
+
+            mockQueueManager.addToQueue.mockResolvedValue([]);
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+
+            expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
+                expect.objectContaining({ slotType: 4 }),
+            );
+        });
+
+        it('should fallback to slotType 4 when table status is PUSTE and SlotType is missing', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            const { TABLE_DATA_NAMES } = require('../../../src/data');
+
+            const mockStorageData = {
+                requestCacheHeaders: {
+                    'request-1': {
+                        url: 'test-url',
+                        headers: [{ name: 'test', value: 'test' }],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            const mockRequestCacheBody = {
+                'request-1': {
+                    url: 'test-url',
+                    body: {
+                        formData: {
+                            TvAppId: ['test-tv-id'],
+                            SlotStart: ['01.01.2025 10:00'],
+                            SlotEnd: ['01.01.2025 11:00'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+            };
+
+            const mockTableData = [
+                [
+                    TABLE_DATA_NAMES.CONTAINER_NUMBER,
+                    TABLE_DATA_NAMES.ID,
+                    TABLE_DATA_NAMES.SELECTED_DATE,
+                    TABLE_DATA_NAMES.START,
+                    TABLE_DATA_NAMES.STATUS,
+                ],
+                ['TEST123', 'test-tv-id', '01.01.2025', '10:00', 'PUSTE'],
+            ];
+
+            (authService.getCurrentUser as jest.Mock).mockResolvedValue({
+                id: 'user-1',
+                email: 'test@example.com',
+            });
+
+            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
+                requestCacheBody: mockRequestCacheBody,
+                retryQueue: [],
+                testEnv: false,
+                tableData: mockTableData,
+            });
+
+            mockRemoveCachedRequest.mockResolvedValue(true);
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: 'TEST123',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['test-tv-id'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+
+            mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
+            mockExtractFirstId.mockReturnValue('request-1');
+            mockGetPropertyById.mockReturnValue(mockRequestCacheBody['request-1']);
+
+            mockQueueManager.addToQueue.mockResolvedValue([]);
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+
+            expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
+                expect.objectContaining({ slotType: 4 }),
+            );
+        });
+
         it('should create retry object with tableData but no tableRow found', async () => {
             // Arrange
             const message = { action: Actions.SHOW_ERROR };

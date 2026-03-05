@@ -332,6 +332,17 @@ export class MessageHandler {
         retryObject.driverName = driverAndContainer.driverName || '';
         retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
+        const slotTypeFromForm = requestBody.formData?.SlotType?.[0];
+        const parsedSlotType = Number(slotTypeFromForm);
+        if (!Number.isNaN(parsedSlotType) && parsedSlotType > 0) {
+            retryObject.slotType = parsedSlotType;
+            consoleLog(
+                '🎯 slotType set from cached formData.SlotType:',
+                `tvAppId=${tvAppId}`,
+                `slotType=${parsedSlotType}`,
+            );
+        }
+
         if (tableData) {
             let tableRow = null;
             consoleLog('Getting table data...');
@@ -360,12 +371,21 @@ export class MessageHandler {
                     retryObject.containerNumber = containerNumber;
                 }
 
-                // PUSTE status (empty container) requires type 4 for getSlots API
-                const statusIndex = tableData[0].indexOf(TABLE_DATA_NAMES.STATUS);
-                if (statusIndex >= 0 && tableRow[statusIndex]) {
-                    const statusValue = String(tableRow[statusIndex]).toUpperCase().trim();
-                    if (statusValue === 'PUSTE') {
-                        retryObject.slotType = 4;
+                // PUSTE status (empty container) requires type 4 for getSlots API.
+                // Fallback only: prefer slotType derived from cached formData.SlotType above.
+                if (retryObject.slotType === undefined) {
+                    const statusIndex = tableData[0].indexOf(TABLE_DATA_NAMES.STATUS);
+                    if (statusIndex >= 0 && tableRow[statusIndex]) {
+                        const statusValue = String(tableRow[statusIndex]).toUpperCase().trim();
+                        if (statusValue === 'PUSTE') {
+                            retryObject.slotType = 4;
+                            consoleLog(
+                                '🎯 slotType fallback from table status:',
+                                `tvAppId=${tvAppId}`,
+                                `status=${statusValue}`,
+                                'slotType=4',
+                            );
+                        }
                     }
                 }
             }
