@@ -1185,6 +1185,9 @@ tr[data-is-open='false'] .status-icon {
 
 #watchlistTable th {
     white-space: nowrap;
+    height: var(--header-row-height);
+    line-height: 1.2;
+    box-sizing: border-box;
 }
 
 #watchlistTable td {
@@ -1224,6 +1227,7 @@ tr[data-is-open='false'] .status-icon {
 }
 #watchlistTable .col-actions {
     width: 12%;
+    padding: var(--cell-padding-table);
 }
 
 #watchlistTable td:nth-child(2),
