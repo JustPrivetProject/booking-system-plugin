@@ -108,7 +108,7 @@ describe('notificationSettings.modal', () => {
 
             // Close modal immediately to avoid timeout
             const cancelButton = Array.from(document.querySelectorAll('button')).find(btn =>
-                btn.textContent?.includes('Anuluj'),
+                btn.textContent?.includes('Zamknij'),
             ) as HTMLElement;
             expect(cancelButton).toBeTruthy();
             cancelButton.click();
