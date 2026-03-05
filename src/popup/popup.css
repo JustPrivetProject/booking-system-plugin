@@ -281,9 +281,9 @@ td.actions .group-remove-button:hover {
 #watchlistTable th.col-actions {
     text-align: center;
     padding: 0;
-    line-height: 0;
     height: var(--header-row-height);
     vertical-align: middle;
+    position: relative;
 }
 
 #watchlistTable .header-remove-button {
@@ -298,8 +298,12 @@ td.actions .group-remove-button:hover {
     justify-content: center;
     background: var(--color-error);
     box-shadow: var(--shadow-button);
-    margin-left: 5px;
+    margin: 0;
     line-height: 1;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-45%, -50%);
 }
 
 #watchlistTable .header-remove-button .icon {
