@@ -171,6 +171,51 @@ describe('Container Checker Service', () => {
                 .calls[0][0];
             expect(savedWatchlist[0].errors).toContain('Check failed');
         });
+
+        it('should keep changed flags true across no-change cycles until ACK', async () => {
+            const baseSnapshot = {
+                port: 'DCT',
+                containerNumber: 'ABCD1234567',
+                statusText: 'Stops:1',
+                stateText: 'In Terminal',
+                milestone: 'IN_TERMINAL',
+                dataTimestamp: '2024-01-15T10:00:00.000Z',
+                observedAt: new Date().toISOString(),
+            };
+
+            const changedItem = {
+                ...TEST_WATCHLIST_ITEM,
+                status: 'Stops:2',
+                state: 'In Terminal',
+                statusChanged: true,
+                stateChanged: false,
+                snapshot: {
+                    ...baseSnapshot,
+                    statusText: 'Stops:2',
+                },
+            };
+
+            (storage.getContainerCheckerState as jest.Mock).mockResolvedValue({
+                watchlist: [changedItem],
+                settings: { pollingMinutes: 10 },
+                lastRunAt: null,
+            });
+
+            (portCheckers.checkPort as jest.Mock).mockResolvedValue({
+                match: {
+                    ...baseSnapshot,
+                    statusText: 'Stops:2',
+                },
+                errors: [],
+            });
+
+            await runContainerCheckCycle();
+
+            const savedWatchlist = (storage.saveContainerCheckerWatchlist as jest.Mock).mock
+                .calls[0][0];
+            expect(savedWatchlist[0].statusChanged).toBe(true);
+            expect(savedWatchlist[0].stateChanged).toBe(false);
+        });
     });
 
     describe('acknowledgeContainerCheckerUiChanges', () => {

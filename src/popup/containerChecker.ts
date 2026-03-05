@@ -56,8 +56,6 @@ async function sendContainerCheckerMessage(
     return response.result;
 }
 
-let hasAcknowledgedUiChanges = false;
-let suppressNextStorageRefresh = false;
 let liveRefreshIntervalId: number | null = null;
 
 function autoResizeContainerInput(textarea: HTMLTextAreaElement): void {
@@ -167,20 +165,6 @@ async function refreshState(): Promise<void> {
     try {
         const state = await sendContainerCheckerMessage('GET_STATE');
         renderWatchlist(state);
-
-        if (!hasAcknowledgedUiChanges) {
-            const hasChangedCells = state.watchlist.some(
-                item => item.statusChanged || item.stateChanged,
-            );
-            if (hasChangedCells) {
-                hasAcknowledgedUiChanges = true;
-                suppressNextStorageRefresh = true;
-                sendContainerCheckerMessage('ACK_UI_CHANGES').catch(error => {
-                    suppressNextStorageRefresh = false;
-                    consoleError('Acknowledge UI changes:', error);
-                });
-            }
-        }
     } catch (error) {
         consoleError('Container checker refresh:', error);
         /* Empty row stays from HTML fallback when renderWatchlist never runs */
@@ -287,11 +271,6 @@ export function initContainerCheckerUI(): void {
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;
-
-        if (suppressNextStorageRefresh && changes.containerCheckerWatchlist) {
-            suppressNextStorageRefresh = false;
-            return;
-        }
 
         if (
             changes.containerCheckerWatchlist ||

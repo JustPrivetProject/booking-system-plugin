@@ -9,6 +9,20 @@ import { formatTimeForEmail } from '../utils/date-utils';
  * Centralized notification service for handling all types of booking notifications
  */
 export class NotificationService {
+    private normalizeMonitorValue(value: string | null | undefined): string {
+        const normalized = (value || '').trim();
+        if (!normalized) return '-';
+        if (normalized.toUpperCase() === 'OTHER') return '-';
+        return normalized;
+    }
+
+    private formatMonitorTimestamp(value: string | null): string {
+        if (!value) return new Date().toLocaleString('pl-PL');
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return new Date().toLocaleString('pl-PL');
+        return date.toLocaleString('pl-PL');
+    }
+
     /**
      * Send all enabled notifications for successful booking
      */
@@ -222,19 +236,31 @@ export class NotificationService {
             const emailAddresses = await notificationSettingsService.getUserEmailForNotifications();
             if (emailAddresses.length === 0) return;
 
-            const effectiveTimestamp = data.dataTimestamp
-                ? new Date(data.dataTimestamp).toLocaleString()
-                : '';
-            const textContent = [
-                `Container: ${data.containerNumber}`,
-                `Port: ${data.port}`,
-                `Milestone: ${data.previousMilestone} -> ${data.currentMilestone}`,
-                `Status: ${data.previousStatusText} -> ${data.currentStatusText}`,
-                `State: ${data.previousStateText} -> ${data.currentStateText}`,
-                `Data timestamp: ${effectiveTimestamp}`,
-            ].join('\n');
+            const previousStatus = this.normalizeMonitorValue(data.previousStatusText);
+            const currentStatus = this.normalizeMonitorValue(data.currentStatusText);
+            const previousState = this.normalizeMonitorValue(data.previousStateText);
+            const currentState = this.normalizeMonitorValue(data.currentStateText);
 
-            const subject = `[Monitor kontenerów] ${data.containerNumber}: ${data.previousMilestone} -> ${data.currentMilestone}`;
+            const statusChanged = previousStatus !== currentStatus;
+            const stateChanged = previousState !== currentState;
+
+            const subjectFrom = statusChanged ? previousStatus : previousState;
+            const subjectTo = statusChanged ? currentStatus : currentState;
+            const subject = `[Monitor kontenerów] ${data.containerNumber}: ${subjectFrom} -> ${subjectTo}`;
+
+            const textLines = [`Kontener: ${data.containerNumber}`, `Port: ${data.port}`];
+
+            if (statusChanged) {
+                textLines.push(`Zmiana statusu: ${previousStatus} -> ${currentStatus}`);
+            }
+
+            if (stateChanged) {
+                textLines.push(`Zmiana stanu: ${previousState} -> ${currentState}`);
+            }
+
+            textLines.push(`Czas: ${this.formatMonitorTimestamp(data.dataTimestamp)}`);
+
+            const textContent = textLines.join('\n');
 
             const sent = await brevoEmailService.sendSimpleTextEmail(
                 emailAddresses,

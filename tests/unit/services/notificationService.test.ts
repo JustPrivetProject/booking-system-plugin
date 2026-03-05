@@ -324,6 +324,58 @@ describe('NotificationService', () => {
         });
     });
 
+    describe('Container checker email notification', () => {
+        beforeEach(() => {
+            mockNotificationSettingsService.isWindowsNotificationEnabled.mockResolvedValue(false);
+            mockNotificationSettingsService.isEmailNotificationEnabled.mockResolvedValue(true);
+            mockNotificationSettingsService.getUserEmailForNotifications.mockResolvedValue([
+                'user@example.com',
+            ]);
+            mockBrevoEmailService.sendSimpleTextEmail.mockResolvedValue(true);
+        });
+
+        it('should format subject and body with changed status only', async () => {
+            await service.sendContainerChangeNotification({
+                containerNumber: 'MSNU1234567',
+                port: 'DCT',
+                previousMilestone: 'OLD',
+                currentMilestone: 'NEW',
+                previousStatusText: 'Stops:1',
+                currentStatusText: 'Stops:2',
+                previousStateText: 'In Terminal',
+                currentStateText: 'In Terminal',
+                dataTimestamp: '2026-03-05T13:00:00.000Z',
+            });
+
+            const [, subject, body] = mockBrevoEmailService.sendSimpleTextEmail.mock.calls[0];
+            expect(subject).toBe('[Monitor kontenerów] MSNU1234567: Stops:1 -> Stops:2');
+            expect(body).toContain('Kontener: MSNU1234567');
+            expect(body).toContain('Port: DCT');
+            expect(body).toContain('Zmiana statusu: Stops:1 -> Stops:2');
+            expect(body).not.toContain('Zmiana stanu:');
+            expect(body).toContain('Czas: ');
+        });
+
+        it('should normalize OTHER to dash and include only changed state line when status unchanged', async () => {
+            await service.sendContainerChangeNotification({
+                containerNumber: 'MSNU7654321',
+                port: 'GCT',
+                previousMilestone: 'OLD',
+                currentMilestone: 'NEW',
+                previousStatusText: 'OTHER',
+                currentStatusText: '-',
+                previousStateText: 'OTHER',
+                currentStateText: 'Released',
+                dataTimestamp: null,
+            });
+
+            const [, subject, body] = mockBrevoEmailService.sendSimpleTextEmail.mock.calls[0];
+            expect(subject).toBe('[Monitor kontenerów] MSNU7654321: - -> Released');
+            expect(body).not.toContain('Zmiana statusu:');
+            expect(body).toContain('Zmiana stanu: - -> Released');
+        });
+    });
+
     describe('time formatting edge cases', () => {
         beforeEach(() => {
             mockNotificationSettingsService.isWindowsNotificationEnabled.mockResolvedValue(true);

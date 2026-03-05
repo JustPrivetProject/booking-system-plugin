@@ -92,16 +92,17 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
         const previousState = (item.state || '').trim();
         const statusChanged = previousStatus !== '' && previousStatus !== '-';
         const stateChanged = previousState !== '' && previousState !== '-';
+        const hasNewChange = statusChanged || stateChanged;
 
         return {
             ...clearedErrorBase,
             status: '-',
             state: '-',
-            statusChanged,
-            stateChanged,
+            statusChanged: item.statusChanged || statusChanged,
+            stateChanged: item.stateChanged || stateChanged,
             lastUpdate: null,
             lastCheckedAt: nowIso(),
-            lastChangeAt: statusChanged || stateChanged ? nowIso() : item.lastChangeAt || null,
+            lastChangeAt: hasNewChange ? nowIso() : item.lastChangeAt || null,
         };
     }
 
@@ -110,8 +111,8 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
             ...item,
             errors: result.errors,
             hasErrors: true,
-            statusChanged: false,
-            stateChanged: false,
+            statusChanged: item.statusChanged,
+            stateChanged: item.stateChanged,
             lastUpdate: previous.dataTimestamp || null,
             lastCheckedAt: nowIso(),
             port: trackedPort,
@@ -123,6 +124,8 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
     const stateChanged =
         !hasErrors && previous ? (previous.stateText || '') !== (best.stateText || '') : false;
     const changed = !hasErrors && previous ? statusChanged || stateChanged : false;
+    const persistedStatusChanged = item.statusChanged || statusChanged;
+    const persistedStateChanged = item.stateChanged || stateChanged;
     const currentSignature = statusSignature(best);
     const shouldNotify = changed && item.lastNotifiedSignature !== currentSignature;
 
@@ -130,8 +133,8 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
         ...clearedErrorBase,
         status: best.statusText || '-',
         state: best.stateText || '-',
-        statusChanged,
-        stateChanged,
+        statusChanged: persistedStatusChanged,
+        stateChanged: persistedStateChanged,
         lastUpdate: best.dataTimestamp || null,
         lastCheckedAt: nowIso(),
         lastChangeAt: changed ? nowIso() : item.lastChangeAt || null,
