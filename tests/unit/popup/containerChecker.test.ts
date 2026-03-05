@@ -48,6 +48,7 @@ describe('Container Checker Popup', () => {
             <input id="pollingMinutes" type="number" value="10" />
             <button id="addContainerBtn">Dodaj</button>
             <button id="checkNowBtn">Sprawdź teraz</button>
+            <button id="removeAllContainersBtn">Usuń wszystkie</button>
             <textarea id="containerInput"></textarea>
             <select id="portInput">
                 <option value="DCT">DCT</option>
@@ -176,6 +177,81 @@ describe('Container Checker Popup', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             expect(mockSendMessage).not.toHaveBeenCalled();
+        });
+
+        it('should remove all watchlist items when header remove-all button is clicked', async () => {
+            mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
+                if (msg.type === 'GET_STATE') {
+                    callback({
+                        ok: true,
+                        result: {
+                            ...mockState,
+                            watchlist: [
+                                {
+                                    containerNumber: 'ABCD1234567',
+                                    port: 'DCT',
+                                    status: 'Stops:1',
+                                    state: 'In Terminal',
+                                    statusChanged: false,
+                                    stateChanged: false,
+                                    hasErrors: false,
+                                    errors: [],
+                                    lastNotifiedSignature: null,
+                                    lastUpdate: null,
+                                    lastChangeAt: null,
+                                    lastCheckedAt: null,
+                                    snapshot: null,
+                                },
+                                {
+                                    containerNumber: 'EFGH7654321',
+                                    port: 'BCT',
+                                    status: 'Stops:2',
+                                    state: 'Out',
+                                    statusChanged: false,
+                                    stateChanged: false,
+                                    hasErrors: false,
+                                    errors: [],
+                                    lastNotifiedSignature: null,
+                                    lastUpdate: null,
+                                    lastChangeAt: null,
+                                    lastCheckedAt: null,
+                                    snapshot: null,
+                                },
+                            ],
+                        },
+                    });
+                    return;
+                }
+
+                callback({ ok: true, result: mockState });
+            });
+
+            const initContainerCheckerUI = initFresh();
+            initContainerCheckerUI();
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            mockSendMessage.mockClear();
+
+            const removeAllBtn = document.getElementById('removeAllContainersBtn');
+            expect(removeAllBtn).not.toBeNull();
+            (removeAllBtn as HTMLButtonElement).click();
+
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            expect(mockSendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'REMOVE_CONTAINER',
+                    containerNumber: 'ABCD1234567',
+                }),
+                expect.any(Function),
+            );
+            expect(mockSendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'REMOVE_CONTAINER',
+                    containerNumber: 'EFGH7654321',
+                }),
+                expect.any(Function),
+            );
         });
     });
 });

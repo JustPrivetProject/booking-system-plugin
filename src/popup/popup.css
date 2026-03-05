@@ -278,6 +278,38 @@ td.actions .group-remove-button:hover {
         0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
+#watchlistTable th.col-actions {
+    text-align: right;
+}
+
+#watchlistTable .header-remove-button {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-error);
+    box-shadow: var(--shadow-button);
+}
+
+#watchlistTable .header-remove-button .icon {
+    color: var(--color-white);
+}
+
+#watchlistTable .header-remove-button:hover:not(:disabled) {
+    background-color: #d90000;
+    box-shadow: var(--shadow-hover);
+}
+
+#watchlistTable .header-remove-button:disabled {
+    background-color: var(--color-border-light);
+    cursor: not-allowed;
+}
+
 /* ===== ROW HOVER AND ALTERNATION ===== */
 tr {
     background: var(--color-white);

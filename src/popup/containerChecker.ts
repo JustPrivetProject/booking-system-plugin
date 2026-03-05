@@ -77,6 +77,7 @@ function renderWatchlist(state: ContainerCheckerState): void {
     const watchlistBody = byId('watchlistBody');
     const pollingMinutes = byId('pollingMinutes') as HTMLInputElement;
     const lastCheckedLabel = byId('lastCheckedLabel');
+    const removeAllBtn = byId('removeAllContainersBtn') as HTMLButtonElement | null;
 
     if (!watchlistBody) return;
 
@@ -159,6 +160,7 @@ function renderWatchlist(state: ContainerCheckerState): void {
     }
 
     if (pollingMinutes) pollingMinutes.value = String(state.settings.pollingMinutes);
+    if (removeAllBtn) removeAllBtn.disabled = state.watchlist.length === 0;
 }
 
 async function refreshState(): Promise<void> {
@@ -208,6 +210,25 @@ async function handleRemove(containerNumber: string, port: string): Promise<void
     }
 }
 
+async function handleRemoveAll(): Promise<void> {
+    const removeAllBtn = byId('removeAllContainersBtn') as HTMLButtonElement | null;
+    if (removeAllBtn) removeAllBtn.disabled = true;
+
+    try {
+        const state = await sendContainerCheckerMessage('GET_STATE');
+        for (const item of state.watchlist) {
+            await sendContainerCheckerMessage('REMOVE_CONTAINER', {
+                containerNumber: item.containerNumber,
+                port: item.port,
+            });
+        }
+        await refreshState();
+    } catch (error) {
+        consoleError('Remove all containers:', error);
+        await refreshState();
+    }
+}
+
 async function handleCheckNow(): Promise<void> {
     const checkNowBtn = byId('checkNowBtn') as HTMLButtonElement;
     if (checkNowBtn) checkNowBtn.disabled = true;
@@ -245,11 +266,13 @@ export function initContainerCheckerUI(): void {
 
     const addBtn = byId('addContainerBtn');
     const checkNowBtn = byId('checkNowBtn');
+    const removeAllBtn = byId('removeAllContainersBtn');
     const containerInput = byId('containerInput') as HTMLTextAreaElement | null;
     const pollingMinutes = byId('pollingMinutes') as HTMLInputElement | null;
 
     addBtn?.addEventListener('click', () => handleAdd().catch(consoleError));
     checkNowBtn?.addEventListener('click', () => handleCheckNow().catch(consoleError));
+    removeAllBtn?.addEventListener('click', () => handleRemoveAll().catch(consoleError));
 
     containerInput?.addEventListener('keydown', (e: Event) => {
         const ev = e as KeyboardEvent;
