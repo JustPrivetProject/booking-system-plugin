@@ -179,6 +179,24 @@ describe('Container Checker Popup', () => {
             expect(mockSendMessage).not.toHaveBeenCalled();
         });
 
+        it('should acknowledge UI changes on popup close', async () => {
+            const initContainerCheckerUI = initFresh();
+            initContainerCheckerUI();
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+            mockSendMessage.mockClear();
+
+            window.dispatchEvent(new Event('beforeunload'));
+
+            expect(mockSendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    target: 'containerChecker',
+                    type: 'ACK_UI_CHANGES',
+                }),
+                expect.any(Function),
+            );
+        });
+
         it('should remove all watchlist items when header remove-all button is clicked', async () => {
             mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
                 if (msg.type === 'GET_STATE') {

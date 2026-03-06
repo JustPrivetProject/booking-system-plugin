@@ -58,6 +58,18 @@ async function sendContainerCheckerMessage(
 
 let liveRefreshIntervalId: number | null = null;
 
+function acknowledgeUiChangesOnClose(): void {
+    try {
+        chrome.runtime.sendMessage({ target: 'containerChecker', type: 'ACK_UI_CHANGES' }, () => {
+            if (chrome.runtime.lastError) {
+                // Ignore runtime errors during popup teardown
+            }
+        });
+    } catch (error) {
+        consoleError('Acknowledge UI changes on close:', error);
+    }
+}
+
 function autoResizeContainerInput(textarea: HTMLTextAreaElement): void {
     textarea.style.height = 'auto';
     textarea.style.height = `${textarea.scrollHeight}px`;
@@ -311,6 +323,8 @@ export function initContainerCheckerUI(): void {
     }
 
     window.addEventListener('beforeunload', () => {
+        acknowledgeUiChangesOnClose();
+
         if (liveRefreshIntervalId !== null) {
             window.clearInterval(liveRefreshIntervalId);
             liveRefreshIntervalId = null;
