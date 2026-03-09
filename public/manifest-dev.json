@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Port Sloty - Asystent - Dev",
-    "version": "2.5.0",
+    "version": "2.5.1",
     "description": "Twój asystent do zarządzania slotami i monitorowania kontenerów w portach",
     "permissions": ["storage", "webRequest", "notifications", "tabs", "alarms"],
     "host_permissions": [
