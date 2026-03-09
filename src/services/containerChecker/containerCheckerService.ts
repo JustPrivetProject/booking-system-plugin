@@ -6,6 +6,7 @@ import {
     touchContainerCheckerLastRunAt,
 } from '../../containerChecker/storage';
 import { checkPort } from './portCheckers';
+import { authService } from '../authService';
 import { notificationService } from '../notificationService';
 import { consoleLog } from '../../utils/index';
 
@@ -57,6 +58,12 @@ export async function getNormalizedContainerCheckerState() {
 
 export async function updateContainerCheckerAlarm(minutes: number): Promise<void> {
     await chrome.alarms.clear(ALARM_NAME);
+    const isAuthenticated = await authService.isAuthenticated();
+    if (!isAuthenticated) {
+        consoleLog('Container Checker alarm disabled - user is not authenticated');
+        return;
+    }
+
     const period = Number(minutes) || 5;
     if (period > 0) {
         await chrome.alarms.create(ALARM_NAME, { periodInMinutes: period });
@@ -164,6 +171,12 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
 }
 
 export async function runContainerCheckCycle(): Promise<void> {
+    const isAuthenticated = await authService.isAuthenticated();
+    if (!isAuthenticated) {
+        consoleLog('Skipping Container Checker cycle - user is not authenticated');
+        return;
+    }
+
     const state = await getNormalizedContainerCheckerState();
     const updated: WatchlistItem[] = [];
 

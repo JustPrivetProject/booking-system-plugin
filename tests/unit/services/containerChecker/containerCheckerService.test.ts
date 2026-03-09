@@ -4,12 +4,18 @@ import {
     runContainerCheckCycle,
     acknowledgeContainerCheckerUiChanges,
 } from '../../../../src/services/containerChecker/containerCheckerService';
+import { authService } from '../../../../src/services/authService';
 import * as storage from '../../../../src/containerChecker/storage';
 import * as portCheckers from '../../../../src/services/containerChecker/portCheckers';
 
 jest.mock('../../../../src/containerChecker/storage');
 jest.mock('../../../../src/services/containerChecker/portCheckers');
 jest.mock('../../../../src/services/notificationService');
+jest.mock('../../../../src/services/authService', () => ({
+    authService: {
+        isAuthenticated: jest.fn(),
+    },
+}));
 jest.mock('../../../../src/utils/index', () => ({
     consoleLog: jest.fn(),
     consoleError: jest.fn(),
@@ -42,6 +48,7 @@ describe('Container Checker Service', () => {
         chromeMock.storage.local.set.mockImplementation((_data: object, cb: () => void) => cb());
         chromeMock.alarms.clear.mockResolvedValue(undefined);
         chromeMock.alarms.create.mockResolvedValue(undefined);
+        (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
 
         (storage.getContainerCheckerState as jest.Mock).mockResolvedValue({
             watchlist: [],
@@ -102,6 +109,15 @@ describe('Container Checker Service', () => {
             });
         });
 
+        it('should not create alarm when user is not authenticated', async () => {
+            (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+
+            await updateContainerCheckerAlarm(15);
+
+            expect(chromeMock.alarms.clear).toHaveBeenCalledWith('container-check');
+            expect(chromeMock.alarms.create).not.toHaveBeenCalled();
+        });
+
         it('should not create alarm when period is 0', async () => {
             await updateContainerCheckerAlarm(0);
 
@@ -134,6 +150,17 @@ describe('Container Checker Service', () => {
             expect(portCheckers.checkPort).toHaveBeenCalledWith('ABCD1234567', 'DCT');
             expect(storage.saveContainerCheckerWatchlist).toHaveBeenCalled();
             expect(storage.touchContainerCheckerLastRunAt).toHaveBeenCalled();
+        });
+
+        it('should not run cycle when user is not authenticated', async () => {
+            (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
+
+            await runContainerCheckCycle();
+
+            expect(storage.getContainerCheckerState).not.toHaveBeenCalled();
+            expect(portCheckers.checkPort).not.toHaveBeenCalled();
+            expect(storage.saveContainerCheckerWatchlist).not.toHaveBeenCalled();
+            expect(storage.touchContainerCheckerLastRunAt).not.toHaveBeenCalled();
         });
 
         it('should handle check errors and add to item errors', async () => {

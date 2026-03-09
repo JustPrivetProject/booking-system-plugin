@@ -18,7 +18,14 @@ import { showEmailConfirmationModal } from './modals/emailConfirm.modal';
 import { showInfoModal } from './modals/info.modal';
 import { showNotificationSettingsModal } from './modals/notificationSettings.modal';
 import { notificationSettingsService } from '../services/notificationSettingsService';
+import { getContainerCheckerState } from '../containerChecker/storage';
+import { updateContainerCheckerAlarm } from '../services/containerChecker/containerCheckerService';
 import { initContainerCheckerUI } from './containerChecker';
+
+async function syncContainerCheckerAlarmState(): Promise<void> {
+    const state = await getContainerCheckerState();
+    await updateContainerCheckerAlarm(state.settings.pollingMinutes);
+}
 
 function sendMessageToBackground(action, data, options = { updateQueue: true }) {
     chrome.runtime.sendMessage(
@@ -969,6 +976,7 @@ async function handleLogout() {
         }
 
         await authService.logout();
+        await syncContainerCheckerAlarmState();
         showUnauthenticatedUI();
     } catch (error) {
         alert(`Logout failed: ${(error as Error).message}`);
@@ -994,6 +1002,7 @@ async function handleUnbind() {
 
         // After successful unbinding, logout and show login form
         await authService.logout();
+        await syncContainerCheckerAlarmState();
         cameFromAuthenticated = false;
         unbindForm.classList.add('hidden');
         loginForm.classList.remove('hidden');
@@ -1081,6 +1090,9 @@ function showAuthenticatedUI(user: { email: string }) {
     updateQueueDisplay();
     updateAutoLoginButtonState();
     updateNotificationButtonState();
+    syncContainerCheckerAlarmState().catch(error => {
+        consoleError('Failed to sync Container Checker alarm state:', error);
+    });
 }
 
 function showUnauthenticatedUI() {
@@ -1102,6 +1114,9 @@ function showUnauthenticatedUI() {
     loginPassword.value = '';
     registerEmail.value = '';
     registerPassword.value = '';
+    syncContainerCheckerAlarmState().catch(error => {
+        consoleError('Failed to sync Container Checker alarm state:', error);
+    });
 }
 
 // Check authentication status on load
