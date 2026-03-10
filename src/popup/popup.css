@@ -1008,11 +1008,14 @@ tr[data-is-open='false'] .status-icon {
     display: flex;
     gap: 0;
     padding-top: 2px;
-    padding-left: var(--spacing-tiny);
+    padding-left: 12px;
     padding-right: var(--spacing-tiny);
     margin-bottom: 0;
-    border-bottom: 1px solid var(--color-border-light);
+    background: var(--color-primary);
+    border-bottom: 1px solid var(--color-primary);
+    border-radius: 12px 12px 0 0;
     box-sizing: border-box;
+    overflow: hidden;
 }
 
 .tab-label {
