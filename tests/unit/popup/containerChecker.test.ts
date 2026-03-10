@@ -268,6 +268,8 @@ describe('Container Checker Popup', () => {
                 }),
                 expect.any(Function),
             );
+
+            expect(document.querySelectorAll('.changed-cell')).toHaveLength(1);
         });
 
         it('should remove all watchlist items when header remove-all button is clicked', async () => {

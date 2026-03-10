@@ -58,6 +58,7 @@ async function sendContainerCheckerMessage(
 
 let liveRefreshIntervalId: number | null = null;
 let initialUiChangesAcknowledged = false;
+let suppressNextAckStorageRefresh = false;
 
 function acknowledgeUiChangesOnClose(): void {
     try {
@@ -187,8 +188,11 @@ async function refreshState(): Promise<void> {
 
         if (!initialUiChangesAcknowledged && hasPendingUiChanges) {
             initialUiChangesAcknowledged = true;
-            const acknowledgedState = await sendContainerCheckerMessage('ACK_UI_CHANGES');
-            renderWatchlist(acknowledgedState);
+            suppressNextAckStorageRefresh = true;
+            sendContainerCheckerMessage('ACK_UI_CHANGES').catch(error => {
+                suppressNextAckStorageRefresh = false;
+                consoleError('Container checker acknowledge UI changes:', error);
+            });
         }
     } catch (error) {
         consoleError('Container checker refresh:', error);
@@ -287,6 +291,7 @@ export function initContainerCheckerUI(): void {
     }
     containerCheckerUIInitialized = true;
     initialUiChangesAcknowledged = false;
+    suppressNextAckStorageRefresh = false;
 
     const addBtn = byId('addContainerBtn');
     const checkNowBtn = byId('checkNowBtn');
@@ -319,11 +324,17 @@ export function initContainerCheckerUI(): void {
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;
 
-        if (
-            changes.containerCheckerWatchlist ||
-            changes.containerCheckerLastRunAt ||
-            changes.containerCheckerSettings
-        ) {
+        const watchlistChanged = Boolean(changes.containerCheckerWatchlist);
+        const hasOtherContainerCheckerChanges = Boolean(
+            changes.containerCheckerLastRunAt || changes.containerCheckerSettings,
+        );
+
+        if (suppressNextAckStorageRefresh && watchlistChanged && !hasOtherContainerCheckerChanges) {
+            suppressNextAckStorageRefresh = false;
+            return;
+        }
+
+        if (watchlistChanged || hasOtherContainerCheckerChanges) {
             refreshState().catch(consoleError);
         }
     });
