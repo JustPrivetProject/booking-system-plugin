@@ -39,6 +39,17 @@ export function isSlotRefreshTooOftenResponse(parsedResponse: string): boolean {
     }
 }
 
+function isEditTvAppSubmitRequest(url?: string): boolean {
+    return typeof url === 'string' && url.includes('/TVApp/EditTvAppSubmit');
+}
+
+function isSubmitLoginShellHtml(parsedResponse: string): boolean {
+    return (
+        parsedResponse.includes('Vehicle Booking System - BALTIC HUB') &&
+        parsedResponse.includes('/Account/Login')
+    );
+}
+
 /**
  * Handles error responses by analyzing the parsed response and returning an appropriate object.
  *
@@ -179,12 +190,21 @@ export function handleErrorResponse(
             // Use the new HTML error detection system
             const htmlError = detectHtmlError(parsedResponse);
             const errorType = determineErrorType(0, parsedResponse); // 0 status since we don't have HTTP status here
+            const isSubmitRequest = isEditTvAppSubmitRequest(req.url);
+            const isSubmitAuthLoss =
+                isSubmitRequest &&
+                (parsedResponse.includes('Error 500') || isSubmitLoginShellHtml(parsedResponse));
 
             let errorMessage = 'Serwer ma problemy, proszę czekać';
             let status = Statuses.NETWORK_ERROR;
 
             // Determine specific error details
-            if (parsedResponse.includes('Error 500')) {
+            if (isSubmitAuthLoss) {
+                errorMessage = parsedResponse.includes('Error 500')
+                    ? 'Problem z autoryzacją - sesja wygasła'
+                    : 'Problem z autoryzacją - wymagane ponowne logowanie';
+                status = Statuses.AUTHORIZATION_ERROR;
+            } else if (parsedResponse.includes('Error 500')) {
                 errorMessage = 'Błąd serwera (500) - spróbuj ponownie później';
                 status = Statuses.NETWORK_ERROR;
             } else if (parsedResponse.includes('Error 404')) {

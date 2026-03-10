@@ -638,6 +638,58 @@ describe('Baltichub Service', () => {
             expect(result.status).toBe(Statuses.ERROR);
         });
 
+        it('should mark unauthorized storage only for eBrama authorization errors', async () => {
+            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: false,
+                text: jest.fn().mockResolvedValue('<!DOCTYPE html><html><h1>Error 500</h1></html>'),
+            });
+            handleErrorResponse.mockReturnValue({
+                ...TEST_RETRY_OBJECTS.VALID,
+                status: Statuses.AUTHORIZATION_ERROR,
+                status_message: 'Problem z autoryzacją - sesja wygasła',
+            });
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
+        });
+
+        it('should not mark unauthorized storage for non-auth handled errors', async () => {
+            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+
+            setStorage.mockClear();
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: false,
+                text: jest.fn().mockResolvedValue('{"error":"some error"}'),
+            });
+            handleErrorResponse.mockReturnValue({
+                ...TEST_RETRY_OBJECTS.VALID,
+                status: Statuses.ERROR,
+                status_message: 'Error',
+            });
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(setStorage).not.toHaveBeenCalledWith({ unauthorized: true });
+        });
+
         it('should send notifications on success', async () => {
             const { fetchRequest, createFormData } = require('../../../src/utils');
             createFormData.mockReturnValue(new FormData());

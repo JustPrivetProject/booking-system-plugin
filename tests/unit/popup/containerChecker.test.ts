@@ -197,6 +197,79 @@ describe('Container Checker Popup', () => {
             );
         });
 
+        it('should acknowledge pending UI changes after opening popup', async () => {
+            mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
+                if (msg.type === 'GET_STATE') {
+                    callback({
+                        ok: true,
+                        result: {
+                            ...mockState,
+                            watchlist: [
+                                {
+                                    containerNumber: 'ABCD1234567',
+                                    port: 'DCT',
+                                    status: 'Stops:1',
+                                    state: 'In Terminal',
+                                    statusChanged: true,
+                                    stateChanged: false,
+                                    hasErrors: false,
+                                    errors: [],
+                                    lastNotifiedSignature: null,
+                                    lastUpdate: null,
+                                    lastChangeAt: null,
+                                    lastCheckedAt: null,
+                                    snapshot: null,
+                                },
+                            ],
+                        },
+                    });
+                    return;
+                }
+
+                if (msg.type === 'ACK_UI_CHANGES') {
+                    callback({
+                        ok: true,
+                        result: {
+                            ...mockState,
+                            watchlist: [
+                                {
+                                    containerNumber: 'ABCD1234567',
+                                    port: 'DCT',
+                                    status: 'Stops:1',
+                                    state: 'In Terminal',
+                                    statusChanged: false,
+                                    stateChanged: false,
+                                    hasErrors: false,
+                                    errors: [],
+                                    lastNotifiedSignature: null,
+                                    lastUpdate: null,
+                                    lastChangeAt: null,
+                                    lastCheckedAt: null,
+                                    snapshot: null,
+                                },
+                            ],
+                        },
+                    });
+                    return;
+                }
+
+                callback({ ok: true, result: mockState });
+            });
+
+            const initContainerCheckerUI = initFresh();
+            initContainerCheckerUI();
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockSendMessage).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    target: 'containerChecker',
+                    type: 'ACK_UI_CHANGES',
+                }),
+                expect.any(Function),
+            );
+        });
+
         it('should remove all watchlist items when header remove-all button is clicked', async () => {
             mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
                 if (msg.type === 'GET_STATE') {

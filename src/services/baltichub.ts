@@ -16,6 +16,7 @@ import {
     parseDateTimeFromDMY,
     JSONstringify,
     formatDateToDMY,
+    setStorage,
 } from '../utils/index';
 import { BrevoEmailData } from '../types';
 
@@ -324,7 +325,13 @@ export async function executeRequest(
         };
     }
 
-    return handleErrorResponse(req, parsedResponse, tvAppId, time);
+    const handledResponse = handleErrorResponse(req, parsedResponse, tvAppId, time);
+
+    if (handledResponse.status === Statuses.AUTHORIZATION_ERROR) {
+        await setStorage({ unauthorized: true });
+    }
+
+    return handledResponse;
 }
 
 /**

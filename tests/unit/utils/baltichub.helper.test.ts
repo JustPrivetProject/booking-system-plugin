@@ -145,6 +145,7 @@ describe('Baltichub Helper Functions', () => {
     describe('handleErrorResponse', () => {
         const mockReq: RetryObject = {
             tvAppId: 'tv-app-123',
+            url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/',
             status: 'in-progress',
             status_message: 'Processing',
         } as RetryObject;
@@ -238,9 +239,27 @@ describe('Baltichub Helper Functions', () => {
             const parsedResponse = '<!DOCTYPE html><html><h1>Error 500</h1></html>';
             const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
 
-            expect(result.status).toBe(Statuses.NETWORK_ERROR);
+            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
+            expect(result.status_message).toBe('Problem z autoryzacją - sesja wygasła - Error 500');
+        });
+
+        it('should treat EditTvAppSubmit login shell HTML as authorization error', () => {
+            const parsedResponse = `<!DOCTYPE html><html><head><title>Vehicle Booking System - BALTIC HUB</title></head><body><form action="/Account/Login"></form></body></html>`;
+            const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
+
+            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
             expect(result.status_message).toBe(
-                'Błąd serwera (500) - spróbuj ponownie później - Error 500',
+                'Problem z autoryzacją - wymagane ponowne logowanie',
+            );
+        });
+
+        it('should keep non-auth HTML errors on EditTvAppSubmit as regular errors', () => {
+            const parsedResponse = '<!DOCTYPE html><html><h1>Error 404</h1></html>';
+            const result = handleErrorResponse(mockReq, parsedResponse, 'tv-app-123', time);
+
+            expect(result.status).toBe(Statuses.ERROR);
+            expect(result.status_message).toBe(
+                'Nie znaleziono (404) - sprawdź poprawność danych - Error 404',
             );
         });
 

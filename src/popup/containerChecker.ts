@@ -57,6 +57,7 @@ async function sendContainerCheckerMessage(
 }
 
 let liveRefreshIntervalId: number | null = null;
+let initialUiChangesAcknowledged = false;
 
 function acknowledgeUiChangesOnClose(): void {
     try {
@@ -179,6 +180,16 @@ async function refreshState(): Promise<void> {
     try {
         const state = await sendContainerCheckerMessage('GET_STATE');
         renderWatchlist(state);
+
+        const hasPendingUiChanges = state.watchlist.some(
+            item => item.statusChanged || item.stateChanged,
+        );
+
+        if (!initialUiChangesAcknowledged && hasPendingUiChanges) {
+            initialUiChangesAcknowledged = true;
+            const acknowledgedState = await sendContainerCheckerMessage('ACK_UI_CHANGES');
+            renderWatchlist(acknowledgedState);
+        }
     } catch (error) {
         consoleError('Container checker refresh:', error);
         /* Empty row stays from HTML fallback when renderWatchlist never runs */
@@ -275,6 +286,7 @@ export function initContainerCheckerUI(): void {
         return;
     }
     containerCheckerUIInitialized = true;
+    initialUiChangesAcknowledged = false;
 
     const addBtn = byId('addContainerBtn');
     const checkNowBtn = byId('checkNowBtn');
@@ -328,6 +340,16 @@ export function initContainerCheckerUI(): void {
         if (liveRefreshIntervalId !== null) {
             window.clearInterval(liveRefreshIntervalId);
             liveRefreshIntervalId = null;
+        }
+    });
+
+    window.addEventListener('pagehide', () => {
+        acknowledgeUiChangesOnClose();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            acknowledgeUiChangesOnClose();
         }
     });
 
