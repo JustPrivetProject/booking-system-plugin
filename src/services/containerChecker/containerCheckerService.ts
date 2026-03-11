@@ -95,6 +95,21 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
             };
         }
 
+        if (previous) {
+            return {
+                ...clearedErrorBase,
+                status: item.status || previous.statusText || '-',
+                state: item.state || previous.stateText || '-',
+                statusChanged: item.statusChanged,
+                stateChanged: item.stateChanged,
+                lastUpdate: item.lastUpdate || previous.dataTimestamp || null,
+                lastCheckedAt: nowIso(),
+                lastChangeAt: item.lastChangeAt || null,
+                snapshot: previous,
+                lastNotifiedSignature: item.lastNotifiedSignature || statusSignature(previous),
+            };
+        }
+
         const previousStatus = (item.status || '').trim();
         const previousState = (item.state || '').trim();
         const statusChanged = previousStatus !== '' && previousStatus !== '-';

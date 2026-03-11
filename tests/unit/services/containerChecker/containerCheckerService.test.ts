@@ -183,6 +183,45 @@ describe('Container Checker Service', () => {
             expect(savedWatchlist[0].hasErrors).toBe(true);
         });
 
+        it('should preserve last known status and state when check returns no match without errors', async () => {
+            const previousSnapshot = {
+                port: 'DCT',
+                containerNumber: 'ABCD1234567',
+                statusText: 'Stops:1',
+                stateText: 'In Terminal',
+                milestone: 'IN_TERMINAL',
+                dataTimestamp: '2024-01-15T10:00:00.000Z',
+                observedAt: new Date().toISOString(),
+            };
+
+            (storage.getContainerCheckerState as jest.Mock).mockResolvedValue({
+                watchlist: [
+                    {
+                        ...TEST_WATCHLIST_ITEM,
+                        status: 'Stops:1',
+                        state: 'In Terminal',
+                        lastUpdate: previousSnapshot.dataTimestamp,
+                        snapshot: previousSnapshot,
+                    },
+                ],
+                settings: { pollingMinutes: 10 },
+                lastRunAt: null,
+            });
+            (portCheckers.checkPort as jest.Mock).mockResolvedValue({
+                match: null,
+                errors: [],
+            });
+
+            await runContainerCheckCycle();
+
+            const savedWatchlist = (storage.saveContainerCheckerWatchlist as jest.Mock).mock
+                .calls[0][0];
+            expect(savedWatchlist[0].status).toBe('Stops:1');
+            expect(savedWatchlist[0].state).toBe('In Terminal');
+            expect(savedWatchlist[0].snapshot).toEqual(previousSnapshot);
+            expect(savedWatchlist[0].hasErrors).toBe(false);
+        });
+
         it('should handle thrown errors during check', async () => {
             (storage.getContainerCheckerState as jest.Mock).mockResolvedValue({
                 watchlist: [TEST_WATCHLIST_ITEM],
