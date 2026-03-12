@@ -113,9 +113,17 @@ jobs:
               run: exit 0
 
             - name: Install dependencies
+              if: |
+                  github.event_name != 'push' ||
+                  github.ref != 'refs/heads/main' ||
+                  steps.check_auto_release.outputs.should_proceed == 'true'
               run: npm ci
 
             - name: Setup environment variables
+              if: |
+                  github.event_name != 'push' ||
+                  github.ref != 'refs/heads/main' ||
+                  steps.check_auto_release.outputs.should_proceed == 'true'
               run: |
                   echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
                   echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
@@ -125,15 +133,27 @@ jobs:
                   echo "BREVO_SENDER_NAME=${{ secrets.BREVO_SENDER_NAME }}" >> .env
 
             - name: Build extension
+              if: |
+                  github.event_name != 'push' ||
+                  github.ref != 'refs/heads/main' ||
+                  steps.check_auto_release.outputs.should_proceed == 'true'
               run: npm run build
 
             - name: Create release package
+              if: |
+                  github.event_name != 'push' ||
+                  github.ref != 'refs/heads/main' ||
+                  steps.check_auto_release.outputs.should_proceed == 'true'
               run: |
                   cd dist
                   zip -r ../extension.zip *
 
             - name: Create tag for auto-release
-              if: steps.version.outputs.should_create_tag == 'true'
+              if: |
+                  steps.version.outputs.should_create_tag == 'true' &&
+                  (github.event_name != 'push' ||
+                   github.ref != 'refs/heads/main' ||
+                   steps.check_auto_release.outputs.should_proceed == 'true')
               run: |
                   git config user.name github-actions
                   git config user.email github-actions@github.com
@@ -141,6 +161,10 @@ jobs:
                   git push origin ${{ steps.version.outputs.version }}
 
             - name: Create Production Release
+              if: |
+                  github.event_name != 'push' ||
+                  github.ref != 'refs/heads/main' ||
+                  steps.check_auto_release.outputs.should_proceed == 'true'
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.version.outputs.version }}
@@ -201,9 +225,11 @@ jobs:
               run: exit 0
 
             - name: Install dependencies
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               run: npm ci
 
             - name: Setup development environment variables
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               run: |
                   echo "CRYPTO_SECRET_KEY=${{ secrets.CRYPTO_SECRET_KEY }}" >> .env
                   echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
@@ -213,14 +239,17 @@ jobs:
                   echo "BREVO_SENDER_NAME=${{ secrets.BREVO_SENDER_NAME }}" >> .env
 
             - name: Build extension
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               run: npm run build:dev
 
             - name: Create development package
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               run: |
                   cd dist
                   zip -r ../extension-dev.zip *
 
             - name: Create tag for dev release
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               run: |
                   git config user.name github-actions
                   git config user.email github-actions@github.com
@@ -228,6 +257,7 @@ jobs:
                   git push origin ${{ steps.dev_version.outputs.dev_tag }}
 
             - name: Create Development Release
+              if: steps.check_dev_release.outputs.should_proceed == 'true'
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.dev_version.outputs.dev_tag }}
