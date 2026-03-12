@@ -204,6 +204,7 @@ jest.mock('../../../src/utils/baltichub.helper', () => ({
     parseSlotsIntoButtons: jest.fn(),
     handleErrorResponse: jest.fn(),
     isTaskCompletedInAnotherQueue: jest.fn(),
+    isEbramaLoginPageResponse: jest.fn(),
 }));
 
 // Mock notification service
@@ -265,6 +266,7 @@ class BaltichubTestHelper {
         this.mockUtils.createFormData.mockReturnValue('form-data');
         this.mockHelper.parseSlotsIntoButtons.mockReturnValue([{ text: '10:00', disabled: false }]);
         this.mockHelper.isTaskCompletedInAnotherQueue.mockReturnValue(false);
+        this.mockHelper.isEbramaLoginPageResponse.mockReturnValue(false);
         this.mockHelper.handleErrorResponse.mockImplementation(
             (req, _response, _tvAppId, _time) => ({
                 ...req,
@@ -662,6 +664,37 @@ describe('Baltichub Service', () => {
 
             expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
+        });
+
+        it('should treat 200 login page response as eBrama authorization loss', async () => {
+            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { isEbramaLoginPageResponse } = require('../../../src/utils/baltichub.helper');
+
+            setStorage.mockClear();
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                url: 'https://ebrama.baltichub.com/Account/Login',
+                text: jest
+                    .fn()
+                    .mockResolvedValue(
+                        '<!DOCTYPE html><html><form action="/Account/Login"></form></html>',
+                    ),
+            });
+            isEbramaLoginPageResponse.mockReturnValue(true);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
+            expect(result.status_message).toBe(
+                'Problem z autoryzacją - wymagane ponowne logowanie',
+            );
         });
 
         it('should not mark unauthorized storage for non-auth handled errors', async () => {

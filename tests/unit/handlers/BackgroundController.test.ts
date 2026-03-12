@@ -7,6 +7,7 @@ import { setStorage, getStorage } from '../../../src/utils/storage';
 import { consoleLog, consoleError } from '../../../src/utils';
 import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
+import { getEbramaKeepAliveIntervalMs } from '../../../src/services/ebramaSessionService';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -22,6 +23,10 @@ jest.mock('../../../src/services/autoLoginService', () => ({
     autoLoginService: {
         migrateAndCleanData: jest.fn(() => Promise.resolve()),
     },
+}));
+jest.mock('../../../src/services/ebramaSessionService', () => ({
+    keepEbramaSessionAlive: jest.fn(() => Promise.resolve()),
+    getEbramaKeepAliveIntervalMs: jest.fn(() => 480000),
 }));
 jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
@@ -88,6 +93,7 @@ describe('BackgroundController', () => {
         it('should initialize successfully', async () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
             (getStorage as jest.Mock).mockResolvedValue({});
+            const setIntervalSpy = jest.spyOn(global, 'setInterval');
 
             await backgroundController.initialize();
 
@@ -99,9 +105,15 @@ describe('BackgroundController', () => {
             expect(chrome.runtime.onMessage.addListener).toHaveBeenCalled();
             expect(mockRequestHandler.setupRequestListeners).toHaveBeenCalled();
             expect(mockStorageHandler.setupStorageListener).toHaveBeenCalled();
+            expect(setIntervalSpy).toHaveBeenCalledWith(
+                expect.any(Function),
+                getEbramaKeepAliveIntervalMs(),
+            );
             expect(consoleLog).toHaveBeenCalledWith(
                 'Background Controller initialized successfully',
             );
+
+            setIntervalSpy.mockRestore();
         });
 
         it('should handle initialization errors', async () => {

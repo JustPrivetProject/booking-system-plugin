@@ -43,10 +43,18 @@ function isEditTvAppSubmitRequest(url?: string): boolean {
     return typeof url === 'string' && url.includes('/TVApp/EditTvAppSubmit');
 }
 
-function isSubmitLoginShellHtml(parsedResponse: string): boolean {
+export function isEbramaLoginPageResponse(parsedResponse: string, responseUrl?: string): boolean {
+    const normalizedUrl = (responseUrl || '').toLowerCase();
+    const hasLoginFormMarker =
+        parsedResponse.includes('/Account/Login') ||
+        parsedResponse.includes('action="/Account/Login"') ||
+        parsedResponse.includes("action='/Account/Login'");
+
     return (
-        parsedResponse.includes('Vehicle Booking System - BALTIC HUB') &&
-        parsedResponse.includes('/Account/Login')
+        hasLoginFormMarker ||
+        (parsedResponse.includes('Vehicle Booking System - BALTIC HUB') && hasLoginFormMarker) ||
+        normalizedUrl.includes('/account/login') ||
+        normalizedUrl.endsWith('/login')
     );
 }
 
@@ -193,7 +201,7 @@ export function handleErrorResponse(
             const isSubmitRequest = isEditTvAppSubmitRequest(req.url);
             const isSubmitAuthLoss =
                 isSubmitRequest &&
-                (parsedResponse.includes('Error 500') || isSubmitLoginShellHtml(parsedResponse));
+                (parsedResponse.includes('Error 500') || isEbramaLoginPageResponse(parsedResponse));
 
             let errorMessage = 'Serwer ma problemy, proszę czekać';
             let status = Statuses.NETWORK_ERROR;

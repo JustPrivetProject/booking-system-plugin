@@ -4,6 +4,7 @@ import {
     parseSlotsIntoButtons,
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
+    isEbramaLoginPageResponse,
 } from '../utils/baltichub.helper';
 import { notificationService } from './notificationService';
 import type { ErrorResponse } from '../utils/index';
@@ -272,6 +273,7 @@ export async function executeRequest(
 
     const responseStatus = 'status' in response ? response.status : 'N/A';
     const responseOk = 'ok' in response ? response.ok : false;
+    const responseUrl = 'url' in response ? response.url : undefined;
 
     // CRITICAL: Log all identifiers to track which request was actually sent
     const responseData = {
@@ -289,6 +291,16 @@ export async function executeRequest(
             req.body.formData.SlotStart?.[0] === req.startSlot ? '✅ YES' : '❌ NO - MISMATCH!',
     };
     consoleLog('📥 Received response:', JSON.stringify(responseData, null, 2));
+
+    if (response.ok && isEbramaLoginPageResponse(parsedResponse, responseUrl)) {
+        await setStorage({ unauthorized: true });
+        return {
+            ...req,
+            status: Statuses.AUTHORIZATION_ERROR,
+            status_message: 'Problem z autoryzacją - wymagane ponowne logowanie',
+        };
+    }
+
     if (!parsedResponse.includes('error') && response.ok) {
         const successData = {
             tvAppId,

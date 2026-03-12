@@ -2,6 +2,7 @@ import {
     parseSlotsIntoButtons,
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
+    isEbramaLoginPageResponse,
 } from '../../../src/utils/baltichub.helper';
 import { RetryObject } from '../../../src/types/baltichub';
 import { Statuses } from '../../../src/data';
@@ -250,6 +251,20 @@ describe('Baltichub Helper Functions', () => {
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
             expect(result.status_message).toBe(
                 'Problem z autoryzacją - wymagane ponowne logowanie',
+            );
+        });
+
+        it('should detect login page responses by html or redirect url', () => {
+            expect(
+                isEbramaLoginPageResponse(
+                    '<!DOCTYPE html><html><form action="/Account/Login"></form></html>',
+                ),
+            ).toBe(true);
+            expect(
+                isEbramaLoginPageResponse('ok', 'https://ebrama.baltichub.com/Account/Login'),
+            ).toBe(true);
+            expect(isEbramaLoginPageResponse('ok', 'https://ebrama.baltichub.com/tv-apps')).toBe(
+                false,
             );
         });
 

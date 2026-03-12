@@ -12,6 +12,10 @@ import {
     updateContainerCheckerAlarm,
     runContainerCheckCycle,
 } from '../services/containerChecker/containerCheckerService';
+import {
+    keepEbramaSessionAlive,
+    getEbramaKeepAliveIntervalMs,
+} from '../services/ebramaSessionService';
 
 const CONTAINER_CHECK_ALARM_NAME = 'container-check';
 
@@ -39,6 +43,7 @@ export class BackgroundController {
 
         // Setup keep-alive mechanism to prevent service worker from closing
         this.setupKeepAlive();
+        this.setupEbramaSessionKeepAlive();
 
         // Start queue processing
         await this.startQueueProcessing();
@@ -196,6 +201,16 @@ export class BackgroundController {
 
         // Store interval ID for potential cleanup (though we want it to run forever)
         (this as any).keepAliveIntervalId = keepAliveInterval;
+    }
+
+    private setupEbramaSessionKeepAlive(): void {
+        const ebramaKeepAliveInterval = setInterval(() => {
+            keepEbramaSessionAlive().catch(error => {
+                consoleError('[background] eBrama keepalive interval error:', error);
+            });
+        }, getEbramaKeepAliveIntervalMs());
+
+        (this as any).ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
     }
 
     private handleInstallation(_details: chrome.runtime.InstalledDetails): void {
