@@ -1,10 +1,20 @@
 import { jest } from '@jest/globals';
-import { updateBadge, clearBadge, resetBadge, getLastBadgeStatus } from '../../../src/utils/badge';
+import {
+    updateBadge,
+    clearBadge,
+    resetBadge,
+    getLastBadgeStatus,
+    syncAuthenticationBadge,
+    isLoggedOutBadgeVisible,
+} from '../../../src/utils/badge';
 
 // Types for better type safety in tests
 type ChromeAction = {
     setBadgeText: jest.MockedFunction<
         (details: { text: string | undefined }, callback: () => void) => void
+    >;
+    setBadgeBackgroundColor: jest.MockedFunction<
+        (details: { color: string | number[] }, callback: () => void) => void
     >;
 };
 
@@ -73,6 +83,13 @@ class BadgeTestHelper {
                 callback();
             }
         });
+        this.chromeMock.action.setBadgeBackgroundColor = jest.fn((details, callback) => {
+            if (this.chromeMock.runtime.lastError) {
+                callback();
+            } else {
+                callback();
+            }
+        });
         this.chromeMock.runtime.lastError = null;
     }
 
@@ -104,6 +121,7 @@ class BadgeTestHelper {
     resetMocks(): void {
         jest.clearAllMocks();
         this.chromeMock.action.setBadgeText.mockClear();
+        this.chromeMock.action.setBadgeBackgroundColor.mockClear();
         this.chromeMock.runtime.lastError = null;
         this.sortStatusesByPriority.mockReset();
     }
@@ -220,6 +238,18 @@ describe('Badge Manager', () => {
                 await updateBadge([TEST_STATUSES.ERROR]);
                 testHelper.expectBadgeText(TEST_ICONS.ERROR);
             });
+
+            it('should not override logged out badge with normal status updates', async () => {
+                await syncAuthenticationBadge(false);
+                testHelper.chromeMock.action.setBadgeText.mockClear();
+
+                testHelper.mockStatusSorting([TEST_STATUSES.ERROR]);
+                await updateBadge([TEST_STATUSES.ERROR]);
+
+                testHelper.expectNoBadgeUpdate();
+                expect(getLastBadgeStatus()).toBe(TEST_STATUSES.ERROR);
+                expect(isLoggedOutBadgeVisible()).toBe(true);
+            });
         });
 
         describe('Error Handling', () => {
@@ -281,6 +311,34 @@ describe('Badge Manager', () => {
 
                 expect(getLastBadgeStatus()).toBe(TEST_STATUSES.WARNING);
             });
+        });
+    });
+
+    describe('syncAuthenticationBadge', () => {
+        it('should show red dot badge when unauthenticated', async () => {
+            await syncAuthenticationBadge(false);
+
+            expect(testHelper.chromeMock.action.setBadgeBackgroundColor).toHaveBeenCalledWith(
+                { color: '#d93025' },
+                expect.any(Function),
+            );
+            testHelper.expectBadgeText('•');
+            expect(isLoggedOutBadgeVisible()).toBe(true);
+        });
+
+        it('should clear logged out badge when authenticated again', async () => {
+            await syncAuthenticationBadge(false);
+            testHelper.chromeMock.action.setBadgeText.mockClear();
+            testHelper.chromeMock.action.setBadgeBackgroundColor.mockClear();
+
+            await syncAuthenticationBadge(true);
+
+            expect(testHelper.chromeMock.action.setBadgeBackgroundColor).toHaveBeenCalledWith(
+                { color: [0, 0, 0, 0] },
+                expect.any(Function),
+            );
+            testHelper.expectBadgeText('');
+            expect(isLoggedOutBadgeVisible()).toBe(false);
         });
     });
 

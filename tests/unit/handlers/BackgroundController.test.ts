@@ -8,6 +8,7 @@ import { consoleLog, consoleError } from '../../../src/utils';
 import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { getEbramaKeepAliveIntervalMs } from '../../../src/services/ebramaSessionService';
+import { sessionService } from '../../../src/services/sessionService';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -18,6 +19,7 @@ jest.mock('../../../src/utils/storage');
 jest.mock('../../../src/utils');
 jest.mock('../../../src/utils/badge', () => ({
     clearBadge: jest.fn(),
+    syncAuthenticationBadge: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('../../../src/services/autoLoginService', () => ({
     autoLoginService: {
@@ -27,6 +29,11 @@ jest.mock('../../../src/services/autoLoginService', () => ({
 jest.mock('../../../src/services/ebramaSessionService', () => ({
     keepEbramaSessionAlive: jest.fn(() => Promise.resolve()),
     getEbramaKeepAliveIntervalMs: jest.fn(() => 480000),
+}));
+jest.mock('../../../src/services/sessionService', () => ({
+    sessionService: {
+        isAuthenticated: jest.fn(() => Promise.resolve(true)),
+    },
 }));
 jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
@@ -94,6 +101,7 @@ describe('BackgroundController', () => {
             (setStorage as jest.Mock).mockResolvedValue(undefined);
             (getStorage as jest.Mock).mockResolvedValue({});
             const setIntervalSpy = jest.spyOn(global, 'setInterval');
+            (sessionService.isAuthenticated as jest.Mock).mockResolvedValue(true);
 
             await backgroundController.initialize();
 
@@ -109,6 +117,7 @@ describe('BackgroundController', () => {
                 expect.any(Function),
                 getEbramaKeepAliveIntervalMs(),
             );
+            expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
             expect(consoleLog).toHaveBeenCalledWith(
                 'Background Controller initialized successfully',
             );

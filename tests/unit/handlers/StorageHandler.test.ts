@@ -1,6 +1,6 @@
 import { StorageHandler } from '../../../src/background/handlers/StorageHandler';
-import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import { Statuses } from '../../../src/data';
+import { syncAuthenticationBadge } from '../../../src/utils/badge';
 import { onStorageChange } from '../../../src/utils/storage';
 import { consoleLog } from '../../../src/utils';
 
@@ -8,6 +8,9 @@ import { consoleLog } from '../../../src/utils';
 jest.mock('../../../src/services/queueManagerAdapter');
 jest.mock('../../../src/utils/storage');
 jest.mock('../../../src/utils');
+jest.mock('../../../src/utils/badge', () => ({
+    syncAuthenticationBadge: jest.fn(),
+}));
 jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
         auth: {
@@ -43,6 +46,21 @@ describe('StorageHandler', () => {
             storageHandler.setupStorageListener();
 
             expect(onStorageChange).toHaveBeenCalledWith('unauthorized', expect.any(Function));
+            expect(onStorageChange).toHaveBeenCalledWith('user_session', expect.any(Function));
+        });
+    });
+
+    describe('handleUserSessionChange', () => {
+        it('should show logged out badge when session is missing', async () => {
+            await storageHandler['handleUserSessionChange'](undefined);
+
+            expect(syncAuthenticationBadge).toHaveBeenCalledWith(false);
+        });
+
+        it('should clear logged out badge when session exists', async () => {
+            await storageHandler['handleUserSessionChange']({ user: { id: '1' } });
+
+            expect(syncAuthenticationBadge).toHaveBeenCalledWith(true);
         });
     });
 

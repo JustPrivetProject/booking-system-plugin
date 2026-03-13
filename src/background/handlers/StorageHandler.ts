@@ -1,5 +1,6 @@
 import { Statuses } from '../../data';
 import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
+import { syncAuthenticationBadge } from '../../utils/badge';
 import { consoleLog } from '../../utils';
 import { onStorageChange } from '../../utils/storage';
 
@@ -10,6 +11,10 @@ export class StorageHandler {
         onStorageChange('unauthorized', async (newValue, oldValue) => {
             await this.handleUnauthorizedChange(newValue, oldValue);
         });
+
+        onStorageChange('user_session', async newValue => {
+            await this.handleUserSessionChange(newValue);
+        });
     }
 
     private async handleUnauthorizedChange(newValue: boolean, oldValue: boolean): Promise<void> {
@@ -18,6 +23,10 @@ export class StorageHandler {
         if (oldValue === true && newValue === false) {
             await this.restoreQueueAfterAuth();
         }
+    }
+
+    private async handleUserSessionChange(newValue: unknown): Promise<void> {
+        await syncAuthenticationBadge(Boolean(newValue));
     }
 
     private async restoreQueueAfterAuth(): Promise<void> {

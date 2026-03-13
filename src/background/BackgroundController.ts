@@ -1,8 +1,9 @@
 import { autoLoginService } from '../services/autoLoginService';
 import { QueueManagerAdapter } from '../services/queueManagerAdapter';
+import { sessionService } from '../services/sessionService';
 import { consoleLog, consoleError } from '../utils';
 import { getStorage, setStorage } from '../utils/storage';
-import { clearBadge } from '../utils/badge';
+import { clearBadge, syncAuthenticationBadge } from '../utils/badge';
 
 import { MessageHandler } from './handlers/MessageHandler';
 import { RequestHandler } from './handlers/RequestHandler';
@@ -18,6 +19,7 @@ import {
 } from '../services/ebramaSessionService';
 
 const CONTAINER_CHECK_ALARM_NAME = 'container-check';
+const EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS = 60000;
 
 export class BackgroundController {
     private messageHandler: MessageHandler;
@@ -44,6 +46,7 @@ export class BackgroundController {
         // Setup keep-alive mechanism to prevent service worker from closing
         this.setupKeepAlive();
         this.setupEbramaSessionKeepAlive();
+        this.setupExtensionAuthBadgeSync();
 
         // Start queue processing
         await this.startQueueProcessing();
@@ -211,6 +214,29 @@ export class BackgroundController {
         }, getEbramaKeepAliveIntervalMs());
 
         (this as any).ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
+    }
+
+    private setupExtensionAuthBadgeSync(): void {
+        const syncBadge = async () => {
+            try {
+                const isAuthenticated = await sessionService.isAuthenticated();
+                await syncAuthenticationBadge(isAuthenticated);
+            } catch (error) {
+                consoleError('[background] Failed to sync extension auth badge:', error);
+            }
+        };
+
+        syncBadge().catch(error => {
+            consoleError('[background] Initial extension auth badge sync failed:', error);
+        });
+
+        const extensionAuthBadgeInterval = setInterval(() => {
+            syncBadge().catch(error => {
+                consoleError('[background] Extension auth badge interval error:', error);
+            });
+        }, EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS);
+
+        (this as any).extensionAuthBadgeIntervalId = extensionAuthBadgeInterval;
     }
 
     private handleInstallation(_details: chrome.runtime.InstalledDetails): void {
