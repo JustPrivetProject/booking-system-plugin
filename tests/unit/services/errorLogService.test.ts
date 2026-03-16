@@ -1,6 +1,7 @@
 import { errorLogService } from '../../../src/services/errorLogService';
 import { ErrorType } from '../../../src/data';
 import type { LocalStorageData } from '../../../src/types';
+import type { SessionLogEntry } from '../../../src/utils/logging';
 
 // Mock Supabase client
 jest.mock('../../../src/services/supabaseClient', () => ({
@@ -24,6 +25,14 @@ jest.mock('../../../src/utils/logging', () => ({
 describe('ErrorLogService', () => {
     const mockSupabase = require('../../../src/services/supabaseClient').supabase;
     const mockConsoleLog = require('../../../src/utils/logging').consoleLog;
+
+    const createSessionLogs = (message: string, type: SessionLogEntry['type'] = 'log') => [
+        {
+            type,
+            message,
+            timestamp: '2024-01-01T12:00:00.000Z',
+        },
+    ];
 
     // Helper function to create a mock LocalStorageData
     const createMockLocalStorageData = (
@@ -263,7 +272,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockResolvedValue({ error: null });
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'info', message: 'Test log' }];
+            const logs = createSessionLogs('Test log');
             const userId = 'user-123';
             const description = 'Test log batch';
             const localData = createMockLocalStorageData();
@@ -275,7 +284,9 @@ describe('ErrorLogService', () => {
                 expect.objectContaining({
                     user_id: userId,
                     log: logs,
-                    local_storage_data: localData,
+                    local_storage_data: expect.objectContaining({
+                        autoLoginData: true,
+                    }),
                     source: null,
                     description,
                     created_at: '2024-01-01T12:00:00.000Z',
@@ -287,7 +298,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockResolvedValue({ error: null });
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'error', message: 'Error log' }];
+            const logs = createSessionLogs('Error log', 'error');
 
             await errorLogService.sendLogs(logs);
 
@@ -329,7 +340,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockResolvedValue({ error: supabaseError });
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'info', message: 'Test log' }];
+            const logs = createSessionLogs('Test log');
 
             await errorLogService.sendLogs(logs);
 
@@ -343,7 +354,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockRejectedValue(new Error('Network error'));
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'info', message: 'Test log' }];
+            const logs = createSessionLogs('Test log');
 
             await errorLogService.sendLogs(logs);
 
@@ -357,7 +368,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockResolvedValue({ error: null });
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'info', message: 'Test log' }];
+            const logs = createSessionLogs('Test log');
             const userId = 'user-123';
             const description = 'Test log batch';
             const localData = createMockLocalStorageData({
@@ -390,7 +401,7 @@ describe('ErrorLogService', () => {
             const mockInsert = jest.fn().mockResolvedValue({ error: null });
             mockSupabase.from.mockReturnValue({ insert: mockInsert });
 
-            const logs = [{ level: 'info', message: 'Test log' }];
+            const logs = createSessionLogs('Test log');
             const userId = 'user-123';
             const description = 'Test log batch';
             const localData = createMockLocalStorageData({

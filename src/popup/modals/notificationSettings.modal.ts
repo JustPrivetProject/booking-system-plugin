@@ -1,5 +1,6 @@
 import type { NotificationSettings } from '../../types/general';
 import { notificationSettingsService } from '../../services/notificationSettingsService';
+import { consoleError } from '../../utils';
 import { createConfirmationModal } from './confirmation.modal';
 
 export interface NotificationSettingsResult {
@@ -328,7 +329,7 @@ export function showNotificationSettingsModal(): Promise<NotificationSettingsRes
                     updateSaveButtonState();
                 }
             } catch (error) {
-                console.error('Error saving settings:', error);
+                consoleError('Error saving settings:', error);
                 showStatusMessage('❌ Błąd podczas zapisywania ustawień.', false);
                 // Re-enable button on error
                 saveButton.disabled = false;

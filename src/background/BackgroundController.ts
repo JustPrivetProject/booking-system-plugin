@@ -26,6 +26,9 @@ export class BackgroundController {
     private requestHandler: RequestHandler;
     private storageHandler: StorageHandler;
     private queueManager: QueueManagerAdapter;
+    private keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+    private ebramaKeepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+    private extensionAuthBadgeIntervalId: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
         this.queueManager = QueueManagerAdapter.getInstance();
@@ -203,7 +206,7 @@ export class BackgroundController {
         }, 20000); // 20 seconds
 
         // Store interval ID for potential cleanup (though we want it to run forever)
-        (this as any).keepAliveIntervalId = keepAliveInterval;
+        this.keepAliveIntervalId = keepAliveInterval;
     }
 
     private setupEbramaSessionKeepAlive(): void {
@@ -213,7 +216,7 @@ export class BackgroundController {
             });
         }, getEbramaKeepAliveIntervalMs());
 
-        (this as any).ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
+        this.ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
     }
 
     private setupExtensionAuthBadgeSync(): void {
@@ -236,7 +239,7 @@ export class BackgroundController {
             });
         }, EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS);
 
-        (this as any).extensionAuthBadgeIntervalId = extensionAuthBadgeInterval;
+        this.extensionAuthBadgeIntervalId = extensionAuthBadgeInterval;
     }
 
     private handleInstallation(_details: chrome.runtime.InstalledDetails): void {

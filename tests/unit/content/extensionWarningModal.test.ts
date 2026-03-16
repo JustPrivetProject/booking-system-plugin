@@ -3,6 +3,10 @@
  */
 import { jest } from '@jest/globals';
 
+jest.mock('../../../src/utils', () => ({
+    consoleLog: jest.fn(),
+}));
+
 // Mock sessionStorage
 const mockSessionStorage = {
     getItem: jest.fn(),
@@ -16,18 +20,10 @@ global.sessionStorage = mockSessionStorage as any;
 
 describe('Extension Warning Modal', () => {
     let showExtensionWarningModal: any;
-
-    // Mock console to avoid noise in tests
-    beforeAll(() => {
-        global.console = {
-            ...console,
-            log: jest.fn(),
-            error: jest.fn(),
-            warn: jest.fn(),
-        };
-    });
+    let mockUtils: { consoleLog: jest.Mock };
 
     beforeEach(async () => {
+        jest.resetModules();
         jest.clearAllMocks();
 
         // Clear document body
@@ -37,7 +33,7 @@ describe('Extension Warning Modal', () => {
         mockSessionStorage.getItem.mockReturnValue(null);
 
         // Clear the modal dismissed flag
-        jest.resetModules();
+        mockUtils = require('../../../src/utils');
 
         // Import the modal function
         const module = await import('../../../src/content/modals/extensionWarningModal');
@@ -310,7 +306,9 @@ describe('Extension Warning Modal', () => {
         it('should log when modal is shown', async () => {
             await showExtensionWarningModal();
 
-            expect(console.log).toHaveBeenCalledWith('[content] Showing extension warning modal');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Showing extension warning modal',
+            );
         });
 
         it('should log when modal was already shown', async () => {
@@ -321,7 +319,7 @@ describe('Extension Warning Modal', () => {
 
             await showExtensionWarningModal();
 
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] Extension warning modal already shown',
             );
         });
@@ -336,7 +334,7 @@ describe('Extension Warning Modal', () => {
             document.body.innerHTML = '';
             await showExtensionWarningModal();
 
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] Extension warning modal was dismissed on this page',
             );
         });
@@ -344,7 +342,9 @@ describe('Extension Warning Modal', () => {
         it('should log when modal is displayed', async () => {
             await showExtensionWarningModal();
 
-            expect(console.log).toHaveBeenCalledWith('[content] Extension warning modal displayed');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Extension warning modal displayed',
+            );
         });
     });
 });

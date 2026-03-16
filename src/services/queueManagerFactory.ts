@@ -1,4 +1,4 @@
-import type { QueueConfig, QueueEvents } from '../types/queue';
+import type { IAuthService, QueueConfig, QueueEvents } from '../types/queue';
 
 import { authService } from './authService';
 import { QueueManager } from './queueManager';
@@ -16,7 +16,7 @@ export class QueueManagerFactory {
     }
 
     static createForTesting(
-        authService: any,
+        authService: IAuthService,
         config: Partial<QueueConfig> = {},
         events: QueueEvents = {},
     ): QueueManager {

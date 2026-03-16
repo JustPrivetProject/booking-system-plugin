@@ -30,7 +30,7 @@ export type RequestCacheBodes = {
 };
 
 export type RequestCacheBodyObject = {
-    body: chrome.webRequest.OnBeforeRequestDetails['requestBody'];
+    body: RequestBody;
     timestamp: number;
     url: string;
 };
@@ -45,6 +45,6 @@ export type RequestCacheHeaderBody = {
     url: string;
 };
 
-export type RequestBody = chrome.webRequest.OnBeforeRequestDetails['requestBody'];
+export type RequestBody = NonNullable<chrome.webRequest.OnBeforeRequestDetails['requestBody']>;
 
 export type RequestHeader = chrome.webRequest.OnBeforeSendHeadersDetails['requestHeaders'];

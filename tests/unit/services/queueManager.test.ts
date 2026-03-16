@@ -6,6 +6,10 @@ jest.mock('../../../src/utils', () => ({
     consoleLogWithoutSave: jest.fn(),
     getStorage: jest.fn(),
     setStorage: jest.fn(),
+    getFirstFormDataString: jest.fn((values?: unknown[]) => {
+        const value = values?.[0];
+        return typeof value === 'string' ? value : null;
+    }),
     normalizeFormData: jest.fn((body: any) => {
         // normalizeFormData should return the same structure if body already has formData
         // In real code it normalizes arrays, but for tests we preserve the structure

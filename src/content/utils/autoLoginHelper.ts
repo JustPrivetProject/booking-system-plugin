@@ -1,4 +1,5 @@
 import { Actions } from '../../data';
+import { consoleError, consoleLog } from '../../utils';
 
 export interface AutoLoginCredentials {
     login: string;
@@ -13,14 +14,14 @@ export const autoLoginHelper = {
         return new Promise(resolve => {
             try {
                 if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                    console.log('[content] Chrome runtime not available for auto-login');
+                    consoleLog('[content] Chrome runtime not available for auto-login');
                     resolve(null);
                     return;
                 }
 
                 // Add timeout to prevent hanging
                 const timeout = setTimeout(() => {
-                    console.log('[content] Auto-login credentials timeout');
+                    consoleLog('[content] Auto-login credentials timeout');
                     resolve(null);
                 }, 5000);
 
@@ -30,7 +31,7 @@ export const autoLoginHelper = {
                         clearTimeout(timeout);
 
                         if (chrome.runtime.lastError) {
-                            console.log(
+                            consoleError(
                                 '[content] Runtime error in auto-login:',
                                 chrome.runtime.lastError,
                             );
@@ -39,7 +40,7 @@ export const autoLoginHelper = {
                         }
 
                         if (!response) {
-                            console.log('[content] No response from background for auto-login');
+                            consoleLog('[content] No response from background for auto-login');
                             resolve(null);
                             return;
                         }
@@ -52,7 +53,7 @@ export const autoLoginHelper = {
                     },
                 );
             } catch (error) {
-                console.log('[content] Error loading auto-login credentials:', error);
+                consoleError('[content] Error loading auto-login credentials:', error);
                 resolve(null);
             }
         });
@@ -66,7 +67,7 @@ export const autoLoginHelper = {
             const credentials = await this.loadCredentials();
             return !!credentials;
         } catch (error) {
-            console.log('Failed to check auto-login status:', error);
+            consoleError('Failed to check auto-login status:', error);
             return false;
         }
     },

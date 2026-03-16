@@ -9,7 +9,7 @@ export class StorageHandler {
 
     setupStorageListener(): void {
         onStorageChange('unauthorized', async (newValue, oldValue) => {
-            await this.handleUnauthorizedChange(newValue, oldValue);
+            await this.handleUnauthorizedChange(Boolean(newValue), Boolean(oldValue));
         });
 
         onStorageChange('user_session', async newValue => {

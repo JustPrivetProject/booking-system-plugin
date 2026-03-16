@@ -122,6 +122,10 @@ describe('MessageHandler', () => {
         mockExtractFirstId = utils.extractFirstId = jest.fn();
         mockGetPropertyById = utils.getPropertyById = jest.fn();
         mockNormalizeFormData = utils.normalizeFormData = jest.fn();
+        utils.getFirstFormDataString = jest.fn(values => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        });
         mockGetLogsFromSession = utils.getLogsFromSession = jest.fn();
         mockClearLogsInSession = utils.clearLogsInSession = jest.fn();
         mockGetLocalStorageData = utils.getLocalStorageData = jest.fn();

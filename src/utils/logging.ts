@@ -1,17 +1,34 @@
+/* eslint-disable no-console */
 import { LOGS_LENGTH } from '../data';
 import { errorLogService } from '../services/errorLogService';
 
-export function consoleLog(...args: any[]) {
+type LogType = 'log' | 'error';
+
+export interface SessionLogEntry {
+    type: LogType;
+    message: string;
+    timestamp: string;
+}
+
+function formatLogMessage(args: unknown[]): string {
+    return args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' ');
+}
+
+function getTimestampPrefix(): [string, string, string] {
+    const date = new Date().toLocaleString('pl-PL', {
+        timeZone: 'Europe/Warsaw',
+    });
+
+    return [
+        `%c[${date}] %c[JustPrivetProject]:`,
+        'color: #00bfff; font-weight: bold;',
+        'color: #ff8c00; font-weight: bold;',
+    ];
+}
+
+export function consoleLog(...args: unknown[]) {
     if (process.env.NODE_ENV === 'development') {
-        const date = new Date().toLocaleString('pl-PL', {
-            timeZone: 'Europe/Warsaw',
-        });
-        console.log(
-            `%c[${date}] %c[JustPrivetProject]:`,
-            'color: #00bfff; font-weight: bold;',
-            'color: #ff8c00; font-weight: bold;',
-            ...args,
-        );
+        console.log(...getTimestampPrefix(), ...args);
     }
     // Save log to chrome.storage.session
     saveLogToSession('log', args).catch(e => {
@@ -19,21 +36,13 @@ export function consoleLog(...args: any[]) {
     });
 }
 
-export function consoleLogWithoutSave(...args: any[]) {
+export function consoleLogWithoutSave(...args: unknown[]) {
     if (process.env.NODE_ENV === 'development') {
-        const date = new Date().toLocaleString('pl-PL', {
-            timeZone: 'Europe/Warsaw',
-        });
-        console.log(
-            `%c[${date}] %c[JustPrivetProject]:`,
-            'color: #00bfff; font-weight: bold;',
-            'color: #ff8c00; font-weight: bold;',
-            ...args,
-        );
+        console.log(...getTimestampPrefix(), ...args);
     }
 }
 
-export function consoleError(...args: any[]) {
+export function consoleError(...args: unknown[]) {
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
     });
@@ -58,28 +67,28 @@ export function consoleError(...args: any[]) {
 }
 
 // Async helpers for chrome.storage.session
-export async function saveLogToSession(type: 'log' | 'error', args: any[]) {
+export async function saveLogToSession(type: LogType, args: unknown[]) {
     return new Promise<void>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+        chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+            const nextLogs = [...bramaLogs];
             // Add new log entry
-            bramaLogs.push({
+            nextLogs.push({
                 type,
-                message: args.map(String).join(' '),
+                message: formatLogMessage(args),
                 timestamp: new Date().toISOString(),
             });
             // Keep only the last LOGS_LENGTH entries
-            if (bramaLogs.length > LOGS_LENGTH) {
-                bramaLogs = bramaLogs.slice(-LOGS_LENGTH);
-            }
+            const trimmedLogs =
+                nextLogs.length > LOGS_LENGTH ? nextLogs.slice(-LOGS_LENGTH) : nextLogs;
 
-            chrome.storage.session.set({ bramaLogs }, () => resolve());
+            chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => resolve());
         });
     });
 }
 
 export async function getLogsFromSession() {
-    return new Promise<any[]>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
+    return new Promise<SessionLogEntry[]>(resolve => {
+        chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
             resolve(bramaLogs);
         });
     });

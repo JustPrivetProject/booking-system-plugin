@@ -1,4 +1,5 @@
 import { Actions } from '../../data';
+import { consoleError, consoleLog } from '../../utils';
 
 import type { AutoLoginCredentials } from './autoLoginHelper';
 import { autoLoginHelper } from './autoLoginHelper';
@@ -29,12 +30,12 @@ export function sendActionAfterElementDisappears(selector, action, messageOrFn, 
  */
 export function sendActionToBackground(action, message, callback) {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        console.log('Chrome runtime API is not available');
+        consoleLog('Chrome runtime API is not available');
         return;
     }
     chrome.runtime.sendMessage({ action, message }, response => {
         if (chrome.runtime.lastError) {
-            console.log(`Error sending ${action} message:`, chrome.runtime.lastError);
+            consoleError(`Error sending ${action} message:`, chrome.runtime.lastError);
         }
         if (typeof callback === 'function') {
             callback(response);
@@ -74,7 +75,7 @@ export function waitForElement(selector, callback) {
 export function waitElementAndSendChromeMessage(selector, action, actionFunction) {
     contentUtils.waitForElement(selector, () => {
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-            console.log('Chrome runtime API is not available');
+            consoleLog('Chrome runtime API is not available');
             return;
         }
 
@@ -82,7 +83,7 @@ export function waitElementAndSendChromeMessage(selector, action, actionFunction
             const parsedData = actionFunction();
             contentUtils.sendActionToBackground(action, parsedData, undefined);
         } catch (error) {
-            console.log(`Error processing ${action}:`, error);
+            consoleError(`Error processing ${action}:`, error);
         }
     });
 }
@@ -125,13 +126,13 @@ export function isUserAuthenticated(): Promise<boolean> {
     return new Promise(resolve => {
         try {
             if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                console.log('[content] Chrome runtime not available');
+                consoleLog('[content] Chrome runtime not available');
                 return resolve(false);
             }
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
-                console.log('[content] isUserAuthenticated timeout');
+                consoleLog('[content] isUserAuthenticated timeout');
                 resolve(false);
             }, 5000);
 
@@ -139,19 +140,19 @@ export function isUserAuthenticated(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    console.log('[content] Runtime error:', chrome.runtime.lastError);
+                    consoleError('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
                 if (!response) {
-                    console.log('[content] No response from background');
+                    consoleLog('[content] No response from background');
                     return resolve(false);
                 }
 
                 resolve(response.isAuthenticated === true);
             });
         } catch (error) {
-            console.log('[content] Error in isUserAuthenticated:', error);
+            consoleError('[content] Error in isUserAuthenticated:', error);
             resolve(false);
         }
     });
@@ -161,13 +162,13 @@ export function isAppUnauthorized(): Promise<boolean> {
     return new Promise(resolve => {
         try {
             if (!chrome.runtime || !chrome.runtime.sendMessage) {
-                console.log('[content] Chrome runtime not available');
+                consoleLog('[content] Chrome runtime not available');
                 return resolve(false);
             }
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
-                console.log('[content] isAppUnauthorized timeout');
+                consoleLog('[content] isAppUnauthorized timeout');
                 resolve(false);
             }, 5000);
 
@@ -175,19 +176,19 @@ export function isAppUnauthorized(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    console.log('[content] Runtime error:', chrome.runtime.lastError);
+                    consoleError('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
                 if (!response) {
-                    console.log('[content] No response from background');
+                    consoleLog('[content] No response from background');
                     return resolve(false);
                 }
 
                 resolve(response.unauthorized);
             });
         } catch (error) {
-            console.log('[content] Error in isAppUnauthorized:', error);
+            consoleError('[content] Error in isAppUnauthorized:', error);
             resolve(false);
         }
     });
@@ -220,19 +221,19 @@ export async function tryClickLoginButton() {
             autoLoginHelper.fillLoginForm(autoLoginCredentials);
         }
     } catch (error) {
-        console.log('[content] Error loading auto-login credentials:', error);
+        consoleError('[content] Error loading auto-login credentials:', error);
     }
 
     // Step 3: Find and click login button
     const button = document.querySelector<HTMLButtonElement>(LOGIN_BUTTON_SELECTOR);
     if (!button) {
-        console.log('[content] Login button not found');
+        consoleLog('[content] Login button not found');
         return;
     }
 
     button.click();
 
-    console.log('[content] Manual login successful');
+    consoleLog('[content] Manual login successful');
     contentUtils.sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
 }
 
@@ -240,11 +241,11 @@ export function clickLoginButton() {
     const LOGIN_BUTTON_SELECTOR = 'a.product-box[href="/login"]';
     const button = document.querySelector<HTMLButtonElement>(LOGIN_BUTTON_SELECTOR);
     if (!button) {
-        console.log('[content] Login button not found');
+        consoleLog('[content] Login button not found');
         return;
     }
 
-    console.log('[content] Clicking login button...');
+    consoleLog('[content] Clicking login button...');
     button.click();
 }
 
@@ -256,13 +257,13 @@ export function checkExtensionConnection(): Promise<boolean> {
     return new Promise(resolve => {
         try {
             if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-                console.log('[content] Chrome runtime API is not available');
+                consoleLog('[content] Chrome runtime API is not available');
                 return resolve(false);
             }
 
             // Add timeout to prevent hanging
             const timeout = setTimeout(() => {
-                console.log('[content] Extension connection check timeout');
+                consoleLog('[content] Extension connection check timeout');
                 resolve(false);
             }, 5000);
 
@@ -271,7 +272,7 @@ export function checkExtensionConnection(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    console.log('[content] Extension connection error:', chrome.runtime.lastError);
+                    consoleError('[content] Extension connection error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
@@ -279,19 +280,19 @@ export function checkExtensionConnection(): Promise<boolean> {
                 // Even if user is not authenticated, we should get a response object
                 // Only show warning if there's no response (connection issue)
                 if (response === undefined || response === null) {
-                    console.log('[content] No response from extension - connection issue');
+                    consoleLog('[content] No response from extension - connection issue');
                     return resolve(false);
                 }
 
                 // If we got a response (even with isAuthenticated: false), connection is OK
-                console.log(
+                consoleLog(
                     '[content] Extension connection OK, auth status:',
                     response.isAuthenticated,
                 );
                 resolve(true);
             });
         } catch (error) {
-            console.log('[content] Error checking extension connection:', error);
+            consoleError('[content] Error checking extension connection:', error);
             resolve(false);
         }
     });
@@ -306,14 +307,14 @@ export async function checkConnectionAndShowWarning(): Promise<boolean> {
     const isConnected = await contentUtils.checkExtensionConnection();
 
     if (!isConnected) {
-        console.log('[content] Extension connection lost, showing warning modal');
+        consoleLog('[content] Extension connection lost, showing warning modal');
 
         // Dynamically import the modal to avoid circular dependencies
         try {
             const { showExtensionWarningModal } = await import('../modals/extensionWarningModal');
             await showExtensionWarningModal();
         } catch (error) {
-            console.log('[content] Error loading extension warning modal:', error);
+            consoleError('[content] Error loading extension warning modal:', error);
         }
 
         return false;

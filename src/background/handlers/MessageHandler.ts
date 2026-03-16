@@ -4,6 +4,7 @@ import { autoLoginService } from '../../services/autoLoginService';
 import { getDriverNameAndContainer } from '../../services/baltichub';
 import { errorLogService } from '../../services/errorLogService';
 import { featureAccessService } from '../../services/featureAccessService';
+import type { FeatureKey } from '../../services/featureAccessService';
 import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { sessionService } from '../../services/sessionService';
 import type {
@@ -11,6 +12,7 @@ import type {
     RequestCacheBodyObject,
     RetryObject,
     LocalStorageData,
+    TableData,
 } from '../../types/index';
 import type { RequestCacheBodes, RequestCacheHeaders } from '../../types/baltichub';
 import {
@@ -18,6 +20,7 @@ import {
     consoleError,
     getLastProperty,
     normalizeFormData,
+    getFirstFormDataString,
     getPropertyById,
     getLogsFromSession,
     clearLogsInSession,
@@ -25,7 +28,52 @@ import {
     consoleLogWithoutSave,
 } from '../../utils';
 import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
-import { ContainerCheckerHandler } from './ContainerCheckerHandler';
+import { ContainerCheckerHandler, type ContainerCheckerMessage } from './ContainerCheckerHandler';
+
+type SendResponse = (response?: unknown) => void;
+
+interface BackgroundMessageData {
+    id?: string;
+    ids?: string[];
+    status?: string;
+    status_message?: string;
+    description?: string | null;
+    featureKey?: string;
+}
+
+interface HandlerMessage {
+    action?: string;
+    target?: string;
+    data?: BackgroundMessageData;
+    message?: unknown;
+    type?: string;
+}
+
+interface CachedHeadersPayload {
+    requestCacheHeaders?: RequestCacheHeaders;
+}
+
+interface RetryObjectContext {
+    tableData?: TableData;
+    retryQueue?: RetryObject[];
+    requestCacheBody?: RequestCacheBodes;
+}
+
+interface AuthAttemptPayload {
+    success?: boolean;
+}
+
+function getAuthAttemptPayload(message: HandlerMessage): AuthAttemptPayload {
+    if (!message.message || typeof message.message !== 'object') {
+        return {};
+    }
+
+    return message.message as AuthAttemptPayload;
+}
+
+function getTablePayload(message: HandlerMessage): TableData | null {
+    return Array.isArray(message.message) ? (message.message as TableData) : null;
+}
 
 export class MessageHandler {
     private containerCheckerHandler: ContainerCheckerHandler;
@@ -35,9 +83,9 @@ export class MessageHandler {
     }
 
     handleMessage(
-        message: any,
-        sender: chrome.runtime.MessageSender,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        _sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
     ): boolean {
         // Handle error and success booking actions
         if (message.action === Actions.SHOW_ERROR || message.action === Actions.SUCCEED_BOOKING) {
@@ -97,8 +145,8 @@ export class MessageHandler {
     }
 
     private async handleBookingAction(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
         consoleLog('Getting request from Cache...');
 
@@ -129,9 +177,9 @@ export class MessageHandler {
     }
 
     private async processCachedRequest(
-        data: any,
-        message: any,
-        sendResponse: (response?: any) => void,
+        data: CachedHeadersPayload,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
         // Use the same requestId for both headers and body to avoid mismatch
         // Get the last requestId (most recent) to match with getLastProperty
@@ -148,7 +196,7 @@ export class MessageHandler {
 
         // Get headers for the selected requestId
         const requestCacheHeaders: RequestCacheHeaderBody | null = getLastProperty(
-            data.requestCacheHeaders,
+            data.requestCacheHeaders || {},
         );
 
         // Validate that the cached request is not too old (more than 5 minutes)
@@ -183,12 +231,16 @@ export class MessageHandler {
         );
 
         try {
-            const storageData = await getStorage([
+            if (!requestCacheHeaders) {
+                throw new Error('No cached request headers found');
+            }
+
+            const storageData = (await getStorage([
                 'requestCacheBody',
                 'retryQueue',
                 'testEnv',
                 'tableData',
-            ]);
+            ])) as RetryObjectContext & { requestCacheBody?: RequestCacheBodes };
 
             const cachedBodyKeys = Object.keys(storageData.requestCacheBody || {});
             consoleLog(
@@ -198,16 +250,18 @@ export class MessageHandler {
                 `Total cached bodies=${cachedBodyKeys.length}`,
             );
 
+            const cachedBodies: RequestCacheBodes =
+                storageData.requestCacheBody ?? ({} as RequestCacheBodes);
             const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
-                storageData.requestCacheBody || {},
+                cachedBodies,
                 requestId,
             );
 
             if (requestCacheBody) {
                 const retryObject = await this.createRetryObject(
                     requestCacheBody,
-                    requestCacheHeaders!,
-                    storageData,
+                    requestCacheHeaders,
+                    storageData as RetryObjectContext,
                     message.action,
                 );
 
@@ -258,8 +312,8 @@ export class MessageHandler {
                 getStorage('requestCacheHeaders'),
             ]);
 
-            const cacheBody: RequestCacheBodes = bodyData.requestCacheBody || {};
-            const cacheHeaders: RequestCacheHeaders = headersData.requestCacheHeaders || {};
+            const cacheBody: RequestCacheBodes = bodyData.requestCacheBody ?? {};
+            const cacheHeaders: RequestCacheHeaders = headersData.requestCacheHeaders ?? {};
 
             let removed = false;
 
@@ -299,8 +353,8 @@ export class MessageHandler {
     private async createRetryObject(
         requestCacheBody: RequestCacheBodyObject,
         requestCacheHeaders: RequestCacheHeaderBody,
-        data: any,
-        action: string,
+        data: RetryObjectContext,
+        action?: string,
     ): Promise<RetryObject> {
         const tableData = data.tableData;
         const retryObject: RetryObject = {
@@ -316,7 +370,7 @@ export class MessageHandler {
         };
 
         const requestBody = normalizeFormData(requestCacheBody.body);
-        const tvAppId = requestBody.formData.TvAppId[0];
+        const tvAppId = getFirstFormDataString(requestBody.formData?.TvAppId) || '';
 
         const driverAndContainer = (await getDriverNameAndContainer(
             tvAppId,
@@ -328,12 +382,12 @@ export class MessageHandler {
 
         retryObject.headersCache = requestCacheHeaders.headers;
         retryObject.tvAppId = tvAppId;
-        retryObject.startSlot = requestBody.formData.SlotStart[0];
-        retryObject.endSlot = requestBody.formData.SlotEnd[0];
+        retryObject.startSlot = getFirstFormDataString(requestBody.formData?.SlotStart) || '';
+        retryObject.endSlot = getFirstFormDataString(requestBody.formData?.SlotEnd) || '';
         retryObject.driverName = driverAndContainer.driverName || '';
         retryObject.containerNumber = driverAndContainer.containerNumber || '';
 
-        const slotTypeFromForm = requestBody.formData?.SlotType?.[0];
+        const slotTypeFromForm = getFirstFormDataString(requestBody.formData?.SlotType);
         const parsedSlotType = Number(slotTypeFromForm);
         if (!Number.isNaN(parsedSlotType) && parsedSlotType > 0) {
             retryObject.slotType = parsedSlotType;
@@ -345,7 +399,7 @@ export class MessageHandler {
         }
 
         if (tableData) {
-            let tableRow = null;
+            let tableRow: TableData[number] | undefined;
             consoleLog('Getting table data...');
             if (driverAndContainer.containerNumber) {
                 const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
@@ -411,12 +465,19 @@ export class MessageHandler {
     }
 
     private async handleTableParsing(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
         try {
-            await setStorage({ tableData: message.message });
-            consoleLog('Table saved in the storage', message.message);
+            const tableData = getTablePayload(message);
+
+            if (!tableData) {
+                sendResponse({ success: false, error: 'Invalid table data payload' });
+                return;
+            }
+
+            await setStorage({ tableData });
+            consoleLog('Table saved in the storage', tableData);
             sendResponse({ success: true });
         } catch (error) {
             consoleError('Error saving table data:', error);
@@ -424,7 +485,7 @@ export class MessageHandler {
         }
     }
 
-    private handleAuthenticationCheck(sendResponse: (response?: any) => void): void {
+    private handleAuthenticationCheck(sendResponse: SendResponse): void {
         sessionService
             .isAuthenticated()
             .then(isAuth => {
@@ -437,7 +498,7 @@ export class MessageHandler {
             });
     }
 
-    private handleAuthStatusCheck(sendResponse: (response?: any) => void): void {
+    private handleAuthStatusCheck(sendResponse: SendResponse): void {
         getStorage('unauthorized')
             .then(({ unauthorized }) => {
                 const isUnauthorized = !!unauthorized;
@@ -450,10 +511,10 @@ export class MessageHandler {
     }
 
     private async handleLoginSuccess(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
-        const { success } = message.message || {};
+        const { success } = getAuthAttemptPayload(message);
         consoleLog('[background] LOGIN_SUCCESS:', success);
 
         if (success) {
@@ -475,10 +536,10 @@ export class MessageHandler {
     }
 
     private async handleAutoLoginAttempt(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
-        const { success } = message.message || {};
+        const { success } = getAuthAttemptPayload(message);
 
         if (success) {
             try {
@@ -499,7 +560,7 @@ export class MessageHandler {
         }
     }
 
-    private handleLoadAutoLoginCredentials(sendResponse: (response?: any) => void): void {
+    private handleLoadAutoLoginCredentials(sendResponse: SendResponse): void {
         autoLoginService
             .loadCredentials()
             .then(credentials => {
@@ -541,17 +602,24 @@ export class MessageHandler {
             });
     }
 
-    private handleAutoLoginEnabledCheck(sendResponse: (response?: any) => void): void {
+    private handleAutoLoginEnabledCheck(sendResponse: SendResponse): void {
         autoLoginService.isEnabled().then(isEnabled => {
             sendResponse({ success: true, isEnabled });
         });
     }
 
-    private handleBackgroundActions(message: any, sendResponse: (response?: any) => void): boolean {
+    private handleBackgroundActions(message: HandlerMessage, sendResponse: SendResponse): boolean {
+        const data = message.data || {};
+
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
+                if (!data.id) {
+                    sendResponse({ success: false, error: 'Request id is required' });
+                    return true;
+                }
+
                 this.queueManager
-                    .removeFromQueue(message.data.id)
+                    .removeFromQueue(data.id)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
                         consoleError('Error removing request:', error);
@@ -560,8 +628,13 @@ export class MessageHandler {
                 return true;
 
             case Actions.REMOVE_MULTIPLE_REQUESTS:
+                if (!data.ids) {
+                    sendResponse({ success: false, error: 'Request ids are required' });
+                    return true;
+                }
+
                 this.queueManager
-                    .removeMultipleFromQueue(message.data.ids)
+                    .removeMultipleFromQueue(data.ids)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
                         consoleError('Error removing multiple requests:', error);
@@ -570,10 +643,15 @@ export class MessageHandler {
                 return true;
 
             case Actions.UPDATE_REQUEST_STATUS:
+                if (!data.id || !data.status || !data.status_message) {
+                    sendResponse({ success: false, error: 'Status update payload is incomplete' });
+                    return true;
+                }
+
                 this.queueManager
-                    .updateQueueItem(message.data.id, {
-                        status: message.data.status,
-                        status_message: message.data.status_message,
+                    .updateQueueItem(data.id, {
+                        status: data.status,
+                        status_message: data.status_message,
                     })
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -583,10 +661,18 @@ export class MessageHandler {
                 return true;
 
             case Actions.UPDATE_MULTIPLE_REQUESTS_STATUS:
+                if (!data.ids || !data.status || !data.status_message) {
+                    sendResponse({
+                        success: false,
+                        error: 'Bulk status update payload is incomplete',
+                    });
+                    return true;
+                }
+
                 this.queueManager
-                    .updateMultipleQueueItems(message.data.ids, {
-                        status: message.data.status,
-                        status_message: message.data.status_message,
+                    .updateMultipleQueueItems(data.ids, {
+                        status: data.status,
+                        status_message: data.status_message,
                     })
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -600,7 +686,7 @@ export class MessageHandler {
                 return true;
 
             case Actions.GET_FEATURE_ACCESS:
-                if (!message.data?.featureKey) {
+                if (!data.featureKey) {
                     sendResponse({
                         success: false,
                         enabled: false,
@@ -610,7 +696,7 @@ export class MessageHandler {
                 }
 
                 featureAccessService
-                    .isFeatureEnabled(message.data.featureKey)
+                    .isFeatureEnabled(data.featureKey as FeatureKey)
                     .then(enabled => sendResponse({ success: true, enabled }))
                     .catch(error => {
                         consoleError('Error getting feature access:', error);
@@ -630,11 +716,11 @@ export class MessageHandler {
     }
 
     private handleContainerCheckerActions(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): boolean {
         this.containerCheckerHandler
-            .handleMessage(message)
+            .handleMessage(message as ContainerCheckerMessage)
             .then(result => sendResponse({ ok: true, result }))
             .catch(error =>
                 sendResponse({
@@ -646,8 +732,8 @@ export class MessageHandler {
     }
 
     private async handleSendLogs(
-        message: any,
-        sendResponse: (response?: any) => void,
+        message: HandlerMessage,
+        sendResponse: SendResponse,
     ): Promise<void> {
         const user = await authService.getCurrentUser();
 
@@ -675,7 +761,7 @@ export class MessageHandler {
             } else {
                 userId = await getOrCreateDeviceId();
             }
-            const description = message.data?.description || null;
+            const description = message.data?.description || undefined;
 
             if (logs && logs.length > 0) {
                 await errorLogService.sendLogs(logs, userId, description, localData || undefined);

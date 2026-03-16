@@ -1,13 +1,19 @@
 import { consoleLog, type ErrorType } from '../utils/index';
 import type { LocalStorageData } from '../types/index';
+import type { SessionLogEntry } from '../utils/logging';
 
 import { supabase } from './supabaseClient';
+
+type JsonObject = Record<string, unknown>;
+type SanitizedLocalStorageData = Omit<LocalStorageData, 'autoLoginData'> & {
+    autoLoginData: boolean;
+};
 
 interface ErrorLog {
     error_message: string;
     error_stack?: string;
     source: string;
-    additional_data?: Record<string, any>;
+    additional_data?: JsonObject;
     created_at?: string;
 }
 
@@ -20,7 +26,7 @@ interface RequestErrorLog extends ErrorLog {
 }
 
 export const errorLogService = {
-    async logError(error: Error | string, source: string, additionalData?: Record<string, any>) {
+    async logError(error: Error | string, source: string, additionalData?: JsonObject) {
         const errorLog: ErrorLog = {
             error_message: typeof error === 'string' ? error : error.message,
             error_stack: error instanceof Error ? error.stack : undefined,
@@ -47,7 +53,7 @@ export const errorLogService = {
         status?: number,
         attempt?: number,
         responseText?: string,
-        additionalData?: Record<string, any>,
+        additionalData?: JsonObject,
     ) {
         const requestErrorLog: RequestErrorLog = {
             error_message: message,
@@ -74,20 +80,27 @@ export const errorLogService = {
         }
     },
     async sendLogs(
-        logs: any[],
+        logs: SessionLogEntry[],
         userId?: string,
         description?: string,
         localData?: LocalStorageData,
     ) {
         if (!Array.isArray(logs) || logs.length === 0) return;
+        let sanitizedLocalData: LocalStorageData | SanitizedLocalStorageData | null =
+            localData ?? null;
+
         if (localData && localData.autoLoginData) {
             // Hide sensitive auto login data, preserve presence flag
-            (localData as any).autoLoginData = true;
+            sanitizedLocalData = {
+                ...localData,
+                autoLoginData: true,
+            };
         }
+
         const logRow = {
             user_id: userId || null,
             log: logs,
-            local_storage_data: localData || null,
+            local_storage_data: sanitizedLocalData,
             source: null,
             description: description || null,
             created_at: new Date().toISOString(),

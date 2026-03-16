@@ -20,6 +20,7 @@ import {
     getStorage,
     consoleLogWithoutSave,
     normalizeFormData,
+    getFirstFormDataString,
 } from '../utils/index';
 import { Statuses, ErrorType, Messages } from '../data';
 import {
@@ -172,7 +173,7 @@ export class QueueManager implements IQueueManager {
 
     async getQueue(): Promise<RetryObject[]> {
         const result = await getStorage(this.config.storageKey);
-        return result[this.config.storageKey] || [];
+        return (result[this.config.storageKey] as RetryObject[] | undefined) || [];
     }
 
     async updateEntireQueue(newQueue: RetryObject[]): Promise<RetryObject[]> {
@@ -463,13 +464,13 @@ export class QueueManager implements IQueueManager {
                     );
                 } else if (req.body) {
                     const body = normalizeFormData(req.body).formData;
-                    date = body.SlotStart[0].split(' ')[0]; // "07.08.2025"
+                    date = (getFirstFormDataString(body?.SlotStart) || '').split(' ')[0]; // "07.08.2025"
                     consoleLogWithoutSave(
                         '📅 Using date from cached body:',
                         `RequestId=${req.id}`,
                         `tvAppId=${req.tvAppId}`,
                         `Date=${date}`,
-                        `Cached SlotStart=${body.SlotStart[0]}`,
+                        `Cached SlotStart=${getFirstFormDataString(body?.SlotStart) || ''}`,
                     );
                 } else {
                     consoleError(`Request ${req.id} has no startSlot and no body, skipping`);
@@ -533,7 +534,7 @@ export class QueueManager implements IQueueManager {
         for (const req of requests) {
             try {
                 const body = normalizeFormData(req.body).formData;
-                const tvAppId = body.TvAppId[0];
+                const tvAppId = getFirstFormDataString(body?.TvAppId) || '';
 
                 // Use time from req.startSlot if available (the time we're actually searching for),
                 // otherwise fall back to cached time from body.SlotStart
@@ -543,7 +544,7 @@ export class QueueManager implements IQueueManager {
                 if (req.startSlot) {
                     time = req.startSlot.split(' ');
                 } else {
-                    time = body.SlotStart[0].split(' ');
+                    time = (getFirstFormDataString(body?.SlotStart) || '').split(' ');
                 }
 
                 // Validate time array format
@@ -611,31 +612,20 @@ export class QueueManager implements IQueueManager {
 
                 // Reset updated flag before new attempt to allow fresh error detection
                 // Create a copy to avoid mutating the original request object
-                const reqForProcessing = req.updated
+                const clonedBody = {
+                    ...req.body,
+                    formData: req.body.formData ? { ...req.body.formData } : undefined,
+                };
+
+                const reqForProcessing: RetryObject = req.updated
                     ? {
                           ...req,
                           updated: false,
-                          // Deep copy body to avoid mutations affecting other requests
-                          body: req.body
-                              ? {
-                                    ...req.body,
-                                    formData: req.body.formData
-                                        ? { ...req.body.formData }
-                                        : undefined,
-                                }
-                              : undefined,
+                          body: clonedBody,
                       }
                     : {
                           ...req,
-                          // Deep copy body to avoid mutations affecting other requests
-                          body: req.body
-                              ? {
-                                    ...req.body,
-                                    formData: req.body.formData
-                                        ? { ...req.body.formData }
-                                        : undefined,
-                                }
-                              : undefined,
+                          body: clonedBody,
                       };
 
                 // Slot available - execute request

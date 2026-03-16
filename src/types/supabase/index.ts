@@ -1,4 +1,5 @@
 import type { Database } from './database';
+import type { User } from '@supabase/supabase-js';
 
 // Извлекаем типы из автогенерированных
 export type Tables<T extends keyof Database['public']['Tables']> =
@@ -18,14 +19,14 @@ export type FeatureAccessUpdate = TablesUpdate<'feature_access'>;
 
 // Кастомные типы для приложения
 export interface AuthState {
-    user: any | null;
+    user: User | null;
     loading: boolean;
     error: string | null;
 }
 
 export interface ChromeMessage {
     type: string;
-    payload?: any;
+    payload?: unknown;
 }
 
 // Реэкспорт типов Supabase

@@ -1,4 +1,4 @@
-import { getStorage, setStorage, removeStorage } from '../utils';
+import { consoleError, consoleLog, getStorage, removeStorage, setStorage } from '../utils';
 
 import { authService } from './authService';
 
@@ -22,7 +22,7 @@ const CRYPTO_SECRET_KEY = process.env.CRYPTO_SECRET_KEY || 'your-secret-key-here
 
 // Validate that we have a proper secret key
 if (CRYPTO_SECRET_KEY === 'your-secret-key-here') {
-    console.log(
+    consoleLog(
         'CRYPTO_SECRET_KEY is using default value. Please set a proper secret key in .env file',
     );
 }
@@ -46,7 +46,7 @@ function encrypt(text: string): string {
         const binaryString = String.fromCharCode(...encryptedBytes);
         return btoa(binaryString);
     } catch (error) {
-        console.log('Encryption failed:', error);
+        consoleError('Encryption failed:', error);
         return '';
     }
 }
@@ -74,7 +74,7 @@ function decrypt(encryptedText: string): string {
         const textDecoder = new TextDecoder('utf-8');
         return textDecoder.decode(decryptedBytes);
     } catch (error) {
-        console.log('Failed to decrypt auto-login data:', error);
+        consoleError('Failed to decrypt auto-login data:', error);
         return '';
     }
 }
@@ -111,7 +111,7 @@ export const autoLoginService = {
                 password: decrypt(autoLoginData.password),
             };
         } catch (error) {
-            console.log('Failed to load auto-login credentials:', error);
+            consoleError('Failed to load auto-login credentials:', error);
             return null;
         }
     },
@@ -125,7 +125,7 @@ export const autoLoginService = {
             const autoLoginData = result[AUTO_LOGIN_STORAGE_KEY] as AutoLoginData | undefined;
             return !!(autoLoginData && autoLoginData.enabled);
         } catch (error) {
-            console.log('Failed to check auto-login status:', error);
+            consoleError('Failed to check auto-login status:', error);
             return false;
         }
     },
@@ -155,7 +155,7 @@ export const autoLoginService = {
                 credentials.password.length > 0
             );
         } catch (error) {
-            console.log('Failed to load auto-login credentials:', error);
+            consoleError('Failed to load auto-login credentials:', error);
             return false;
         }
     },
@@ -167,11 +167,11 @@ export const autoLoginService = {
         try {
             const isValid = await this.validateStoredCredentials();
             if (!isValid) {
-                console.log('Detected corrupted auto-login credentials, clearing...');
+                consoleLog('Detected corrupted auto-login credentials, clearing...');
                 await this.clearCredentials();
             }
         } catch (error) {
-            console.log('Failed to check for corrupted credentials:', error);
+            consoleError('Failed to check for corrupted credentials:', error);
             // If we can't even check, clear anyway to be safe
             await this.clearCredentials();
         }
@@ -185,7 +185,7 @@ export const autoLoginService = {
             const result = await getStorage([AUTO_LOGIN_STORAGE_KEY]);
             return (result[AUTO_LOGIN_STORAGE_KEY] as AutoLoginData | undefined) || null;
         } catch (error) {
-            console.log('Failed to get auto-login data:', error);
+            consoleError('Failed to get auto-login data:', error);
             return null;
         }
     },
@@ -217,7 +217,7 @@ export const autoLoginService = {
             const user = await authService.login(credentials.login, credentials.password);
             return !!user;
         } catch (error) {
-            console.log('Auto-login failed:', error);
+            consoleError('Auto-login failed:', error);
             return false;
         }
     },
@@ -233,7 +233,7 @@ export const autoLoginService = {
                 await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData });
             }
         } catch (error) {
-            console.log('Failed to disable auto-login:', error);
+            consoleError('Failed to disable auto-login:', error);
         }
     },
 
@@ -248,7 +248,7 @@ export const autoLoginService = {
                 await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData });
             }
         } catch (error) {
-            console.log('Failed to enable auto-login:', error);
+            consoleError('Failed to enable auto-login:', error);
         }
     },
 
@@ -265,14 +265,14 @@ export const autoLoginService = {
             // Try to load credentials to check if they're valid
             const credentials = await this.loadCredentials();
             if (!credentials) {
-                console.log('Clearing corrupted auto-login data during migration');
+                consoleLog('Clearing corrupted auto-login data during migration');
                 await this.clearCredentials();
                 return;
             }
 
             // Check if credentials are valid (not empty)
             if (credentials.login.length === 0 || credentials.password.length === 0) {
-                console.log('Clearing corrupted auto-login data during migration');
+                consoleLog('Clearing corrupted auto-login data during migration');
                 await this.clearCredentials();
                 return;
             }
@@ -280,7 +280,7 @@ export const autoLoginService = {
             // Re-encrypt with current encryption method
             await this.saveCredentials(credentials);
         } catch (error) {
-            console.log('Failed to migrate auto-login data:', error);
+            consoleError('Failed to migrate auto-login data:', error);
             await this.clearCredentials();
         }
     },
@@ -313,10 +313,10 @@ export const autoLoginService = {
                 decrypted.login === testCredentials.login &&
                 decrypted.password === testCredentials.password;
 
-            console.log('Encryption test result:', isValid);
+            consoleLog('Encryption test result:', isValid);
             return !!isValid;
         } catch (error) {
-            console.error('Encryption test failed:', error);
+            consoleError('Encryption test failed:', error);
             return false;
         }
     },

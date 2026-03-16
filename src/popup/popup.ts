@@ -10,6 +10,7 @@ import {
     // getOrCreateDeviceId,
     sortStatusesByPriority,
     normalizeFormData,
+    getFirstFormDataString,
 } from '../utils/index';
 
 import { showAutoLoginModal } from './modals/autoLogin.modal';
@@ -25,11 +26,25 @@ import { initContainerCheckerUI } from './containerChecker';
 
 type PopupTab = 'booking' | 'containerChecker' | 'gct';
 
+interface PopupWindow extends Window {
+    _toggleHeaderReset?: () => Promise<void>;
+}
+
 const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
 
 let activePopupTab: PopupTab = 'booking';
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
+
+function requireElement<T extends HTMLElement>(id: string): T {
+    const element = document.getElementById(id);
+
+    if (!element) {
+        throw new Error(`Missing required element: ${id}`);
+    }
+
+    return element as T;
+}
 
 function initContainerCheckerUiOnce(): void {
     if (isContainerCheckerUiInitialized) {
@@ -159,10 +174,11 @@ async function restoreGroupStates() {
         const { groupStates = {} } = await chrome.storage.local.get('groupStates');
 
         document.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
-            const groupRow: HTMLElement = header.closest('.group-row')!;
+            const groupRow = header.closest<HTMLElement>('.group-row');
             if (!groupRow) return;
 
-            const groupId = groupRow.dataset.groupId!;
+            const groupId = groupRow.dataset.groupId;
+            if (!groupId) return;
             const isOpen = groupStates[groupId] || false;
             groupRow.dataset.isOpen = isOpen;
             // Update header state
@@ -298,7 +314,7 @@ async function updateQueueDisplay() {
             return acc;
         }, {});
 
-        const tableBody = document.getElementById('queueTableBody')!;
+        const tableBody = requireElement<HTMLElement>('queueTableBody');
         tableBody.innerHTML = ''; // Clear the table
 
         const data = Object.entries(groupedData) as [string, RetryObjectArray][];
@@ -357,6 +373,8 @@ async function updateQueueDisplay() {
 
             items.forEach((req: RetryObjectArray[0]) => {
                 const containerInfo = normalizeFormData(req.body).formData;
+                const slotStart = getFirstFormDataString(containerInfo?.SlotStart) || '';
+                const slotEnd = getFirstFormDataString(containerInfo?.SlotEnd) || '';
                 const row = document.createElement('tr');
                 row.dataset.status = req.status;
                 row.dataset.id = req.id;
@@ -367,8 +385,8 @@ async function updateQueueDisplay() {
                         ${getStatusIcon(req.status)}
                     </span>
                 </td>
-                <td class="slot-date">${containerInfo.SlotStart[0].split(' ')[0]}</td>
-                <td class="slot-time">${containerInfo.SlotStart[0].split(' ')[1].slice(0, 5)} - ${containerInfo.SlotEnd[0].split(' ')[1].slice(0, 5)}</td>
+                <td class="slot-date">${slotStart.split(' ')[0] || ''}</td>
+                <td class="slot-time">${slotStart.split(' ')[1]?.slice(0, 5) || ''} - ${slotEnd.split(' ')[1]?.slice(0, 5) || ''}</td>
                 <td class="actions">
                     <button class="resume-button" data-id="${req.id}" title="Wznów" ${isPlayDisabled(req.status)}>
                         <span class="material-icons icon">play_arrow</span>
@@ -404,27 +422,30 @@ async function updateQueueDisplay() {
         document
             .querySelectorAll<HTMLElement>('.pause-button:not(.group-pause-button)')
             .forEach(btn => {
-                btn.addEventListener('click', () =>
-                    setStatusRequest(btn.dataset.id!, 'paused', 'Zadanie jest wstrzymane'),
-                );
+                btn.addEventListener('click', () => {
+                    const requestId = btn.dataset.id;
+                    if (!requestId) return;
+
+                    setStatusRequest(requestId, 'paused', 'Zadanie jest wstrzymane');
+                });
             });
         document
             .querySelectorAll<HTMLElement>('.resume-button:not(.group-resume-button)')
             .forEach(btn => {
-                btn.addEventListener('click', () =>
-                    setStatusRequest(
-                        btn.dataset.id!,
-                        'in-progress',
-                        'Zadanie jest w trakcie realizacji',
-                    ),
-                );
+                btn.addEventListener('click', () => {
+                    const requestId = btn.dataset.id;
+                    if (!requestId) return;
+
+                    setStatusRequest(requestId, 'in-progress', 'Zadanie jest w trakcie realizacji');
+                });
             });
         document.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
             header.addEventListener('click', async function () {
                 const groupRow = this.closest<HTMLElement>('.group-row');
                 if (!groupRow) return;
 
-                const groupId = groupRow.dataset.groupId!;
+                const groupId = groupRow.dataset.groupId;
+                if (!groupId) return;
                 const toggleIcon = this.querySelector('.toggle-icon');
 
                 // Toggle open state
@@ -552,7 +573,10 @@ async function updateQueueDisplay() {
                     });
 
                     groupHeaderRow.remove();
-                    deleteGroupStateById(groupHeaderRow.dataset.groupId!);
+                    const groupId = groupHeaderRow.dataset.groupId;
+                    if (groupId) {
+                        deleteGroupStateById(groupId);
+                    }
                 });
             });
     } catch (error) {
@@ -625,7 +649,7 @@ function toggleHeaderVisibility() {
                 await saveHeaderState(headerHidden);
             });
             // expose for UI control
-            (window as any)._toggleHeaderReset = async () => {
+            (window as PopupWindow)._toggleHeaderReset = async () => {
                 headerHidden = false;
                 header.style.display = '';
                 toggleHeaderIcon.textContent = 'arrow_drop_up';
@@ -732,39 +756,39 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // DOM Elements
-const authContainer = document.getElementById('authContainer')!;
-const mainContent = document.getElementById('mainContent')!;
-const loginForm = document.getElementById('loginForm')!;
-const registerForm = document.getElementById('registerForm')!;
-const userEmail = document.getElementById('userEmail')!;
+const authContainer = requireElement<HTMLElement>('authContainer');
+const mainContent = requireElement<HTMLElement>('mainContent');
+const loginForm = requireElement<HTMLElement>('loginForm');
+const registerForm = requireElement<HTMLElement>('registerForm');
+const userEmail = requireElement<HTMLElement>('userEmail');
 
 // Login form elements
-const loginEmail = document.getElementById('loginEmail') as HTMLInputElement;
-const loginPassword = document.getElementById('loginPassword') as HTMLInputElement;
-const loginButton = document.getElementById('loginButton')!;
-const showRegister = document.getElementById('showRegister')!;
+const loginEmail = requireElement<HTMLInputElement>('loginEmail');
+const loginPassword = requireElement<HTMLInputElement>('loginPassword');
+const loginButton = requireElement<HTMLElement>('loginButton');
+const showRegister = requireElement<HTMLElement>('showRegister');
 
 // Register form elements
-const registerEmail = document.getElementById('registerEmail') as HTMLInputElement;
-const registerPassword = document.getElementById('registerPassword') as HTMLInputElement;
-const registerButton = document.getElementById('registerButton')!;
-const showLogin = document.getElementById('showLogin')!;
+const registerEmail = requireElement<HTMLInputElement>('registerEmail');
+const registerPassword = requireElement<HTMLInputElement>('registerPassword');
+const registerButton = requireElement<HTMLElement>('registerButton');
+const showLogin = requireElement<HTMLElement>('showLogin');
 
 // Device unbind form elements
-const unbindForm = document.getElementById('unbindForm')!;
-const unbindEmail = document.getElementById('unbindEmail') as HTMLInputElement;
-const unbindPassword = document.getElementById('unbindPassword') as HTMLInputElement;
-const unbindButton = document.getElementById('unbindButton')!;
-const showUnbind = document.getElementById('showUnbind')!;
-const hideUnbind = document.getElementById('hideUnbind')!;
+const unbindForm = requireElement<HTMLElement>('unbindForm');
+const unbindEmail = requireElement<HTMLInputElement>('unbindEmail');
+const unbindPassword = requireElement<HTMLInputElement>('unbindPassword');
+const unbindButton = requireElement<HTMLElement>('unbindButton');
+const showUnbind = requireElement<HTMLElement>('showUnbind');
+const hideUnbind = requireElement<HTMLElement>('hideUnbind');
 
 // Logout button
-const logoutButton = document.getElementById('logoutButton')!;
+const logoutButton = requireElement<HTMLElement>('logoutButton');
 
 // Error handling elements
-const loginError = document.getElementById('loginError')!;
-const registerError = document.getElementById('registerError')!;
-const unbindError = document.getElementById('unbindError')!;
+const loginError = requireElement<HTMLElement>('loginError');
+const registerError = requireElement<HTMLElement>('registerError');
+const unbindError = requireElement<HTMLElement>('unbindError');
 
 function showError(element: HTMLElement, message: string) {
     element.textContent = message;
@@ -834,7 +858,7 @@ unbindButton.addEventListener('click', e => {
 });
 
 // Add unbind button to authenticated UI
-const unbindDeviceButton = document.getElementById('unbindDeviceButton')!;
+const unbindDeviceButton = requireElement<HTMLElement>('unbindDeviceButton');
 unbindDeviceButton.addEventListener('click', e => {
     e.preventDefault();
     cameFromAuthenticated = true;
@@ -876,7 +900,7 @@ hideUnbind.addEventListener('click', e => {
 });
 
 // Add back button handler
-const backToAppButton = document.getElementById('backToAppButton')!;
+const backToAppButton = requireElement<HTMLElement>('backToAppButton');
 backToAppButton.addEventListener('click', e => {
     e.preventDefault();
     cameFromAuthenticated = false;
@@ -887,7 +911,7 @@ backToAppButton.addEventListener('click', e => {
 });
 
 // Auto-login toggle button handler
-const autoLoginToggle = document.getElementById('autoLoginToggle')!;
+const autoLoginToggle = requireElement<HTMLElement>('autoLoginToggle');
 autoLoginToggle.addEventListener('click', async e => {
     e.preventDefault();
     try {
@@ -914,7 +938,7 @@ autoLoginToggle.addEventListener('click', async e => {
 });
 
 // Notification settings toggle button handler
-const notificationSettingsToggle = document.getElementById('notificationSettingsToggle')!;
+const notificationSettingsToggle = requireElement<HTMLElement>('notificationSettingsToggle');
 notificationSettingsToggle.addEventListener('click', async e => {
     e.preventDefault();
     try {
@@ -1017,9 +1041,13 @@ async function handleRegister() {
             });
             manualRegisterMode = false;
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         const friendlyMessage = getFriendlyErrorMessage(
-            error?.code ? error : error?.message || error,
+            typeof error === 'object' && error !== null && 'code' in error
+                ? (error as { code?: string; message?: string })
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
         );
         showError(registerError, friendlyMessage);
     } finally {
@@ -1043,7 +1071,8 @@ async function handleLogout() {
         await syncContainerCheckerAlarmState();
         showUnauthenticatedUI();
     } catch (error) {
-        alert(`Logout failed: ${(error as Error).message}`);
+        const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+        showError(loginError, `Logout failed: ${errorMessage}`);
     }
 }
 
