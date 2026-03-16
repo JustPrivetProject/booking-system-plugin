@@ -91,6 +91,22 @@ jobs:
                     echo "Auto release for version: $VERSION"
                   fi
 
+            - name: Resolve manual release notes
+              id: release_notes
+              run: |
+                  VERSION_NO_PREFIX="${{ steps.version.outputs.version }}"
+                  VERSION_NO_PREFIX=${VERSION_NO_PREFIX#v}
+                  NOTES_FILE=".github/release-notes/${VERSION_NO_PREFIX}.md"
+
+                  if [[ -f "$NOTES_FILE" ]]; then
+                    echo "has_manual_notes=true" >> $GITHUB_OUTPUT
+                    echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
+                    echo "Using manual release notes from $NOTES_FILE"
+                  else
+                    echo "has_manual_notes=false" >> $GITHUB_OUTPUT
+                    echo "No manual release notes found for $VERSION_NO_PREFIX"
+                  fi
+
             - name: Check if auto-release should proceed
               if: github.event_name == 'push' && github.ref == 'refs/heads/main'
               id: check_auto_release
@@ -160,11 +176,29 @@ jobs:
                   git tag ${{ steps.version.outputs.version }}
                   git push origin ${{ steps.version.outputs.version }}
 
+            - name: Create Production Release with manual notes
+              if: |
+                (github.event_name != 'push' ||
+                 github.ref != 'refs/heads/main' ||
+                 steps.check_auto_release.outputs.should_proceed == 'true') &&
+                steps.release_notes.outputs.has_manual_notes == 'true'
+              uses: softprops/action-gh-release@v1
+              with:
+                tag_name: ${{ steps.version.outputs.version }}
+                name: Release ${{ steps.version.outputs.version }}
+                files: extension.zip
+                body_path: ${{ steps.release_notes.outputs.notes_file }}
+                draft: false
+                prerelease: false
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Create Production Release
               if: |
-                  github.event_name != 'push' ||
-                  github.ref != 'refs/heads/main' ||
-                  steps.check_auto_release.outputs.should_proceed == 'true'
+                (github.event_name != 'push' ||
+                 github.ref != 'refs/heads/main' ||
+                 steps.check_auto_release.outputs.should_proceed == 'true') &&
+                steps.release_notes.outputs.has_manual_notes != 'true'
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.version.outputs.version }}
@@ -206,6 +240,22 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
                   echo "dev_tag=${VERSION}-dev" >> $GITHUB_OUTPUT
                   echo "Dev release version: $VERSION"
+
+            - name: Resolve manual release notes
+              id: dev_release_notes
+              run: |
+                  VERSION_NO_PREFIX="${{ steps.dev_version.outputs.version }}"
+                  VERSION_NO_PREFIX=${VERSION_NO_PREFIX#v}
+                  NOTES_FILE=".github/release-notes/${VERSION_NO_PREFIX}.md"
+
+                  if [[ -f "$NOTES_FILE" ]]; then
+                    echo "has_manual_notes=true" >> $GITHUB_OUTPUT
+                    echo "notes_file=$NOTES_FILE" >> $GITHUB_OUTPUT
+                    echo "Using manual release notes from $NOTES_FILE"
+                  else
+                    echo "has_manual_notes=false" >> $GITHUB_OUTPUT
+                    echo "No manual release notes found for $VERSION_NO_PREFIX"
+                  fi
 
             - name: Check if dev release should proceed
               id: check_dev_release
@@ -256,8 +306,25 @@ jobs:
                   git tag ${{ steps.dev_version.outputs.dev_tag }}
                   git push origin ${{ steps.dev_version.outputs.dev_tag }}
 
+            - name: Create Development Release with manual notes
+              if: |
+                steps.check_dev_release.outputs.should_proceed == 'true' &&
+                steps.dev_release_notes.outputs.has_manual_notes == 'true'
+              uses: softprops/action-gh-release@v1
+              with:
+                tag_name: ${{ steps.dev_version.outputs.dev_tag }}
+                name: Dev Release ${{ steps.dev_version.outputs.version }}
+                files: extension-dev.zip
+                body_path: ${{ steps.dev_release_notes.outputs.notes_file }}
+                draft: false
+                prerelease: true
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Create Development Release
-              if: steps.check_dev_release.outputs.should_proceed == 'true'
+              if: |
+                steps.check_dev_release.outputs.should_proceed == 'true' &&
+                steps.dev_release_notes.outputs.has_manual_notes != 'true'
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.dev_version.outputs.dev_tag }}
