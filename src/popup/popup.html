@@ -114,7 +114,16 @@
                 <button id="tabContainerChecker" class="tab-label" data-tab="containerChecker">
                     Monitor kontenerów
                 </button>
-                <button id="tabGct" class="tab-label hidden" data-tab="gct">GCT</button>
+                <button
+                    id="tabGct"
+                    class="tab-label tab-label-disabled"
+                    data-tab="gct"
+                    title="Brak dostępu do modułu GCT"
+                    aria-disabled="true"
+                >
+                    GCT
+                    <span id="tabGctLockIcon" class="material-icons tab-lock-icon">lock</span>
+                </button>
             </div>
             <div id="bookingView" class="tab-content">
                 <div class="queue-container">

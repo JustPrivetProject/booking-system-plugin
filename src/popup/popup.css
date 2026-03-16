@@ -1042,6 +1042,31 @@ tr[data-is-open='false'] .status-icon {
     z-index: 1;
 }
 
+.tab-label-disabled {
+    background: #ececec;
+    color: #8b8b8b;
+    border-color: #d4d4d4;
+    cursor: not-allowed;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tab-label-disabled:hover {
+    background: #ececec;
+    color: #8b8b8b;
+}
+
+.tab-lock-icon {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.tab-label.active .tab-lock-icon,
+.tab-label:not(.tab-label-disabled) .tab-lock-icon {
+    display: none;
+}
+
 .tab-content {
     padding: 0;
 }
