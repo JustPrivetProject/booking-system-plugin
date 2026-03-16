@@ -57,14 +57,23 @@ export async function getNormalizedContainerCheckerState() {
 }
 
 export async function updateContainerCheckerAlarm(minutes: number): Promise<void> {
-    await chrome.alarms.clear(ALARM_NAME);
     const isAuthenticated = await authService.isAuthenticated();
     if (!isAuthenticated) {
+        await chrome.alarms.clear(ALARM_NAME);
         consoleLog('Container Checker alarm disabled - user is not authenticated');
         return;
     }
 
     const period = Number(minutes) || 5;
+    const existingAlarm = await chrome.alarms.get(ALARM_NAME);
+
+    if (existingAlarm?.periodInMinutes === period) {
+        consoleLog('Container Checker alarm already set to', period, 'minutes');
+        return;
+    }
+
+    await chrome.alarms.clear(ALARM_NAME);
+
     if (period > 0) {
         await chrome.alarms.create(ALARM_NAME, { periodInMinutes: period });
         consoleLog('Container Checker alarm set to', period, 'minutes');

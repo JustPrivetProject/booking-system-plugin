@@ -48,6 +48,7 @@ describe('Container Checker Service', () => {
         chromeMock.storage.local.set.mockImplementation((_data: object, cb: () => void) => cb());
         chromeMock.alarms.clear.mockResolvedValue(undefined);
         chromeMock.alarms.create.mockResolvedValue(undefined);
+        chromeMock.alarms.get.mockResolvedValue(undefined);
         (authService.isAuthenticated as jest.Mock).mockResolvedValue(true);
 
         (storage.getContainerCheckerState as jest.Mock).mockResolvedValue({
@@ -96,9 +97,22 @@ describe('Container Checker Service', () => {
             await updateContainerCheckerAlarm(15);
 
             expect(chromeMock.alarms.clear).toHaveBeenCalledWith('container-check');
+            expect(chromeMock.alarms.get).toHaveBeenCalledWith('container-check');
             expect(chromeMock.alarms.create).toHaveBeenCalledWith('container-check', {
                 periodInMinutes: 15,
             });
+        });
+
+        it('should not recreate alarm when the same polling period is already set', async () => {
+            chromeMock.alarms.get.mockResolvedValue({
+                name: 'container-check',
+                periodInMinutes: 15,
+            });
+
+            await updateContainerCheckerAlarm(15);
+
+            expect(chromeMock.alarms.clear).not.toHaveBeenCalled();
+            expect(chromeMock.alarms.create).not.toHaveBeenCalled();
         });
 
         it('should use default 5 when minutes is 0 or invalid', async () => {

@@ -197,7 +197,7 @@ describe('Container Checker Popup', () => {
             );
         });
 
-        it('should acknowledge pending UI changes after opening popup', async () => {
+        it('should keep pending UI changes highlighted while popup is open', async () => {
             mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
                 if (msg.type === 'GET_STATE') {
                     callback({
@@ -226,7 +226,27 @@ describe('Container Checker Popup', () => {
                     return;
                 }
 
-                if (msg.type === 'ACK_UI_CHANGES') {
+                callback({ ok: true, result: mockState });
+            });
+
+            const initContainerCheckerUI = initFresh();
+            initContainerCheckerUI();
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(document.querySelectorAll('.changed-cell')).toHaveLength(1);
+            expect(mockSendMessage).not.toHaveBeenCalledWith(
+                expect.objectContaining({
+                    target: 'containerChecker',
+                    type: 'ACK_UI_CHANGES',
+                }),
+                expect.any(Function),
+            );
+        });
+
+        it('should keep changed highlight after clicking check now while popup is open', async () => {
+            mockSendMessage.mockImplementation((msg: any, callback: (r: object) => void) => {
+                if (msg.type === 'GET_STATE' || msg.type === 'CHECK_NOW') {
                     callback({
                         ok: true,
                         result: {
@@ -237,7 +257,7 @@ describe('Container Checker Popup', () => {
                                     port: 'DCT',
                                     status: 'Stops:1',
                                     state: 'In Terminal',
-                                    statusChanged: false,
+                                    statusChanged: true,
                                     stateChanged: false,
                                     hasErrors: false,
                                     errors: [],
@@ -261,13 +281,10 @@ describe('Container Checker Popup', () => {
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            expect(mockSendMessage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    target: 'containerChecker',
-                    type: 'ACK_UI_CHANGES',
-                }),
-                expect.any(Function),
-            );
+            const checkNowBtn = document.getElementById('checkNowBtn') as HTMLButtonElement;
+            checkNowBtn.click();
+
+            await new Promise(resolve => setTimeout(resolve, 50));
 
             expect(document.querySelectorAll('.changed-cell')).toHaveLength(1);
         });

@@ -57,8 +57,6 @@ async function sendContainerCheckerMessage(
 }
 
 let liveRefreshIntervalId: number | null = null;
-let initialUiChangesAcknowledged = false;
-let suppressNextAckStorageRefresh = false;
 
 function acknowledgeUiChangesOnClose(): void {
     try {
@@ -181,19 +179,6 @@ async function refreshState(): Promise<void> {
     try {
         const state = await sendContainerCheckerMessage('GET_STATE');
         renderWatchlist(state);
-
-        const hasPendingUiChanges = state.watchlist.some(
-            item => item.statusChanged || item.stateChanged,
-        );
-
-        if (!initialUiChangesAcknowledged && hasPendingUiChanges) {
-            initialUiChangesAcknowledged = true;
-            suppressNextAckStorageRefresh = true;
-            sendContainerCheckerMessage('ACK_UI_CHANGES').catch(error => {
-                suppressNextAckStorageRefresh = false;
-                consoleError('Container checker acknowledge UI changes:', error);
-            });
-        }
     } catch (error) {
         consoleError('Container checker refresh:', error);
         /* Empty row stays from HTML fallback when renderWatchlist never runs */
@@ -290,8 +275,6 @@ export function initContainerCheckerUI(): void {
         return;
     }
     containerCheckerUIInitialized = true;
-    initialUiChangesAcknowledged = false;
-    suppressNextAckStorageRefresh = false;
 
     const addBtn = byId('addContainerBtn');
     const checkNowBtn = byId('checkNowBtn');
@@ -328,11 +311,6 @@ export function initContainerCheckerUI(): void {
         const hasOtherContainerCheckerChanges = Boolean(
             changes.containerCheckerLastRunAt || changes.containerCheckerSettings,
         );
-
-        if (suppressNextAckStorageRefresh && watchlistChanged && !hasOtherContainerCheckerChanges) {
-            suppressNextAckStorageRefresh = false;
-            return;
-        }
 
         if (watchlistChanged || hasOtherContainerCheckerChanges) {
             refreshState().catch(consoleError);
