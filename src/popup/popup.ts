@@ -20,7 +20,102 @@ import { showNotificationSettingsModal } from './modals/notificationSettings.mod
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { getContainerCheckerState } from '../containerChecker/storage';
 import { updateContainerCheckerAlarm } from '../services/containerChecker/containerCheckerService';
+import { FEATURE_KEYS } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
+
+type PopupTab = 'booking' | 'containerChecker' | 'gct';
+
+const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
+
+let activePopupTab: PopupTab = 'booking';
+let isGctTabEnabled = false;
+let isContainerCheckerUiInitialized = false;
+
+function initContainerCheckerUiOnce(): void {
+    if (isContainerCheckerUiInitialized) {
+        return;
+    }
+
+    initContainerCheckerUI();
+    isContainerCheckerUiInitialized = true;
+}
+
+function sendBackgroundAction<T>(action: string, data?: Record<string, unknown>): Promise<T> {
+    return new Promise(resolve => {
+        chrome.runtime.sendMessage(
+            {
+                target: 'background',
+                action,
+                data,
+            },
+            response => {
+                if (chrome.runtime.lastError) {
+                    consoleError('Error sending message:', chrome.runtime.lastError);
+                    resolve({ success: false } as T);
+                    return;
+                }
+
+                resolve(response as T);
+            },
+        );
+    });
+}
+
+function applyTabState(tab: PopupTab, persist = true): void {
+    const resolvedTab = tab === 'gct' && !isGctTabEnabled ? 'booking' : tab;
+    const tabBooking = document.getElementById('tabBooking');
+    const tabContainerChecker = document.getElementById('tabContainerChecker');
+    const tabGct = document.getElementById('tabGct');
+    const bookingView = document.getElementById('bookingView');
+    const containerCheckerView = document.getElementById('containerCheckerView');
+    const gctView = document.getElementById('gctView');
+
+    activePopupTab = resolvedTab;
+
+    tabBooking?.classList.toggle('active', resolvedTab === 'booking');
+    tabContainerChecker?.classList.toggle('active', resolvedTab === 'containerChecker');
+    tabGct?.classList.toggle('active', resolvedTab === 'gct');
+
+    bookingView?.classList.toggle('hidden', resolvedTab !== 'booking');
+    containerCheckerView?.classList.toggle('hidden', resolvedTab !== 'containerChecker');
+    gctView?.classList.toggle('hidden', resolvedTab !== 'gct' || !isGctTabEnabled);
+
+    if (resolvedTab === 'containerChecker') {
+        initContainerCheckerUiOnce();
+    }
+
+    if (persist) {
+        chrome.storage.local.set({ [POPUP_ACTIVE_TAB_KEY]: resolvedTab }).catch(error => {
+            consoleError('Save active tab failed:', error);
+        });
+    }
+}
+
+async function refreshFeatureAccessUI(): Promise<void> {
+    const tabGct = document.getElementById('tabGct');
+    const gctView = document.getElementById('gctView');
+    const isAuthenticated = await authService.isAuthenticated();
+
+    if (!isAuthenticated) {
+        isGctTabEnabled = false;
+    } else {
+        const response = await sendBackgroundAction<{ success?: boolean; enabled?: boolean }>(
+            Actions.GET_FEATURE_ACCESS,
+            {
+                featureKey: FEATURE_KEYS.GCT_TAB,
+            },
+        );
+
+        isGctTabEnabled = response.success === true && response.enabled === true;
+    }
+
+    tabGct?.classList.toggle('hidden', !isGctTabEnabled);
+    gctView?.classList.toggle('hidden', activePopupTab !== 'gct' || !isGctTabEnabled);
+
+    if (!isGctTabEnabled && activePopupTab === 'gct') {
+        applyTabState('booking');
+    }
+}
 
 async function syncContainerCheckerAlarmState(): Promise<void> {
     const state = await getContainerCheckerState();
@@ -618,39 +713,26 @@ async function updateNotificationButtonState() {
 async function initTabs(): Promise<void> {
     const tabBooking = document.getElementById('tabBooking');
     const tabContainerChecker = document.getElementById('tabContainerChecker');
-    const bookingView = document.getElementById('bookingView');
-    const containerCheckerView = document.getElementById('containerCheckerView');
-    const tabStorageKey = 'popupActiveTab';
+    const tabGct = document.getElementById('tabGct');
 
-    const switchToTab = (tab: 'booking' | 'containerChecker') => {
-        tabBooking?.classList.toggle('active', tab === 'booking');
-        tabContainerChecker?.classList.toggle('active', tab === 'containerChecker');
-        bookingView?.classList.toggle('hidden', tab !== 'booking');
-        containerCheckerView?.classList.toggle('hidden', tab !== 'containerChecker');
+    tabBooking?.addEventListener('click', () => applyTabState('booking'));
+    tabContainerChecker?.addEventListener('click', () => applyTabState('containerChecker'));
+    tabGct?.addEventListener('click', () => applyTabState('gct'));
 
-        chrome.storage.local.set({ [tabStorageKey]: tab }).catch(error => {
-            consoleError('Save active tab failed:', error);
-        });
-
-        if (tab === 'containerChecker') {
-            initContainerCheckerUI();
-        }
-    };
-
-    tabBooking?.addEventListener('click', () => switchToTab('booking'));
-    tabContainerChecker?.addEventListener('click', () => switchToTab('containerChecker'));
+    await refreshFeatureAccessUI();
 
     try {
-        const { [tabStorageKey]: storedTab } = await chrome.storage.local.get(tabStorageKey);
-        if (storedTab === 'containerChecker' || storedTab === 'booking') {
-            switchToTab(storedTab);
+        const { [POPUP_ACTIVE_TAB_KEY]: storedTab } =
+            await chrome.storage.local.get(POPUP_ACTIVE_TAB_KEY);
+        if (storedTab === 'containerChecker' || storedTab === 'booking' || storedTab === 'gct') {
+            applyTabState(storedTab, false);
             return;
         }
     } catch (error) {
         consoleError('Restore active tab failed:', error);
     }
 
-    initContainerCheckerUI();
+    applyTabState('booking', false);
 }
 
 // Update the queue when the popup is opened
@@ -1090,6 +1172,9 @@ function showAuthenticatedUI(user: { email: string }) {
     updateQueueDisplay();
     updateAutoLoginButtonState();
     updateNotificationButtonState();
+    refreshFeatureAccessUI().catch(error => {
+        consoleError('Failed to refresh feature access UI:', error);
+    });
     syncContainerCheckerAlarmState().catch(error => {
         consoleError('Failed to sync Container Checker alarm state:', error);
     });
@@ -1114,6 +1199,9 @@ function showUnauthenticatedUI() {
     loginPassword.value = '';
     registerEmail.value = '';
     registerPassword.value = '';
+    refreshFeatureAccessUI().catch(error => {
+        consoleError('Failed to refresh feature access UI:', error);
+    });
     syncContainerCheckerAlarmState().catch(error => {
         consoleError('Failed to sync Container Checker alarm state:', error);
     });

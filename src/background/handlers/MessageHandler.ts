@@ -3,6 +3,7 @@ import { authService } from '../../services/authService';
 import { autoLoginService } from '../../services/autoLoginService';
 import { getDriverNameAndContainer } from '../../services/baltichub';
 import { errorLogService } from '../../services/errorLogService';
+import { featureAccessService } from '../../services/featureAccessService';
 import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { sessionService } from '../../services/sessionService';
 import type {
@@ -596,6 +597,29 @@ export class MessageHandler {
 
             case Actions.SEND_LOGS:
                 this.handleSendLogs(message, sendResponse);
+                return true;
+
+            case Actions.GET_FEATURE_ACCESS:
+                if (!message.data?.featureKey) {
+                    sendResponse({
+                        success: false,
+                        enabled: false,
+                        error: 'Feature key is required',
+                    });
+                    return true;
+                }
+
+                featureAccessService
+                    .isFeatureEnabled(message.data.featureKey)
+                    .then(enabled => sendResponse({ success: true, enabled }))
+                    .catch(error => {
+                        consoleError('Error getting feature access:', error);
+                        sendResponse({
+                            success: false,
+                            enabled: false,
+                            error: error instanceof Error ? error.message : String(error),
+                        });
+                    });
                 return true;
 
             default:

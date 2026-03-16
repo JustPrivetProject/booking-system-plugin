@@ -12,6 +12,9 @@ export type TablesUpdate<T extends keyof Database['public']['Tables']> =
 export type Profile = Tables<'profiles'>;
 export type ProfileInsert = TablesInsert<'profiles'>;
 export type ProfileUpdate = TablesUpdate<'profiles'>;
+export type FeatureAccess = Tables<'feature_access'>;
+export type FeatureAccessInsert = TablesInsert<'feature_access'>;
+export type FeatureAccessUpdate = TablesUpdate<'feature_access'>;
 
 // Кастомные типы для приложения
 export interface AuthState {

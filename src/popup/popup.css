@@ -1046,6 +1046,12 @@ tr[data-is-open='false'] .status-icon {
     padding: 0;
 }
 
+#gctView {
+    width: 100%;
+    min-width: var(--app-width);
+    min-height: 240px;
+}
+
 /* ===== CONTAINER CHECKER ===== */
 #containerCheckerView {
     width: 100%;
