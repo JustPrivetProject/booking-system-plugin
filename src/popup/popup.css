@@ -1103,13 +1103,14 @@ tr[data-is-open='false'] .status-icon {
 .gct-input {
     flex: 0 0 auto;
     min-width: 0;
-    min-height: 32px;
-    padding: 6px 10px;
-    text-transform: uppercase;
+    height: 26px;
+    min-height: 26px;
+    padding: 4px 8px;
+    line-height: 18px;
 }
 
 .gct-input-document {
-    width: 15ch;
+    width: 17ch;
 }
 
 .gct-input-vehicle {
@@ -1117,21 +1118,44 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input-container {
-    width: 15ch;
+    width: 13ch;
+}
+
+.gct-input::placeholder {
+    color: #94a3b8;
+    font-size: 12px;
+    text-transform: none;
 }
 
 .gct-add-button {
     flex: 0 0 auto;
-    min-width: 96px;
-    min-height: 32px;
+    min-width: 56px;
+    height: 26px;
+    min-height: 26px;
+    padding: 4px var(--spacing-small);
+    font-size: var(--font-size-small);
     white-space: nowrap;
     align-self: center;
+    margin-left: 0;
+}
+
+.gct-add-button:disabled {
+    background-color: var(--color-border-light);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.gct-add-button:hover:not(:disabled) {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button-hover);
 }
 
 .gct-picker-host {
     position: relative;
-    flex: 0 0 148px;
-    min-width: 148px;
+    flex: 0 0 126px;
+    min-width: 126px;
 }
 
 #gctTimePicker {
@@ -1149,13 +1173,15 @@ tr[data-is-open='false'] .status-icon {
 #gctTimePicker .gp-collapsed {
     display: inline-flex;
     width: 100%;
-    min-height: 32px;
+    min-height: 26px;
+    height: 26px;
     align-items: center;
-    gap: 6px;
+    justify-content: flex-start;
+    gap: 4px;
     background: #fff;
     border: 1px solid var(--color-border-light);
     border-radius: 8px;
-    padding: 7px 10px;
+    padding: 4px 8px;
     cursor: pointer;
     user-select: none;
     transition: border-color 0.15s;
@@ -1180,8 +1206,8 @@ tr[data-is-open='false'] .status-icon {
 }
 
 #gctTimePicker .gp-collapsed-label {
-    flex: 1 1 auto;
-    font-size: 13px;
+    flex: 0 1 auto;
+    font-size: var(--font-size-small);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1194,7 +1220,7 @@ tr[data-is-open='false'] .status-icon {
 
 #gctTimePicker .gp-badge {
     display: none;
-    margin-left: auto;
+    margin-left: 0;
     font-size: 11px;
     background: #dbeafe;
     color: #1d5fa0;

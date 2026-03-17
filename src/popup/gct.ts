@@ -235,8 +235,8 @@ function buildControlsMarkup(): string {
         <div class="gct-controls">
             <div class="gct-controls-row">
                 <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. Pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr. Kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
                 <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
             </div>
@@ -263,7 +263,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
                 <rect x="1" y="3" width="14" height="12" rx="2" stroke="currentColor" fill="none" stroke-width="1.2"></rect>
                 <path d="M1 7h14M5 1v4M11 1v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
             </svg>
-            <span class="gp-collapsed-label" data-r="l">Godzina…</span>
+            <span class="gp-collapsed-label" data-r="l">Godzina</span>
             <span class="gp-badge" data-r="b"></span>
         </div>
         <div class="gp-dropdown" data-r="dd">
@@ -394,13 +394,31 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         collapsed.classList.toggle('has-selection', hasSelection);
 
         if (!hasSelection) {
-            label.textContent = 'Godzina…';
+            label.textContent = 'Godzina';
             badge.textContent = '';
             return;
         }
 
         const today = nowLocalDate();
         const tomorrow = addDays(today, 1);
+        if (totalSelectedDays === 1 && totalSelectedSlots === 1) {
+            const selectedDate = selections[0]?.date;
+            const selectedSlot = selections[0]?.slots[0] ?? '';
+
+            if (selectedDate === today) {
+                label.textContent = `Dziś ${selectedSlot}`;
+            } else if (selectedDate === tomorrow) {
+                label.textContent = `Jutro ${selectedSlot}`;
+            } else if (selectedDate) {
+                label.textContent = `${formatPickerShortDate(selectedDate)} ${selectedSlot}`;
+            } else {
+                label.textContent = selectedSlot || 'Godzina';
+            }
+
+            badge.textContent = '';
+            return;
+        }
+
         if (totalSelectedDays > 1) {
             label.textContent = `${totalSelectedDays} ${pluralizeDayLabel(totalSelectedDays)}`;
         } else if (selections[0]?.date === today) {
@@ -410,7 +428,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         } else if (selections[0]?.date) {
             label.textContent = formatPickerShortDate(selections[0].date);
         } else {
-            label.textContent = activeDate ? formatPickerShortDate(activeDate) : 'Godzina…';
+            label.textContent = activeDate ? formatPickerShortDate(activeDate) : 'Godzina';
         }
 
         badge.textContent =
@@ -686,10 +704,6 @@ function normalizeCompactUppercaseValue(value: string): string {
     return value.replace(/\s+/g, '').toUpperCase();
 }
 
-function isExactLength(value: string, expectedLength: number): boolean {
-    return value.length === expectedLength;
-}
-
 function hasValidGctAddInputs(): boolean {
     const documentInput = byId<HTMLInputElement>('gctDocumentInput');
     const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
@@ -703,9 +717,9 @@ function hasValidGctAddInputs(): boolean {
     const totalSlots = selection.selections.reduce((sum, entry) => sum + entry.slots.length, 0);
 
     return (
-        isExactLength(documentInput.value, GCT_DOCUMENT_NUMBER_LENGTH) &&
-        isExactLength(vehicleInput.value, GCT_VEHICLE_NUMBER_LENGTH) &&
-        isExactLength(containerInput.value, GCT_CONTAINER_NUMBER_LENGTH) &&
+        documentInput.value.trim().length > 0 &&
+        vehicleInput.value.trim().length > 0 &&
+        containerInput.value.trim().length > 0 &&
         totalSlots > 0
     );
 }
@@ -720,8 +734,7 @@ function updateAddButtonState(): void {
 }
 
 function renderEmptyState(body: HTMLElement): void {
-    body.innerHTML =
-        '<tr><td class="watchlist-empty-cell gct-empty-cell">Dodaj konfigurację GCT, aby rozpocząć monitoring</td></tr>';
+    body.innerHTML = '';
 }
 
 function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {

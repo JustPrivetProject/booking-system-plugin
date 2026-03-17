@@ -70,10 +70,8 @@ describe('popup/gct', () => {
 
         expect(document.getElementById('gctDocumentInput')).toBeTruthy();
         expect(document.getElementById('gctTimePicker')).toBeTruthy();
-        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina…');
-        expect(document.getElementById('gctTableBody')?.textContent).toContain(
-            'Dodaj konfigurację GCT',
-        );
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
+        expect(document.getElementById('gctTableBody')?.textContent).toBe('');
         expect(sentMessages).toContainEqual({ target: 'gct', type: 'GET_STATE' });
     });
 
@@ -137,12 +135,12 @@ describe('popup/gct', () => {
             },
         });
         expect(containerInput.value).toBe('');
-        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina…');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
         expect(document.querySelector('.gp-badge')?.textContent).toBe('');
         expect(addButton.disabled).toBe(true);
     });
 
-    it('keeps the add button disabled until all fields and slots are valid', async () => {
+    it('keeps the add button disabled until all fields and slots are populated', async () => {
         const { initGctUI } = await loadModule();
 
         initGctUI();
@@ -156,19 +154,14 @@ describe('popup/gct', () => {
 
         expect(addButton.disabled).toBe(true);
 
-        setInputValue(documentInput, 'doc123');
-        setInputValue(vehicleInput, 'ndz45396');
-        setInputValue(containerInput, 'tclu3141931');
+        setInputValue(documentInput, 'doc1');
+        setInputValue(vehicleInput, 'ndz1');
+        setInputValue(containerInput, 'tclu1');
         await flushUi();
 
-        expect(documentInput.value).toBe('DOC123');
-        expect(vehicleInput.value).toBe('NDZ45396');
-        expect(containerInput.value).toBe('TCLU3141931');
-        expect(addButton.disabled).toBe(true);
-
-        setInputValue(documentInput, 'doc123456');
-        await flushUi();
-
+        expect(documentInput.value).toBe('DOC1');
+        expect(vehicleInput.value).toBe('NDZ1');
+        expect(containerInput.value).toBe('TCLU1');
         expect(addButton.disabled).toBe(true);
 
         collapsed.click();
@@ -181,6 +174,8 @@ describe('popup/gct', () => {
         ).click();
         await flushUi();
 
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Dziś 22:30');
+        expect(document.querySelector('.gp-badge')?.textContent).toBe('');
         expect(addButton.disabled).toBe(false);
     });
 
