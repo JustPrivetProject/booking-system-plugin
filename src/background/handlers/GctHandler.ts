@@ -8,7 +8,6 @@ export type GctMessageType =
     | 'REPLACE_GROUP_SLOTS'
     | 'REMOVE_GROUP'
     | 'REMOVE_ROW'
-    | 'UPDATE_ROW_SLOT'
     | 'TOGGLE_GROUP_EXPANDED'
     | 'PAUSE_GROUP'
     | 'RESUME_GROUP'
@@ -22,7 +21,6 @@ export interface GctMessage {
     group?: GctGroupDraft;
     groupId?: string;
     rowId?: string;
-    slot?: GctTargetSlotDraft;
     slots?: GctTargetSlotDraft[];
     settings?: Partial<GctWatcherSettings>;
 }
@@ -56,16 +54,6 @@ export class GctHandler {
                     throw new Error('groupId and rowId are required');
                 }
                 return gctWatcherService.removeRow(message.groupId, message.rowId);
-
-            case 'UPDATE_ROW_SLOT':
-                if (!message.groupId || !message.rowId || !message.slot) {
-                    throw new Error('groupId, rowId and slot are required');
-                }
-                return gctWatcherService.updateRowSlot(
-                    message.groupId,
-                    message.rowId,
-                    message.slot,
-                );
 
             case 'TOGGLE_GROUP_EXPANDED':
                 if (!message.groupId) {

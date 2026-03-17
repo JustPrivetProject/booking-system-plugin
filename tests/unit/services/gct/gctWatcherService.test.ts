@@ -163,36 +163,6 @@ describe('GctWatcherService', () => {
         expect(nextState.groups).toEqual([]);
     });
 
-    it('updates row slots and resumes monitoring', async () => {
-        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
-        state.groups = [
-            createGroup({
-                rows: [
-                    createRow({
-                        id: 'row-1',
-                        active: false,
-                        isManualPause: true,
-                        status: Statuses.PAUSED,
-                    }),
-                ],
-                status: 'paused',
-            }),
-        ];
-
-        const nextState = await service.updateRowSlot('group-1', 'row-1', {
-            date: '2026-03-19',
-            startTime: '08:30',
-        });
-
-        expect(nextState.groups[0].rows[0]).toMatchObject({
-            targetStartLocal: '2026-03-19 08:30',
-            active: true,
-            isManualPause: false,
-            status: Statuses.IN_PROGRESS,
-        });
-        expect(nextState.groups[0].status).toBe('watching');
-    });
-
     it('replaces group slots while preserving matching existing rows', async () => {
         jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
         state.groups = [

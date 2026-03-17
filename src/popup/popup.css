@@ -62,8 +62,9 @@
 /* ===== GLOBAL STYLES ===== */
 body {
     min-width: var(--app-width);
-    height: 35px;
-    overflow: auto;
+    min-height: 35px;
+    height: auto;
+    overflow: hidden;
     font-family: Arial, sans-serif;
     font-size: var(--font-size-medium);
     display: flex;
@@ -74,6 +75,10 @@ body {
     margin-top: 0px;
     margin-left: var(--spacing-tiny);
     margin-right: var(--spacing-tiny);
+}
+
+body.gct-group-edit-open {
+    min-height: 600px;
 }
 
 /* ===== TABLE ===== */
@@ -1285,12 +1290,12 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-picker-host .gp-date-col {
-    flex: 0 0 126px;
-    padding: 10px;
+    flex: 0 0 112px;
+    padding: 8px;
     border-right: 1px solid #eee;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 4px;
 }
 
 .gct-picker-host .gp-date-btn,
@@ -1305,14 +1310,14 @@ tr[data-is-open='false'] .status-icon {
 .gct-picker-host .gp-date-btn {
     display: block;
     width: 100%;
-    padding: 7px 9px;
+    padding: 6px 8px;
     text-align: left;
     border: 1px solid #ddd;
     background: #fff;
     color: #222;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     transition:
         background 0.15s,
         border-color 0.15s;
@@ -1331,7 +1336,7 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-picker-host .gp-date-btn .gp-sub {
     display: block;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 400;
     color: #888;
     margin-top: 1px;
@@ -1348,18 +1353,18 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-picker-host .gp-slots-pane {
     display: none;
-    padding: 10px;
+    padding: 8px;
 }
 
 .gct-picker-host .gp-slots-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .gct-picker-host .gp-slots-header span {
-    font-size: 12px;
+    font-size: 11px;
     color: #888;
 }
 
@@ -1380,11 +1385,11 @@ tr[data-is-open='false'] .status-icon {
 .gct-picker-host .gp-slots-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 5px;
+    gap: 4px;
 }
 
 .gct-picker-host .gp-slot-btn {
-    padding: 6px 4px;
+    padding: 4px 3px;
     text-align: center;
     position: relative;
     border: 1px solid #ddd;
@@ -1392,7 +1397,8 @@ tr[data-is-open='false'] .status-icon {
     color: #222;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.1;
     transition:
         background 0.15s,
         border-color 0.15s;
@@ -1403,10 +1409,10 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-picker-host .gp-slot-btn .gp-slot-range {
-    font-size: 10px;
+    font-size: 9px;
     color: #888;
     display: block;
-    margin-top: 1px;
+    margin-top: 0;
 }
 
 .gct-picker-host .gp-slot-btn.selected {
@@ -1439,7 +1445,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-picker-host .gp-cal {
-    padding: 10px;
+    padding: 8px;
     display: none;
 }
 
@@ -1536,17 +1542,21 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-picker-host .gp-confirm-btn {
     font-size: 13px;
-    padding: 6px 16px;
+    padding: var(--spacing-small) var(--spacing-medium);
     cursor: pointer;
-    background: #1d5fa0;
-    color: #fff;
+    background-color: var(--color-primary);
+    color: var(--color-white);
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    box-shadow: var(--shadow-button);
 }
 
 .gct-picker-host .gp-confirm-btn:hover {
-    background: #174d88;
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button-hover);
 }
 
 .gct-queue-container {
@@ -1628,15 +1638,22 @@ tr[data-is-open='false'] .status-icon {
     background: #fff;
     border-radius: 12px;
     box-shadow: var(--shadow-card);
-    padding: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.gct-group-edit-overlay {
+    align-items: flex-start;
+    padding-top: 6px;
 }
 
 .gct-group-edit-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 
 .gct-group-edit-close {
@@ -1645,6 +1662,7 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-group-edit-picker {
     width: 100%;
+    min-height: 0;
 }
 
 .gct-group-edit-picker .gp-collapsed {

@@ -843,6 +843,7 @@ function closeGroupEditOverlay(): void {
     activeGroupEditPicker = null;
     activeGroupEditOverlay?.remove();
     activeGroupEditOverlay = null;
+    document.body.classList.remove('gct-group-edit-open');
 }
 
 function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
@@ -901,6 +902,7 @@ function showGroupEditModal(group: GctWatchGroup): void {
 
     document.body.appendChild(overlay);
     activeGroupEditOverlay = overlay;
+    document.body.classList.add('gct-group-edit-open');
 
     const pickerHost = overlay.querySelector('.gct-group-edit-picker') as HTMLElement | null;
     const picker = pickerHost ? createGctTimePicker(pickerHost) : null;

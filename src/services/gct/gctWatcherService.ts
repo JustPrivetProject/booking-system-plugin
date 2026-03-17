@@ -392,46 +392,6 @@ export class GctWatcherService {
         return this.getState();
     }
 
-    async updateRowSlot(
-        groupId: string,
-        rowId: string,
-        slot: GctTargetSlotDraft,
-    ): Promise<GctState> {
-        const state = await this.getState();
-        const window = buildSlotWindow(slot.date, slot.startTime);
-
-        const nextGroups = state.groups.map(group => {
-            if (group.id !== groupId) return group;
-
-            const rows = group.rows.map(row => {
-                if (row.id !== rowId) return row;
-
-                const updatedRow = addHistory(
-                    {
-                        ...row,
-                        ...window,
-                        status: Statuses.IN_PROGRESS,
-                        statusMessage: 'Zmieniono target — oczekiwanie na dopasowanie',
-                        active: true,
-                        isManualPause: false,
-                        lastError: null,
-                    },
-                    'watching',
-                    `Zmieniono target na ${window.targetStartLocal}`,
-                );
-
-                return updatedRow;
-            });
-
-            const nextGroup = { ...group, rows, updatedAt: nowIso() };
-            return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
-        });
-
-        await saveGctGroups(nextGroups);
-        await this.ensureSchedules();
-        return this.getState();
-    }
-
     async toggleGroupExpanded(groupId: string): Promise<GctState> {
         const state = await this.getState();
         const nextGroups = state.groups.map(group =>

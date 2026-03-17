@@ -10,7 +10,6 @@ jest.mock('../../../src/services/gct/gctWatcherService', () => ({
         replaceGroupSlots: jest.fn(),
         removeGroup: jest.fn(),
         removeRow: jest.fn(),
-        updateRowSlot: jest.fn(),
         toggleGroupExpanded: jest.fn(),
         pauseGroup: jest.fn(),
         resumeGroup: jest.fn(),
@@ -31,7 +30,6 @@ describe('GctHandler', () => {
         (gctWatcherService.replaceGroupSlots as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.removeGroup as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.removeRow as jest.Mock).mockResolvedValue({ ok: true });
-        (gctWatcherService.updateRowSlot as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.toggleGroupExpanded as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.pauseGroup as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.resumeGroup as jest.Mock).mockResolvedValue({ ok: true });
@@ -83,16 +81,6 @@ describe('GctHandler', () => {
             ['g1', [{ date: '2026-03-18', startTime: '06:30' }]],
         ],
         ['REMOVE_ROW', { groupId: 'g1', rowId: 'r1' }, 'removeRow', ['g1', 'r1']],
-        [
-            'UPDATE_ROW_SLOT',
-            {
-                groupId: 'g1',
-                rowId: 'r1',
-                slot: { date: '2026-03-18', startTime: '06:30' as const },
-            },
-            'updateRowSlot',
-            ['g1', 'r1', { date: '2026-03-18', startTime: '06:30' }],
-        ],
         ['TOGGLE_GROUP_EXPANDED', { groupId: 'g1' }, 'toggleGroupExpanded', ['g1']],
         ['PAUSE_GROUP', { groupId: 'g1' }, 'pauseGroup', ['g1']],
         ['RESUME_GROUP', { groupId: 'g1' }, 'resumeGroup', ['g1']],
@@ -120,17 +108,6 @@ describe('GctHandler', () => {
         await expect(
             handler.handleMessage({ target: 'gct', type: 'REPLACE_GROUP_SLOTS', groupId: 'g1' }),
         ).rejects.toThrow('groupId and slots are required');
-    });
-
-    it('throws for missing update row payload', async () => {
-        await expect(
-            handler.handleMessage({
-                target: 'gct',
-                type: 'UPDATE_ROW_SLOT',
-                groupId: 'g1',
-                rowId: 'r1',
-            }),
-        ).rejects.toThrow('groupId, rowId and slot are required');
     });
 
     it('saves settings and refreshes schedules', async () => {
