@@ -1019,8 +1019,9 @@ tr[data-is-open='false'] .status-icon {
     padding-top: 2px;
     padding-left: 12px;
     padding-right: var(--spacing-tiny);
-    margin-bottom: 0;
-    border-bottom: 1px solid transparent;
+    margin-bottom: 6px;
+    padding-bottom: 0;
+    border-bottom: 1px solid rgba(204, 204, 204, 0.75);
     box-sizing: border-box;
 }
 
@@ -1089,9 +1090,7 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-controls {
     width: 100%;
-    margin-bottom: 6px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(204, 204, 204, 0.75);
+    margin-bottom: 0;
 }
 
 .gct-controls-row {
