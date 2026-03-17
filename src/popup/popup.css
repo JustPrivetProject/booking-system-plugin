@@ -1079,10 +1079,8 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-controls {
-    width: auto;
+    width: 100%;
     margin-bottom: 0;
-    display: flex;
-    align-items: flex-start;
 }
 
 .gct-controls-row {
@@ -1090,8 +1088,7 @@ tr[data-is-open='false'] .status-icon {
     align-items: center;
     flex-wrap: nowrap;
     gap: 5px;
-    width: fit-content;
-    max-width: 100%;
+    width: 100%;
 }
 
 .gct-input,
@@ -1104,7 +1101,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input {
-    flex: 0 0 auto;
+    flex: 1 1 0;
     min-width: 0;
     height: 26px;
     min-height: 26px;
@@ -1113,15 +1110,18 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input-document {
-    width: 14.5ch;
+    flex-basis: 29%;
+    min-width: 96px;
 }
 
 .gct-input-vehicle {
-    width: 11.5ch;
+    flex-basis: 24%;
+    min-width: 86px;
 }
 
 .gct-input-container {
-    width: 13.5ch;
+    flex-basis: 30%;
+    min-width: 96px;
 }
 
 .gct-input::placeholder {

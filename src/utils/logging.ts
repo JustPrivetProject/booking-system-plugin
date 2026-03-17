@@ -10,6 +10,10 @@ export interface SessionLogEntry {
     timestamp: string;
 }
 
+function canUseSessionStorage(): boolean {
+    return Boolean(globalThis.chrome?.runtime?.id && globalThis.chrome?.storage?.session);
+}
+
 function formatLogMessage(args: unknown[]): string {
     return args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' ');
 }
@@ -68,34 +72,67 @@ export function consoleError(...args: unknown[]) {
 
 // Async helpers for chrome.storage.session
 export async function saveLogToSession(type: LogType, args: unknown[]) {
-    return new Promise<void>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
-            const nextLogs = [...bramaLogs];
-            // Add new log entry
-            nextLogs.push({
-                type,
-                message: formatLogMessage(args),
-                timestamp: new Date().toISOString(),
-            });
-            // Keep only the last LOGS_LENGTH entries
-            const trimmedLogs =
-                nextLogs.length > LOGS_LENGTH ? nextLogs.slice(-LOGS_LENGTH) : nextLogs;
+    if (!canUseSessionStorage()) {
+        return;
+    }
 
-            chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => resolve());
-        });
+    return new Promise<void>(resolve => {
+        try {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+                if (chrome.runtime.lastError || !canUseSessionStorage()) {
+                    resolve();
+                    return;
+                }
+
+                const nextLogs = [...bramaLogs];
+                nextLogs.push({
+                    type,
+                    message: formatLogMessage(args),
+                    timestamp: new Date().toISOString(),
+                });
+
+                const trimmedLogs =
+                    nextLogs.length > LOGS_LENGTH ? nextLogs.slice(-LOGS_LENGTH) : nextLogs;
+
+                chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => resolve());
+            });
+        } catch {
+            resolve();
+        }
     });
 }
 
 export async function getLogsFromSession() {
+    if (!canUseSessionStorage()) {
+        return [];
+    }
+
     return new Promise<SessionLogEntry[]>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
-            resolve(bramaLogs);
-        });
+        try {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+                if (chrome.runtime.lastError || !canUseSessionStorage()) {
+                    resolve([]);
+                    return;
+                }
+
+                resolve(bramaLogs);
+            });
+        } catch {
+            resolve([]);
+        }
     });
 }
 
 export async function clearLogsInSession() {
+    if (!canUseSessionStorage()) {
+        return;
+    }
+
     return new Promise<void>(resolve => {
-        chrome.storage.session.set({ bramaLogs: [] }, () => resolve());
+        try {
+            chrome.storage.session.set({ bramaLogs: [] }, () => resolve());
+        } catch {
+            resolve();
+        }
     });
 }
