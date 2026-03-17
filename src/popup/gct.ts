@@ -44,8 +44,12 @@ interface GctPickerSelection {
 
 interface GctPickerApi {
     onchange: ((selection: GctPickerSelection) => void) | null;
+    onconfirm: ((selection: GctPickerSelection) => void | boolean | Promise<void | boolean>) | null;
     getSelection(): GctPickerSelection;
     reset(): void;
+    open(): void;
+    close(): void;
+    destroy(): void;
 }
 
 interface GctPickerWindow extends Window {
@@ -53,6 +57,8 @@ interface GctPickerWindow extends Window {
 }
 
 let gctTimePicker: GctPickerApi | null = null;
+let activeGroupAddPicker: GctPickerApi | null = null;
+let activeGroupAddOverlay: HTMLDivElement | null = null;
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -308,6 +314,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
 
     const api: GctPickerApi = {
         onchange: null,
+        onconfirm: null,
         getSelection(): GctPickerSelection {
             return {
                 date: getActiveDate(),
@@ -324,6 +331,19 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             calendarYear = today.getFullYear();
             closeDropdown();
             renderAll();
+        },
+        open(): void {
+            openDropdown();
+        },
+        close(): void {
+            closeDropdown();
+        },
+        destroy(): void {
+            document.removeEventListener('click', handleDocumentClick);
+            host.innerHTML = '';
+            if ((window as GctPickerWindow).godzinaPicker === api) {
+                delete (window as GctPickerWindow).godzinaPicker;
+            }
         },
     };
 
@@ -386,6 +406,12 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         dropdown.classList.remove('visible');
         collapsed.classList.remove('open');
         collapsed.setAttribute('aria-expanded', 'false');
+    };
+
+    const handleDocumentClick = (event: Event): void => {
+        if (isOpen && !host.contains(event.target as Node)) {
+            closeDropdown();
+        }
     };
 
     const updateField = (): void => {
@@ -687,16 +713,15 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         fireChange();
     });
 
-    confirmButton.addEventListener('click', event => {
+    confirmButton.addEventListener('click', async event => {
         event.stopPropagation();
-        closeDropdown();
-    });
-
-    document.addEventListener('click', event => {
-        if (isOpen && !host.contains(event.target as Node)) {
+        const result = await api.onconfirm?.(api.getSelection());
+        if (result !== false) {
             closeDropdown();
         }
     });
+
+    document.addEventListener('click', handleDocumentClick);
 
     renderAll();
     (window as GctPickerWindow).godzinaPicker = api;
@@ -749,6 +774,13 @@ function mapSelectionToSlots(selection: GctPickerSelection): GctTargetSlotDraft[
     );
 }
 
+function closeGroupAddOverlay(): void {
+    activeGroupAddPicker?.destroy();
+    activeGroupAddPicker = null;
+    activeGroupAddOverlay?.remove();
+    activeGroupAddOverlay = null;
+}
+
 function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
     const row = document.createElement('tr');
     row.className = 'group-row gct-group-row';
@@ -789,56 +821,45 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
 }
 
 function showGroupAddSlotsModal(group: GctWatchGroup): void {
+    closeGroupAddOverlay();
+
     const overlay = document.createElement('div');
-    overlay.className = 'gct-edit-overlay';
+    overlay.className = 'gct-edit-overlay gct-group-add-overlay';
     overlay.innerHTML = `
-        <div class="gct-edit-dialog gct-add-slots-dialog">
-            <h3>Dodaj sloty do grupy</h3>
-            <div class="gct-add-slots-summary">${group.containerNumber}<span>${group.documentNumber} • ${group.vehicleNumber}</span></div>
-            <div class="gct-add-slots-picker" id="gctGroupAddPicker"></div>
-            <div class="gct-edit-actions">
-                <button type="button" class="secondary-button" id="gctGroupAddCancel">Anuluj</button>
-                <button type="button" id="gctGroupAddSave" disabled>Dodaj sloty</button>
+        <div class="gct-group-add-panel">
+            <div class="gct-group-add-header">
+                <div class="gct-add-slots-summary">${group.containerNumber}<span>${group.documentNumber} • ${group.vehicleNumber}</span></div>
+                <button type="button" class="secondary-button gct-group-add-close" aria-label="Zamknij dodawanie slotów">Anuluj</button>
             </div>
+            <div class="gct-picker-host gct-group-add-picker"></div>
         </div>
     `;
 
     document.body.appendChild(overlay);
+    activeGroupAddOverlay = overlay;
 
-    const pickerHost = overlay.querySelector('#gctGroupAddPicker') as HTMLElement | null;
-    const saveButton = overlay.querySelector('#gctGroupAddSave') as HTMLButtonElement | null;
+    const pickerHost = overlay.querySelector('.gct-group-add-picker') as HTMLElement | null;
     const picker = pickerHost ? createGctTimePicker(pickerHost) : null;
+    activeGroupAddPicker = picker;
 
-    const updateSaveButtonState = (): void => {
-        if (!saveButton || !picker) {
-            return;
-        }
+    overlay.querySelector('.gct-group-add-close')?.addEventListener('click', () => {
+        closeGroupAddOverlay();
+    });
 
-        saveButton.disabled = mapSelectionToSlots(picker.getSelection()).length === 0;
-    };
-
-    if (picker) {
-        picker.onchange = () => {
-            updateSaveButtonState();
-        };
-        updateSaveButtonState();
-    }
-
-    overlay.querySelector('#gctGroupAddCancel')?.addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', event => {
         if (event.target === overlay) {
-            overlay.remove();
+            closeGroupAddOverlay();
         }
     });
 
-    saveButton?.addEventListener('click', async () => {
-        if (!picker) {
-            return;
-        }
+    if (!picker) {
+        return;
+    }
 
-        const slots = mapSelectionToSlots(picker.getSelection());
+    picker.onconfirm = async selection => {
+        const slots = mapSelectionToSlots(selection);
         if (slots.length === 0) {
-            return;
+            return false;
         }
 
         try {
@@ -850,11 +871,16 @@ function showGroupAddSlotsModal(group: GctWatchGroup): void {
                     slots,
                 },
             });
-            overlay.remove();
+            closeGroupAddOverlay();
         } catch (error) {
             consoleError('Add GCT slots to existing group failed:', error);
+            return false;
         }
-    });
+
+        return false;
+    };
+
+    picker.open();
 }
 
 function createChildRow(group: GctWatchGroup, rowState: GctWatchRow): HTMLTableRowElement {

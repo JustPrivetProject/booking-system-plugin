@@ -261,16 +261,16 @@ describe('popup/gct', () => {
         (groupRow.querySelector('.group-add-button') as HTMLButtonElement).click();
         await flushUi();
 
-        expect(document.querySelector('.gct-add-slots-dialog')).toBeTruthy();
-        (document.querySelector('.gct-add-slots-dialog .gp-collapsed') as HTMLDivElement).click();
-        await flushUi();
+        expect(document.querySelector('.gct-group-add-panel')).toBeTruthy();
         (
-            Array.from(document.querySelectorAll('.gct-add-slots-dialog .gp-slot-btn')).find(
+            Array.from(document.querySelectorAll('.gct-group-add-picker .gp-slot-btn')).find(
                 button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
             ) as HTMLButtonElement
         ).click();
         await flushUi();
-        (document.getElementById('gctGroupAddSave') as HTMLButtonElement).click();
+        (
+            document.querySelector('.gct-group-add-picker .gp-confirm-btn') as HTMLButtonElement
+        ).click();
         await flushUi();
 
         (groupRow.querySelector('.gct-toggle-cell') as HTMLElement).click();

@@ -1187,22 +1187,17 @@ tr[data-is-open='false'] .status-icon {
     position: relative;
     flex: 0 0 auto;
     min-width: 0;
-}
-
-#gctTimePicker {
-    position: relative;
-    min-width: 0;
     color: #222;
     width: max-content;
 }
 
-#gctTimePicker *,
-#gctTimePicker *::before,
-#gctTimePicker *::after {
+.gct-picker-host *,
+.gct-picker-host *::before,
+.gct-picker-host *::after {
     box-sizing: border-box;
 }
 
-#gctTimePicker .gp-collapsed {
+.gct-picker-host .gp-collapsed {
     display: inline-flex;
     width: auto;
     min-height: 26px;
@@ -1219,25 +1214,25 @@ tr[data-is-open='false'] .status-icon {
     transition: border-color 0.15s;
 }
 
-#gctTimePicker .gp-collapsed:hover {
+.gct-picker-host .gp-collapsed:hover {
     border-color: #999;
 }
 
-#gctTimePicker .gp-collapsed.open {
+.gct-picker-host .gp-collapsed.open {
     border-color: var(--color-primary-dark);
 }
 
-#gctTimePicker .gp-collapsed-icon {
+.gct-picker-host .gp-collapsed-icon {
     flex-shrink: 0;
     color: #888;
     transition: color 0.15s;
 }
 
-#gctTimePicker .gp-collapsed.has-selection .gp-collapsed-icon {
+.gct-picker-host .gp-collapsed.has-selection .gp-collapsed-icon {
     color: #1d5fa0;
 }
 
-#gctTimePicker .gp-collapsed-label {
+.gct-picker-host .gp-collapsed-label {
     flex: 0 1 auto;
     font-size: var(--font-size-small);
     overflow: hidden;
@@ -1246,11 +1241,11 @@ tr[data-is-open='false'] .status-icon {
     color: #888;
 }
 
-#gctTimePicker .gp-collapsed.has-selection .gp-collapsed-label {
+.gct-picker-host .gp-collapsed.has-selection .gp-collapsed-label {
     color: #222;
 }
 
-#gctTimePicker .gp-badge {
+.gct-picker-host .gp-badge {
     display: none;
     margin-left: 2px;
     font-size: 11px;
@@ -1262,11 +1257,11 @@ tr[data-is-open='false'] .status-icon {
     white-space: nowrap;
 }
 
-#gctTimePicker .gp-collapsed.has-selection .gp-badge {
+.gct-picker-host .gp-collapsed.has-selection .gp-badge {
     display: inline;
 }
 
-#gctTimePicker .gp-dropdown {
+.gct-picker-host .gp-dropdown {
     display: none;
     position: absolute;
     top: calc(100% + 6px);
@@ -1281,15 +1276,15 @@ tr[data-is-open='false'] .status-icon {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-#gctTimePicker .gp-dropdown.visible {
+.gct-picker-host .gp-dropdown.visible {
     display: block;
 }
 
-#gctTimePicker .gp-body {
+.gct-picker-host .gp-body {
     display: flex;
 }
 
-#gctTimePicker .gp-date-col {
+.gct-picker-host .gp-date-col {
     flex: 0 0 126px;
     padding: 10px;
     border-right: 1px solid #eee;
@@ -1298,16 +1293,16 @@ tr[data-is-open='false'] .status-icon {
     gap: 5px;
 }
 
-#gctTimePicker .gp-date-btn,
-#gctTimePicker .gp-slot-btn,
-#gctTimePicker .gp-cal-day,
-#gctTimePicker .gp-cal-nav button,
-#gctTimePicker .gp-clear-btn,
-#gctTimePicker .gp-confirm-btn {
+.gct-picker-host .gp-date-btn,
+.gct-picker-host .gp-slot-btn,
+.gct-picker-host .gp-cal-day,
+.gct-picker-host .gp-cal-nav button,
+.gct-picker-host .gp-clear-btn,
+.gct-picker-host .gp-confirm-btn {
     font-family: inherit;
 }
 
-#gctTimePicker .gp-date-btn {
+.gct-picker-host .gp-date-btn {
     display: block;
     width: 100%;
     padding: 7px 9px;
@@ -1323,18 +1318,18 @@ tr[data-is-open='false'] .status-icon {
         border-color 0.15s;
 }
 
-#gctTimePicker .gp-date-btn:hover {
+.gct-picker-host .gp-date-btn:hover {
     background: #f5f5f5;
 }
 
-#gctTimePicker .gp-date-btn.active {
+.gct-picker-host .gp-date-btn.active {
     background: #dbeafe;
     color: #1d5fa0;
     border-color: #93b4e0;
     font-weight: 600;
 }
 
-#gctTimePicker .gp-date-btn .gp-sub {
+.gct-picker-host .gp-date-btn .gp-sub {
     display: block;
     font-size: 11px;
     font-weight: 400;
@@ -1342,33 +1337,33 @@ tr[data-is-open='false'] .status-icon {
     margin-top: 1px;
 }
 
-#gctTimePicker .gp-date-btn.active .gp-sub {
+.gct-picker-host .gp-date-btn.active .gp-sub {
     color: #3b82c8;
 }
 
-#gctTimePicker .gp-slots-area {
+.gct-picker-host .gp-slots-area {
     flex: 1;
     min-width: 0;
 }
 
-#gctTimePicker .gp-slots-pane {
+.gct-picker-host .gp-slots-pane {
     display: none;
     padding: 10px;
 }
 
-#gctTimePicker .gp-slots-header {
+.gct-picker-host .gp-slots-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
 }
 
-#gctTimePicker .gp-slots-header span {
+.gct-picker-host .gp-slots-header span {
     font-size: 12px;
     color: #888;
 }
 
-#gctTimePicker .gp-clear-btn {
+.gct-picker-host .gp-clear-btn {
     font-size: 11px;
     color: #1d5fa0;
     background: none;
@@ -1378,17 +1373,17 @@ tr[data-is-open='false'] .status-icon {
     display: none;
 }
 
-#gctTimePicker .gp-clear-btn.visible {
+.gct-picker-host .gp-clear-btn.visible {
     display: block;
 }
 
-#gctTimePicker .gp-slots-grid {
+.gct-picker-host .gp-slots-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 5px;
 }
 
-#gctTimePicker .gp-slot-btn {
+.gct-picker-host .gp-slot-btn {
     padding: 6px 4px;
     text-align: center;
     position: relative;
@@ -1403,28 +1398,28 @@ tr[data-is-open='false'] .status-icon {
         border-color 0.15s;
 }
 
-#gctTimePicker .gp-slot-btn:hover {
+.gct-picker-host .gp-slot-btn:hover {
     background: #f5f5f5;
 }
 
-#gctTimePicker .gp-slot-btn .gp-slot-range {
+.gct-picker-host .gp-slot-btn .gp-slot-range {
     font-size: 10px;
     color: #888;
     display: block;
     margin-top: 1px;
 }
 
-#gctTimePicker .gp-slot-btn.selected {
+.gct-picker-host .gp-slot-btn.selected {
     background: #dbeafe;
     color: #1d5fa0;
     border-color: #93b4e0;
 }
 
-#gctTimePicker .gp-slot-btn.selected .gp-slot-range {
+.gct-picker-host .gp-slot-btn.selected .gp-slot-range {
     color: #3b82c8;
 }
 
-#gctTimePicker .gp-slot-btn.selected::after {
+.gct-picker-host .gp-slot-btn.selected::after {
     content: '';
     position: absolute;
     top: 4px;
@@ -1435,7 +1430,7 @@ tr[data-is-open='false'] .status-icon {
     background: #1d5fa0;
 }
 
-#gctTimePicker .gp-no-slots {
+.gct-picker-host .gp-no-slots {
     padding: 28px 12px;
     text-align: center;
     font-size: 13px;
@@ -1443,29 +1438,29 @@ tr[data-is-open='false'] .status-icon {
     display: none;
 }
 
-#gctTimePicker .gp-cal {
+.gct-picker-host .gp-cal {
     padding: 10px;
     display: none;
 }
 
-#gctTimePicker .gp-cal.visible {
+.gct-picker-host .gp-cal.visible {
     display: block;
 }
 
-#gctTimePicker .gp-cal-nav {
+.gct-picker-host .gp-cal-nav {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 6px;
 }
 
-#gctTimePicker .gp-cal-nav span {
+.gct-picker-host .gp-cal-nav span {
     font-size: 13px;
     font-weight: 600;
     color: #222;
 }
 
-#gctTimePicker .gp-cal-nav button {
+.gct-picker-host .gp-cal-nav button {
     background: none;
     border: none;
     cursor: pointer;
@@ -1474,24 +1469,24 @@ tr[data-is-open='false'] .status-icon {
     padding: 2px 6px;
 }
 
-#gctTimePicker .gp-cal-nav button:hover {
+.gct-picker-host .gp-cal-nav button:hover {
     color: #222;
 }
 
-#gctTimePicker .gp-cal-grid {
+.gct-picker-host .gp-cal-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 3px;
 }
 
-#gctTimePicker .gp-cal-hdr {
+.gct-picker-host .gp-cal-hdr {
     font-size: 11px;
     color: #888;
     text-align: center;
     padding: 2px 0;
 }
 
-#gctTimePicker .gp-cal-day {
+.gct-picker-host .gp-cal-day {
     width: 100%;
     aspect-ratio: 1;
     display: flex;
@@ -1506,40 +1501,40 @@ tr[data-is-open='false'] .status-icon {
     cursor: pointer;
 }
 
-#gctTimePicker .gp-cal-day:hover:not(.disabled):not(.empty) {
+.gct-picker-host .gp-cal-day:hover:not(.disabled):not(.empty) {
     background: #f5f5f5;
 }
 
-#gctTimePicker .gp-cal-day.disabled {
+.gct-picker-host .gp-cal-day.disabled {
     opacity: 0.3;
     cursor: default;
 }
 
-#gctTimePicker .gp-cal-day.empty {
+.gct-picker-host .gp-cal-day.empty {
     border: none;
     background: transparent;
     cursor: default;
 }
 
-#gctTimePicker .gp-cal-day.selected {
+.gct-picker-host .gp-cal-day.selected {
     background: #dbeafe;
     color: #1d5fa0;
     border-color: #93b4e0;
     font-weight: 600;
 }
 
-#gctTimePicker .gp-confirm {
+.gct-picker-host .gp-confirm {
     display: none;
     padding: 8px 12px;
     border-top: 1px solid #eee;
     justify-content: flex-end;
 }
 
-#gctTimePicker .gp-confirm.visible {
+.gct-picker-host .gp-confirm.visible {
     display: flex;
 }
 
-#gctTimePicker .gp-confirm-btn {
+.gct-picker-host .gp-confirm-btn {
     font-size: 13px;
     padding: 6px 16px;
     cursor: pointer;
@@ -1550,7 +1545,7 @@ tr[data-is-open='false'] .status-icon {
     font-weight: 600;
 }
 
-#gctTimePicker .gp-confirm-btn:hover {
+.gct-picker-host .gp-confirm-btn:hover {
     background: #174d88;
 }
 
@@ -1624,10 +1619,6 @@ tr[data-is-open='false'] .status-icon {
     gap: 10px;
 }
 
-.gct-add-slots-dialog {
-    width: 420px;
-}
-
 .gct-add-slots-summary {
     display: flex;
     flex-direction: column;
@@ -1643,27 +1634,32 @@ tr[data-is-open='false'] .status-icon {
     color: #64748b;
 }
 
-.gct-add-slots-picker {
-    position: relative;
+.gct-group-add-panel {
+    width: min(460px, calc(var(--app-width) - 20px));
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--shadow-card);
+    padding: 12px;
 }
 
-.gct-add-slots-picker #gctTimePicker,
-.gct-add-slots-picker .gp-collapsed {
-    width: 100%;
-}
-
-.gct-add-slots-picker .gp-dropdown {
-    position: static;
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    margin-top: 8px;
-    box-shadow: none;
-    border: 1px solid #ddd;
-}
-
-.gct-add-slots-picker .gp-confirm {
+.gct-group-add-header {
     display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.gct-group-add-close {
+    flex: 0 0 auto;
+}
+
+.gct-group-add-picker {
+    width: 100%;
+}
+
+.gct-group-add-picker .gp-dropdown {
+    right: 0;
 }
 
 .gct-edit-dialog h3 {
