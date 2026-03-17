@@ -29,6 +29,11 @@ describe('popup/gct', () => {
         await Promise.resolve();
     };
 
+    const setInputValue = (input: HTMLInputElement, value: string) => {
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
     const loadModule = async () => {
         jest.resetModules();
         return import('../../../src/popup/gct');
@@ -84,9 +89,9 @@ describe('popup/gct', () => {
         const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
         const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
 
-        documentInput.value = 'DOC';
-        vehicleInput.value = 'ndz45396';
-        containerInput.value = 'tclu3141931';
+        setInputValue(documentInput, 'doc123456');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
 
         collapsed.click();
         await flushUi();
@@ -112,6 +117,7 @@ describe('popup/gct', () => {
 
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('2 dni');
         expect(document.querySelector('.gp-badge')?.textContent).toBe('3 sloty');
+        expect(addButton.disabled).toBe(false);
 
         addButton.click();
         await flushUi();
@@ -120,7 +126,7 @@ describe('popup/gct', () => {
             target: 'gct',
             type: 'ADD_GROUP',
             group: {
-                documentNumber: 'DOC',
+                documentNumber: 'DOC123456',
                 vehicleNumber: 'NDZ45396',
                 containerNumber: 'TCLU3141931',
                 slots: [
@@ -133,6 +139,49 @@ describe('popup/gct', () => {
         expect(containerInput.value).toBe('');
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina…');
         expect(document.querySelector('.gp-badge')?.textContent).toBe('');
+        expect(addButton.disabled).toBe(true);
+    });
+
+    it('keeps the add button disabled until all fields and slots are valid', async () => {
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+
+        expect(addButton.disabled).toBe(true);
+
+        setInputValue(documentInput, 'doc123');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
+        await flushUi();
+
+        expect(documentInput.value).toBe('DOC123');
+        expect(vehicleInput.value).toBe('NDZ45396');
+        expect(containerInput.value).toBe('TCLU3141931');
+        expect(addButton.disabled).toBe(true);
+
+        setInputValue(documentInput, 'doc123456');
+        await flushUi();
+
+        expect(addButton.disabled).toBe(true);
+
+        collapsed.click();
+        await flushUi();
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        expect(addButton.disabled).toBe(false);
     });
 
     it('supports custom calendar date selection and clearing slots', async () => {

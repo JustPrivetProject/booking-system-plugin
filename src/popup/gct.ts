@@ -9,6 +9,9 @@ import {
 import { consoleError } from '../utils';
 
 const GCT_TIMEZONE = 'Europe/Warsaw';
+const GCT_DOCUMENT_NUMBER_LENGTH = 9;
+const GCT_VEHICLE_NUMBER_LENGTH = 8;
+const GCT_CONTAINER_NUMBER_LENGTH = 11;
 const GCT_PICKER_MONTHS_PL = [
     'Styczeń',
     'Luty',
@@ -231,11 +234,11 @@ function buildControlsMarkup(): string {
     return `
         <div class="gct-controls">
             <div class="gct-controls-row">
-                <input id="gctDocumentInput" class="gct-input" type="text" placeholder="Dokument kierowcy" />
-                <input id="gctVehicleInput" class="gct-input" type="text" placeholder="Nr. Pojazdu" />
-                <input id="gctContainerInput" class="gct-input" type="text" placeholder="Nr. Kontenera" />
+                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. Pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr. Kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
-                <button id="gctAddButton" type="button" class="secondary-button gct-add-button">Dodaj</button>
+                <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
             </div>
         </div>
         <div class="queue-container gct-queue-container">
@@ -679,6 +682,43 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     return api;
 }
 
+function normalizeCompactUppercaseValue(value: string): string {
+    return value.replace(/\s+/g, '').toUpperCase();
+}
+
+function isExactLength(value: string, expectedLength: number): boolean {
+    return value.length === expectedLength;
+}
+
+function hasValidGctAddInputs(): boolean {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    if (!documentInput || !vehicleInput || !containerInput || !gctTimePicker) {
+        return false;
+    }
+
+    const selection = gctTimePicker.getSelection();
+    const totalSlots = selection.selections.reduce((sum, entry) => sum + entry.slots.length, 0);
+
+    return (
+        isExactLength(documentInput.value, GCT_DOCUMENT_NUMBER_LENGTH) &&
+        isExactLength(vehicleInput.value, GCT_VEHICLE_NUMBER_LENGTH) &&
+        isExactLength(containerInput.value, GCT_CONTAINER_NUMBER_LENGTH) &&
+        totalSlots > 0
+    );
+}
+
+function updateAddButtonState(): void {
+    const addButton = byId<HTMLButtonElement>('gctAddButton');
+    if (!addButton) {
+        return;
+    }
+
+    addButton.disabled = !hasValidGctAddInputs();
+}
+
 function renderEmptyState(body: HTMLElement): void {
     body.innerHTML =
         '<tr><td class="watchlist-empty-cell gct-empty-cell">Dodaj konfigurację GCT, aby rozpocząć monitoring</td></tr>';
@@ -940,6 +980,7 @@ async function handleAdd(): Promise<void> {
 
         containerInput.value = '';
         gctTimePicker.reset();
+        updateAddButtonState();
     } catch (error) {
         consoleError('Add GCT group failed:', error);
     }
@@ -965,11 +1006,28 @@ export function initGctUI(): void {
     const timePickerHost = byId<HTMLElement>('gctTimePicker');
     if (timePickerHost) {
         gctTimePicker = createGctTimePicker(timePickerHost);
+        gctTimePicker.onchange = () => {
+            updateAddButtonState();
+        };
     }
+
+    const bindNormalizedInput = (id: string): void => {
+        byId<HTMLInputElement>(id)?.addEventListener('input', event => {
+            const input = event.currentTarget as HTMLInputElement;
+            input.value = normalizeCompactUppercaseValue(input.value);
+            updateAddButtonState();
+        });
+    };
+
+    bindNormalizedInput('gctDocumentInput');
+    bindNormalizedInput('gctVehicleInput');
+    bindNormalizedInput('gctContainerInput');
 
     byId<HTMLButtonElement>('gctAddButton')?.addEventListener('click', () => {
         handleAdd().catch(consoleError);
     });
+
+    updateAddButtonState();
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;
