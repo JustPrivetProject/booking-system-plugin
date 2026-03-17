@@ -256,20 +256,30 @@ describe('popup/gct', () => {
         const groupRow = document.querySelector('.gct-group-row') as HTMLTableRowElement;
         expect(groupRow.textContent).toContain('TCLU3141931');
         expect(groupRow.textContent).toContain('DOC123');
-        expect(document.querySelector('.gct-slot-editable')?.textContent).toContain('18.03.2026');
+        expect(document.querySelector('.gct-slot-time-cell')?.textContent).toContain('18.03.2026');
 
-        (groupRow.querySelector('.group-add-button') as HTMLButtonElement).click();
+        (groupRow.querySelector('.group-edit-button') as HTMLButtonElement).click();
         await flushUi();
 
-        expect(document.querySelector('.gct-group-add-panel')).toBeTruthy();
+        expect(document.querySelector('.gct-group-edit-panel')).toBeTruthy();
+        expect(
+            document
+                .querySelector('.gct-group-edit-picker .gp-slot-btn[data-slot-value="04:30"]')
+                ?.classList.contains('selected'),
+        ).toBe(true);
         (
-            Array.from(document.querySelectorAll('.gct-group-add-picker .gp-slot-btn')).find(
-                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            Array.from(document.querySelectorAll('.gct-group-edit-picker .gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '04:30',
+            ) as HTMLButtonElement
+        ).click();
+        (
+            Array.from(document.querySelectorAll('.gct-group-edit-picker .gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '06:30',
             ) as HTMLButtonElement
         ).click();
         await flushUi();
         (
-            document.querySelector('.gct-group-add-picker .gp-confirm-btn') as HTMLButtonElement
+            document.querySelector('.gct-group-edit-picker .gp-confirm-btn') as HTMLButtonElement
         ).click();
         await flushUi();
 
@@ -282,14 +292,10 @@ describe('popup/gct', () => {
         (
             document.querySelector('tr[data-row-id="row-1"] .remove-button') as HTMLButtonElement
         ).click();
-        (document.querySelector('.gct-slot-editable') as HTMLElement).click();
-
-        const editSlot = document.getElementById('gctEditSlot') as HTMLSelectElement;
-        const editDate = document.getElementById('gctEditDate') as HTMLInputElement;
-        editDate.value = '2026-03-19';
-        editSlot.value = '06:30';
-        (document.getElementById('gctEditSave') as HTMLButtonElement).click();
+        (document.querySelector('.gct-slot-time-cell') as HTMLElement).click();
         await flushUi();
+
+        expect(document.getElementById('gctEditSlot')).toBeNull();
 
         expect(sentMessages).toEqual(
             expect.arrayContaining([
@@ -298,23 +304,12 @@ describe('popup/gct', () => {
                 { target: 'gct', type: 'REMOVE_GROUP', groupId: 'group-1' },
                 {
                     target: 'gct',
-                    type: 'ADD_GROUP',
-                    group: {
-                        documentNumber: 'DOC123',
-                        vehicleNumber: 'NDZ45396',
-                        containerNumber: 'TCLU3141931',
-                        slots: [{ date: '2026-03-17', startTime: '22:30' }],
-                    },
+                    type: 'REPLACE_GROUP_SLOTS',
+                    groupId: 'group-1',
+                    slots: [{ date: '2026-03-18', startTime: '06:30' }],
                 },
                 { target: 'gct', type: 'PAUSE_ROW', groupId: 'group-1', rowId: 'row-1' },
                 { target: 'gct', type: 'REMOVE_ROW', groupId: 'group-1', rowId: 'row-1' },
-                {
-                    target: 'gct',
-                    type: 'UPDATE_ROW_SLOT',
-                    groupId: 'group-1',
-                    rowId: 'row-1',
-                    slot: { date: '2026-03-19', startTime: '06:30' },
-                },
             ]),
         );
     });
@@ -400,15 +395,13 @@ describe('popup/gct', () => {
             document.querySelector('tr[data-row-id="row-3"] .resume-button') as HTMLButtonElement
         ).click();
         (
-            document.querySelector('tr[data-row-id="row-3"] .gct-slot-editable') as HTMLElement
+            document.querySelector('tr[data-row-id="row-3"] .gct-slot-time-cell') as HTMLElement
         ).click();
-        (document.getElementById('gctEditCancel') as HTMLButtonElement).click();
         expect(document.querySelector('.gct-edit-overlay')).toBeNull();
 
         (
-            document.querySelector('tr[data-row-id="row-3"] .gct-slot-editable') as HTMLElement
+            document.querySelector('tr[data-row-id="row-3"] .gct-slot-time-cell') as HTMLElement
         ).click();
-        (document.querySelector('.gct-edit-overlay') as HTMLElement).click();
         expect(document.querySelector('.gct-edit-overlay')).toBeNull();
 
         const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0];

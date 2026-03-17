@@ -46,6 +46,7 @@ interface GctPickerApi {
     onchange: ((selection: GctPickerSelection) => void) | null;
     onconfirm: ((selection: GctPickerSelection) => void | boolean | Promise<void | boolean>) | null;
     getSelection(): GctPickerSelection;
+    setSlots(slots: GctTargetSlotDraft[]): void;
     reset(): void;
     open(): void;
     close(): void;
@@ -57,8 +58,8 @@ interface GctPickerWindow extends Window {
 }
 
 let gctTimePicker: GctPickerApi | null = null;
-let activeGroupAddPicker: GctPickerApi | null = null;
-let activeGroupAddOverlay: HTMLDivElement | null = null;
+let activeGroupEditPicker: GctPickerApi | null = null;
+let activeGroupEditOverlay: HTMLDivElement | null = null;
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -311,6 +312,54 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     const noSlots = ref<HTMLDivElement>('ns');
     const confirmBar = ref<HTMLDivElement>('cf');
     const confirmButton = ref<HTMLButtonElement>('cfb');
+    const slotOrder = new Map(GCT_ALLOWED_START_TIMES.map((slot, index) => [slot, index]));
+
+    const sortSlots = (slots: readonly GctAllowedStartTime[]): GctAllowedStartTime[] =>
+        [...slots].sort(
+            (left, right) => (slotOrder.get(left) ?? 0) - (slotOrder.get(right) ?? 0),
+        ) as GctAllowedStartTime[];
+
+    const applySlots = (slots: GctTargetSlotDraft[]): void => {
+        if (slots.length === 0) {
+            selectedDateId = 'today';
+            selectedSlotsByDate = {};
+            customDate = null;
+            renderAll();
+            return;
+        }
+
+        const nextByDate: Record<string, GctAllowedStartTime[]> = {};
+        for (const slot of slots) {
+            const current = nextByDate[slot.date] || [];
+            if (!current.includes(slot.startTime)) {
+                nextByDate[slot.date] = sortSlots([...current, slot.startTime]);
+            }
+        }
+
+        selectedSlotsByDate = nextByDate;
+
+        const firstDate = Object.keys(nextByDate).sort((left, right) =>
+            left.localeCompare(right),
+        )[0];
+        const today = nowLocalDate();
+        const tomorrow = addDays(today, 1);
+
+        if (firstDate === today) {
+            selectedDateId = 'today';
+            customDate = null;
+        } else if (firstDate === tomorrow) {
+            selectedDateId = 'tomorrow';
+            customDate = null;
+        } else {
+            selectedDateId = 'other';
+            customDate = firstDate;
+            const calendarDate = parseIsoDate(firstDate);
+            calendarMonth = calendarDate.getMonth();
+            calendarYear = calendarDate.getFullYear();
+        }
+
+        renderAll();
+    };
 
     const api: GctPickerApi = {
         onchange: null,
@@ -321,6 +370,9 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
                 slots: [...getSelectedSlotsForDate(getActiveDate())],
                 selections: getAllSelections(),
             };
+        },
+        setSlots(slots: GctTargetSlotDraft[]): void {
+            applySlots(slots);
         },
         reset(): void {
             selectedDateId = 'today';
@@ -362,7 +414,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             return [];
         }
 
-        return [...(selectedSlotsByDate[date] || [])].sort() as GctAllowedStartTime[];
+        return sortSlots(selectedSlotsByDate[date] || []);
     };
 
     const setSelectedSlotsForDate = (date: string | null, slots: GctAllowedStartTime[]): void => {
@@ -377,7 +429,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
 
         selectedSlotsByDate = {
             ...selectedSlotsByDate,
-            [date]: [...slots].sort() as GctAllowedStartTime[],
+            [date]: sortSlots(slots),
         };
     };
 
@@ -387,7 +439,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
             .map(([date, slots]) => ({
                 date,
-                slots: [...slots].sort() as GctAllowedStartTime[],
+                slots: sortSlots(slots),
             }));
 
     const getTotalSelectedSlots = (): number =>
@@ -485,7 +537,11 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             return;
         }
 
-        const availableSlots = getAvailablePickerSlots(activeDate);
+        const selectedSlots = getSelectedSlotsForDate(activeDate);
+        const availableSlots = sortSlots([
+            ...new Set([...getAvailablePickerSlots(activeDate), ...selectedSlots]),
+        ] as GctAllowedStartTime[]);
+
         if (availableSlots.length === 0) {
             slotsPane.style.display = 'none';
             noSlots.style.display = 'block';
@@ -496,7 +552,6 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         noSlots.style.display = 'none';
         slotsPane.style.display = 'block';
         slotsGrid.innerHTML = '';
-        const selectedSlots = getSelectedSlotsForDate(activeDate);
 
         for (const slot of availableSlots) {
             const selected = selectedSlots.includes(slot);
@@ -774,11 +829,20 @@ function mapSelectionToSlots(selection: GctPickerSelection): GctTargetSlotDraft[
     );
 }
 
-function closeGroupAddOverlay(): void {
-    activeGroupAddPicker?.destroy();
-    activeGroupAddPicker = null;
-    activeGroupAddOverlay?.remove();
-    activeGroupAddOverlay = null;
+function mapGroupRowsToSlots(group: GctWatchGroup): GctTargetSlotDraft[] {
+    return [...group.rows]
+        .sort((left, right) => left.targetStartLocal.localeCompare(right.targetStartLocal))
+        .map(row => ({
+            date: row.targetDate,
+            startTime: row.targetStartTime as GctAllowedStartTime,
+        }));
+}
+
+function closeGroupEditOverlay(): void {
+    activeGroupEditPicker?.destroy();
+    activeGroupEditPicker = null;
+    activeGroupEditOverlay?.remove();
+    activeGroupEditOverlay = null;
 }
 
 function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
@@ -801,8 +865,8 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
         </td>
         <td class="group-header actions">
             <div class="gct-group-actions">
-                <button class="group-add-button" title="Dodaj slot do grupy">
-                    <span class="material-icons icon">add</span>
+                <button class="group-edit-button" title="Edytuj sloty grupy">
+                    <span class="material-icons icon">edit</span>
                 </button>
                 <button class="group-resume-button resume-button" title="Wznów grupę" ${group.status === 'watching' || group.status === 'success' ? 'disabled' : ''}>
                     <span class="material-icons icon">play_arrow</span>
@@ -820,35 +884,35 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
     return row;
 }
 
-function showGroupAddSlotsModal(group: GctWatchGroup): void {
-    closeGroupAddOverlay();
+function showGroupEditModal(group: GctWatchGroup): void {
+    closeGroupEditOverlay();
 
     const overlay = document.createElement('div');
-    overlay.className = 'gct-edit-overlay gct-group-add-overlay';
+    overlay.className = 'gct-edit-overlay gct-group-edit-overlay';
     overlay.innerHTML = `
-        <div class="gct-group-add-panel">
-            <div class="gct-group-add-header">
+        <div class="gct-group-edit-panel">
+            <div class="gct-group-edit-header">
                 <div class="gct-add-slots-summary">${group.containerNumber}<span>${group.documentNumber} • ${group.vehicleNumber}</span></div>
-                <button type="button" class="secondary-button gct-group-add-close" aria-label="Zamknij dodawanie slotów">Anuluj</button>
+                <button type="button" class="secondary-button gct-group-edit-close" aria-label="Zamknij edycję grupy">Anuluj</button>
             </div>
-            <div class="gct-picker-host gct-group-add-picker"></div>
+            <div class="gct-picker-host gct-group-edit-picker"></div>
         </div>
     `;
 
     document.body.appendChild(overlay);
-    activeGroupAddOverlay = overlay;
+    activeGroupEditOverlay = overlay;
 
-    const pickerHost = overlay.querySelector('.gct-group-add-picker') as HTMLElement | null;
+    const pickerHost = overlay.querySelector('.gct-group-edit-picker') as HTMLElement | null;
     const picker = pickerHost ? createGctTimePicker(pickerHost) : null;
-    activeGroupAddPicker = picker;
+    activeGroupEditPicker = picker;
 
-    overlay.querySelector('.gct-group-add-close')?.addEventListener('click', () => {
-        closeGroupAddOverlay();
+    overlay.querySelector('.gct-group-edit-close')?.addEventListener('click', () => {
+        closeGroupEditOverlay();
     });
 
     overlay.addEventListener('click', event => {
         if (event.target === overlay) {
-            closeGroupAddOverlay();
+            closeGroupEditOverlay();
         }
     });
 
@@ -856,6 +920,7 @@ function showGroupAddSlotsModal(group: GctWatchGroup): void {
         return;
     }
 
+    picker.setSlots(mapGroupRowsToSlots(group));
     picker.onconfirm = async selection => {
         const slots = mapSelectionToSlots(selection);
         if (slots.length === 0) {
@@ -863,17 +928,13 @@ function showGroupAddSlotsModal(group: GctWatchGroup): void {
         }
 
         try {
-            await sendGctMessage('ADD_GROUP', {
-                group: {
-                    documentNumber: group.documentNumber,
-                    vehicleNumber: group.vehicleNumber,
-                    containerNumber: group.containerNumber,
-                    slots,
-                },
+            await sendGctMessage('REPLACE_GROUP_SLOTS', {
+                groupId: group.id,
+                slots,
             });
-            closeGroupAddOverlay();
+            closeGroupEditOverlay();
         } catch (error) {
-            consoleError('Add GCT slots to existing group failed:', error);
+            consoleError('Replace GCT group slots failed:', error);
             return false;
         }
 
@@ -896,7 +957,7 @@ function createChildRow(group: GctWatchGroup, rowState: GctWatchRow): HTMLTableR
         <td class="status ${cssClass}" title="${rowState.statusMessage}">
             <span class="status-icon material-icons">${iconForRow(rowState)}</span>
         </td>
-        <td class="slot-time gct-slot-time-cell gct-slot-editable" title="${rowState.targetStartLocal}">${formatRowTime(rowState)}</td>
+        <td class="slot-time gct-slot-time-cell" title="${rowState.targetStartLocal}">${formatRowTime(rowState)}</td>
         <td class="gct-row-message" title="${rowState.statusMessage}">${rowState.statusMessage}</td>
         <td class="actions">
             <button class="resume-button" title="Wznów" ${rowState.active || rowState.status === Statuses.SUCCESS || rowState.status === Statuses.EXPIRED || rowState.status === 'completed' ? 'disabled' : ''}>
@@ -955,100 +1016,17 @@ function bindGroupEvents(groupRow: HTMLTableRowElement): void {
         }
     });
 
-    groupRow.querySelector('.group-add-button')?.addEventListener('click', event => {
+    groupRow.querySelector('.group-edit-button')?.addEventListener('click', event => {
         event.stopPropagation();
         if (!group) {
             return;
         }
 
-        showGroupAddSlotsModal(group);
+        showGroupEditModal(group);
     });
 }
 
-function showRowEditModal(groupId: string, rowId: string, rowState: GctWatchRow): void {
-    const overlay = document.createElement('div');
-    overlay.className = 'gct-edit-overlay';
-
-    overlay.innerHTML = `
-        <div class="gct-edit-dialog">
-            <h3>Edytuj slot GCT</h3>
-            <input id="gctEditDate" type="date" value="${rowState.targetDate}" min="${nowLocalDate()}" />
-            <select id="gctEditSlot"></select>
-            <div class="gct-edit-actions">
-                <button type="button" class="secondary-button" id="gctEditCancel">Anuluj</button>
-                <button type="button" id="gctEditSave">Zapisz</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-
-    const dateInput = overlay.querySelector('#gctEditDate') as HTMLInputElement | null;
-    const slotInput = overlay.querySelector('#gctEditSlot') as HTMLSelectElement | null;
-    const saveButton = overlay.querySelector('#gctEditSave') as HTMLButtonElement | null;
-
-    const renderSlotOptions = (date: string, preferredSlot: string | null = null): void => {
-        if (!slotInput || !saveButton) {
-            return;
-        }
-
-        const availableSlots = getAvailablePickerSlots(date);
-        if (availableSlots.length === 0) {
-            slotInput.innerHTML = '<option value="">Brak dostępnych slotów</option>';
-            slotInput.disabled = true;
-            saveButton.disabled = true;
-            return;
-        }
-
-        const selectedSlot =
-            preferredSlot && (availableSlots as string[]).includes(preferredSlot)
-                ? preferredSlot
-                : availableSlots[0];
-
-        slotInput.innerHTML = availableSlots
-            .map(time => `<option value="${time}">${time}</option>`)
-            .join('');
-        slotInput.value = selectedSlot;
-        slotInput.disabled = false;
-        saveButton.disabled = false;
-    };
-
-    if (dateInput) {
-        renderSlotOptions(dateInput.value, rowState.targetStartTime);
-        dateInput.addEventListener('change', () => {
-            if (!dateInput.value) {
-                return;
-            }
-            renderSlotOptions(dateInput.value);
-        });
-    }
-
-    overlay.querySelector('#gctEditCancel')?.addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', event => {
-        if (event.target === overlay) {
-            overlay.remove();
-        }
-    });
-
-    overlay.querySelector('#gctEditSave')?.addEventListener('click', async () => {
-        if (!dateInput?.value || !slotInput?.value) {
-            return;
-        }
-
-        try {
-            await sendGctMessage('UPDATE_ROW_SLOT', {
-                groupId,
-                rowId,
-                slot: { date: dateInput.value, startTime: slotInput.value },
-            });
-            overlay.remove();
-        } catch (error) {
-            consoleError('Update GCT row failed:', error);
-        }
-    });
-}
-
-function bindChildRowEvents(row: HTMLTableRowElement, rowState: GctWatchRow): void {
+function bindChildRowEvents(row: HTMLTableRowElement, _rowState: GctWatchRow): void {
     const groupId = row.dataset.groupId;
     const rowId = row.dataset.rowId;
     if (!groupId || !rowId) return;
@@ -1075,10 +1053,6 @@ function bindChildRowEvents(row: HTMLTableRowElement, rowState: GctWatchRow): vo
         } catch (error) {
             consoleError('Resume GCT row failed:', error);
         }
-    });
-
-    row.querySelector('.gct-slot-editable')?.addEventListener('click', () => {
-        showRowEditModal(groupId, rowId, rowState);
     });
 }
 

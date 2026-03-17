@@ -5,6 +5,7 @@ import { saveGctSettings } from '../../gct/storage';
 export type GctMessageType =
     | 'GET_STATE'
     | 'ADD_GROUP'
+    | 'REPLACE_GROUP_SLOTS'
     | 'REMOVE_GROUP'
     | 'REMOVE_ROW'
     | 'UPDATE_ROW_SLOT'
@@ -22,6 +23,7 @@ export interface GctMessage {
     groupId?: string;
     rowId?: string;
     slot?: GctTargetSlotDraft;
+    slots?: GctTargetSlotDraft[];
     settings?: Partial<GctWatcherSettings>;
 }
 
@@ -36,6 +38,12 @@ export class GctHandler {
                     throw new Error('Group payload is required');
                 }
                 return gctWatcherService.addGroup(message.group);
+
+            case 'REPLACE_GROUP_SLOTS':
+                if (!message.groupId || !message.slots) {
+                    throw new Error('groupId and slots are required');
+                }
+                return gctWatcherService.replaceGroupSlots(message.groupId, message.slots);
 
             case 'REMOVE_GROUP':
                 if (!message.groupId) {

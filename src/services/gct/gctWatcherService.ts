@@ -111,6 +111,20 @@ function mergeSlots(existingRows: GctWatchRow[], slots: GctTargetSlotDraft[]): G
     return rows;
 }
 
+function normalizeSlots(slots: GctTargetSlotDraft[]): GctTargetSlotDraft[] {
+    const uniqueSlots = new Map<string, GctTargetSlotDraft>();
+
+    for (const slot of slots) {
+        uniqueSlots.set(`${slot.date} ${slot.startTime}`, slot);
+    }
+
+    return [...uniqueSlots.values()].sort((left, right) => {
+        const leftKey = `${left.date} ${left.startTime}`;
+        const rightKey = `${right.date} ${right.startTime}`;
+        return leftKey.localeCompare(rightKey);
+    });
+}
+
 function isTerminalRow(row: GctWatchRow): boolean {
     return [Statuses.SUCCESS, Statuses.EXPIRED, 'completed'].includes(row.status);
 }
@@ -338,6 +352,40 @@ export class GctWatcherService {
                 return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
             })
             .filter(group => group.rows.length > 0);
+
+        await saveGctGroups(nextGroups);
+        await this.ensureSchedules();
+        return this.getState();
+    }
+
+    async replaceGroupSlots(groupId: string, slots: GctTargetSlotDraft[]): Promise<GctState> {
+        const normalizedSlots = normalizeSlots(slots);
+        if (normalizedSlots.length === 0) {
+            throw new Error('At least one slot is required');
+        }
+
+        const state = await this.getState();
+        const nextGroups = state.groups.map(group => {
+            if (group.id !== groupId) {
+                return group;
+            }
+
+            const existingRowsByStartLocal = new Map(
+                group.rows.map(row => [row.targetStartLocal, row] as const),
+            );
+            const rows = normalizedSlots.map(slot => {
+                const slotWindow = buildSlotWindow(slot.date, slot.startTime);
+                return existingRowsByStartLocal.get(slotWindow.targetStartLocal) || createRow(slot);
+            });
+
+            const nextGroup = {
+                ...group,
+                rows,
+                updatedAt: nowIso(),
+            };
+
+            return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
+        });
 
         await saveGctGroups(nextGroups);
         await this.ensureSchedules();

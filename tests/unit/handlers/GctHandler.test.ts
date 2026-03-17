@@ -7,6 +7,7 @@ jest.mock('../../../src/services/gct/gctWatcherService', () => ({
     gctWatcherService: {
         getState: jest.fn(),
         addGroup: jest.fn(),
+        replaceGroupSlots: jest.fn(),
         removeGroup: jest.fn(),
         removeRow: jest.fn(),
         updateRowSlot: jest.fn(),
@@ -27,6 +28,7 @@ describe('GctHandler', () => {
         handler = new GctHandler();
         (gctWatcherService.getState as jest.Mock).mockResolvedValue({ groups: [] });
         (gctWatcherService.addGroup as jest.Mock).mockResolvedValue({ ok: true });
+        (gctWatcherService.replaceGroupSlots as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.removeGroup as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.removeRow as jest.Mock).mockResolvedValue({ ok: true });
         (gctWatcherService.updateRowSlot as jest.Mock).mockResolvedValue({ ok: true });
@@ -71,6 +73,15 @@ describe('GctHandler', () => {
 
     it.each([
         ['REMOVE_GROUP', { groupId: 'g1' }, 'removeGroup', ['g1']],
+        [
+            'REPLACE_GROUP_SLOTS',
+            {
+                groupId: 'g1',
+                slots: [{ date: '2026-03-18', startTime: '06:30' as const }],
+            },
+            'replaceGroupSlots',
+            ['g1', [{ date: '2026-03-18', startTime: '06:30' }]],
+        ],
         ['REMOVE_ROW', { groupId: 'g1', rowId: 'r1' }, 'removeRow', ['g1', 'r1']],
         [
             'UPDATE_ROW_SLOT',
@@ -103,6 +114,12 @@ describe('GctHandler', () => {
         await expect(
             handler.handleMessage({ target: 'gct', type: 'REMOVE_ROW', groupId: 'g1' }),
         ).rejects.toThrow('groupId and rowId are required');
+    });
+
+    it('throws for missing replace group payload', async () => {
+        await expect(
+            handler.handleMessage({ target: 'gct', type: 'REPLACE_GROUP_SLOTS', groupId: 'g1' }),
+        ).rejects.toThrow('groupId and slots are required');
     });
 
     it('throws for missing update row payload', async () => {

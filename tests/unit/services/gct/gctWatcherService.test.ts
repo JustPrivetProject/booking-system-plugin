@@ -193,6 +193,44 @@ describe('GctWatcherService', () => {
         expect(nextState.groups[0].status).toBe('watching');
     });
 
+    it('replaces group slots while preserving matching existing rows', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        state.groups = [
+            createGroup({
+                rows: [
+                    createRow({
+                        id: 'row-1',
+                        targetDate: '2026-03-18',
+                        targetStartTime: '04:30',
+                        targetEndDate: '2026-03-18',
+                        targetEndTime: '06:30',
+                        targetStartLocal: '2026-03-18 04:30',
+                        targetEndLocal: '2026-03-18 06:30',
+                    }),
+                    createRow({
+                        id: 'row-2',
+                        targetDate: '2026-03-18',
+                        targetStartTime: '06:30',
+                        targetEndDate: '2026-03-18',
+                        targetEndTime: '08:30',
+                        targetStartLocal: '2026-03-18 06:30',
+                        targetEndLocal: '2026-03-18 08:30',
+                    }),
+                ],
+            }),
+        ];
+
+        const nextState = await service.replaceGroupSlots('group-1', [
+            { date: '2026-03-18', startTime: '06:30' },
+            { date: '2026-03-18', startTime: '08:30' },
+        ]);
+
+        expect(nextState.groups[0].rows).toHaveLength(2);
+        expect(nextState.groups[0].rows[0].id).toBe('row-2');
+        expect(nextState.groups[0].rows[0].targetStartLocal).toBe('2026-03-18 06:30');
+        expect(nextState.groups[0].rows[1].targetStartLocal).toBe('2026-03-18 08:30');
+    });
+
     it('pauses and resumes group rows', async () => {
         jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
         state.groups = [createGroup()];
