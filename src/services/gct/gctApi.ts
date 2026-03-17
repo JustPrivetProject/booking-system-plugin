@@ -28,31 +28,66 @@ function formatLocalDateTime(value: string): string {
     return localDateTimeFormatter.format(new Date(value)).replace(',', '');
 }
 
-async function parseJsonResponse<T>(response: Response): Promise<T> {
+function toErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function compactSnippet(value: string, maxLength = 220): string {
+    const compact = value.replace(/\s+/g, ' ').trim();
+    if (!compact) {
+        return '';
+    }
+
+    return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact;
+}
+
+async function parseJsonResponse<T>(response: Response, context: string): Promise<T> {
     const text = await response.text();
 
     if (!response.ok) {
-        throw new Error(text || `GCT request failed with status ${response.status}`);
+        const snippet = compactSnippet(text);
+        throw new Error(
+            snippet
+                ? `GCT request failed with status ${response.status} [${context}] ${snippet}`
+                : `GCT request failed with status ${response.status} [${context}]`,
+        );
     }
 
     if (!text) {
         return [] as T;
     }
 
-    return JSON.parse(text) as T;
+    try {
+        return JSON.parse(text) as T;
+    } catch (error) {
+        throw new Error(
+            `Invalid JSON response from GCT [${context}] ${compactSnippet(text)} (${toErrorMessage(error)})`,
+        );
+    }
 }
 
 async function postJson<T>(path: string, body: unknown, bearerToken?: string): Promise<T> {
-    const response = await fetch(`${GCT_API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
-        },
-        body: JSON.stringify(body),
-    });
+    const crud =
+        typeof body === 'object' && body !== null && 'crud' in body
+            ? String((body as { crud?: unknown }).crud || '')
+            : '';
+    const context = crud ? `${path} crud=${crud}` : path;
 
-    return parseJsonResponse<T>(response);
+    let response: Response;
+    try {
+        response = await fetch(`${GCT_API_BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+            },
+            body: JSON.stringify(body),
+        });
+    } catch (error) {
+        throw new Error(`GCT request failed [${context}] ${toErrorMessage(error)}`);
+    }
+
+    return parseJsonResponse<T>(response, context);
 }
 
 export async function loginToGct(group: GctWatchGroup): Promise<string> {

@@ -378,10 +378,14 @@ td.group-header {
 
 td.group-header.actions {
     padding: var(--spacing-small);
-    width: 90px !important;
-    min-width: 90px;
-    max-width: 90px;
+    width: 108px !important;
+    min-width: 108px;
+    max-width: 108px;
     text-align: right;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
 }
 
 td.group-header.toggle-cell,

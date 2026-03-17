@@ -226,7 +226,9 @@ function getAvailablePickerSlots(date: string | null): GctAllowedStartTime[] {
     const currentMinutes = nowParts.hours * 60 + nowParts.minutes;
     return GCT_ALLOWED_START_TIMES.filter(time => {
         const [hours, minutes] = time.split(':').map(Number);
-        return hours * 60 + minutes > currentMinutes;
+        const slotStartMinutes = hours * 60 + minutes;
+        const slotEndMinutes = slotStartMinutes + 120;
+        return slotEndMinutes > currentMinutes;
     });
 }
 
@@ -845,16 +847,12 @@ function bindGroupEvents(groupRow: HTMLTableRowElement): void {
 function showRowEditModal(groupId: string, rowId: string, rowState: GctWatchRow): void {
     const overlay = document.createElement('div');
     overlay.className = 'gct-edit-overlay';
-    const slotOptions = GCT_ALLOWED_START_TIMES.map(
-        time =>
-            `<option value="${time}" ${time === rowState.targetStartTime ? 'selected' : ''}>${time}</option>`,
-    ).join('');
 
     overlay.innerHTML = `
         <div class="gct-edit-dialog">
             <h3>Edytuj slot GCT</h3>
-            <input id="gctEditDate" type="date" value="${rowState.targetDate}" />
-            <select id="gctEditSlot">${slotOptions}</select>
+            <input id="gctEditDate" type="date" value="${rowState.targetDate}" min="${nowLocalDate()}" />
+            <select id="gctEditSlot"></select>
             <div class="gct-edit-actions">
                 <button type="button" class="secondary-button" id="gctEditCancel">Anuluj</button>
                 <button type="button" id="gctEditSave">Zapisz</button>
@@ -864,6 +862,46 @@ function showRowEditModal(groupId: string, rowId: string, rowState: GctWatchRow)
 
     document.body.appendChild(overlay);
 
+    const dateInput = overlay.querySelector('#gctEditDate') as HTMLInputElement | null;
+    const slotInput = overlay.querySelector('#gctEditSlot') as HTMLSelectElement | null;
+    const saveButton = overlay.querySelector('#gctEditSave') as HTMLButtonElement | null;
+
+    const renderSlotOptions = (date: string, preferredSlot: string | null = null): void => {
+        if (!slotInput || !saveButton) {
+            return;
+        }
+
+        const availableSlots = getAvailablePickerSlots(date);
+        if (availableSlots.length === 0) {
+            slotInput.innerHTML = '<option value="">Brak dostępnych slotów</option>';
+            slotInput.disabled = true;
+            saveButton.disabled = true;
+            return;
+        }
+
+        const selectedSlot =
+            preferredSlot && (availableSlots as string[]).includes(preferredSlot)
+                ? preferredSlot
+                : availableSlots[0];
+
+        slotInput.innerHTML = availableSlots
+            .map(time => `<option value="${time}">${time}</option>`)
+            .join('');
+        slotInput.value = selectedSlot;
+        slotInput.disabled = false;
+        saveButton.disabled = false;
+    };
+
+    if (dateInput) {
+        renderSlotOptions(dateInput.value, rowState.targetStartTime);
+        dateInput.addEventListener('change', () => {
+            if (!dateInput.value) {
+                return;
+            }
+            renderSlotOptions(dateInput.value);
+        });
+    }
+
     overlay.querySelector('#gctEditCancel')?.addEventListener('click', () => overlay.remove());
     overlay.addEventListener('click', event => {
         if (event.target === overlay) {
@@ -872,8 +910,6 @@ function showRowEditModal(groupId: string, rowId: string, rowState: GctWatchRow)
     });
 
     overlay.querySelector('#gctEditSave')?.addEventListener('click', async () => {
-        const dateInput = overlay.querySelector('#gctEditDate') as HTMLInputElement | null;
-        const slotInput = overlay.querySelector('#gctEditSlot') as HTMLSelectElement | null;
         if (!dateInput?.value || !slotInput?.value) {
             return;
         }

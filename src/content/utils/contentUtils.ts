@@ -272,7 +272,15 @@ export function checkExtensionConnection(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    consoleError('[content] Extension connection error:', chrome.runtime.lastError);
+                    const errorMessage = chrome.runtime.lastError.message || '';
+                    if (errorMessage.includes('Extension context invalidated')) {
+                        consoleLog('[content] Extension context invalidated (expected on reload)');
+                    } else {
+                        consoleError(
+                            '[content] Extension connection error:',
+                            chrome.runtime.lastError,
+                        );
+                    }
                     return resolve(false);
                 }
 

@@ -24,7 +24,7 @@ import {
     matchesCurrentBooking,
 } from './gctApi';
 
-const MAX_HISTORY_EVENTS = 12;
+const MAX_HISTORY_EVENTS = 25;
 
 function nowIso(): string {
     return new Date().toISOString();
@@ -211,6 +211,19 @@ function classifyError(error: unknown): 'auth' | 'network' | 'terminal' {
     }
 
     return 'network';
+}
+
+function errorText(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function buildDiagnosticError(
+    group: GctWatchGroup,
+    row: GctWatchRow,
+    phase: string,
+    error: unknown,
+): string {
+    return `[${phase}] ${errorText(error)} | group=${group.id} | row=${row.id} | target=${row.targetStartLocal}`;
 }
 
 function buildSuccessNotificationPayload(group: GctWatchGroup, row: GctWatchRow) {
@@ -645,7 +658,8 @@ export class GctWatcherService {
                 token = await loginToGct(groupClone);
             } catch (error) {
                 const classification = classifyError(error);
-                this.applyErrorToActiveRows(groupClone, classification, error);
+                this.applyErrorToActiveRows(groupClone, classification, error, 'login');
+                consoleError('[GCT] Login failed for group', groupClone.id, error);
                 await this.persistAndReschedule(groupClone);
                 return;
             }
@@ -654,7 +668,8 @@ export class GctWatcherService {
             try {
                 availableSlots = await getGctAvailableSlots(token);
             } catch (error) {
-                this.applyErrorToActiveRows(groupClone, 'network', error);
+                this.applyErrorToActiveRows(groupClone, 'network', error, 'slots-fetch');
+                consoleError('[GCT] Slots fetch failed for group', groupClone.id, error);
                 await this.persistAndReschedule(groupClone);
                 return;
             }
@@ -700,7 +715,7 @@ export class GctWatcherService {
                 if (matches.length > 1) {
                     row.status = Statuses.ERROR;
                     row.statusMessage = 'Wykryto niejednoznaczne dopasowanie slotu';
-                    row.lastError = 'Ambiguous slot match';
+                    row.lastError = `Ambiguous slot match (${matches.length})`;
                     const ambiguousRow = addHistory(
                         row,
                         'ambiguous',
@@ -762,7 +777,7 @@ export class GctWatcherService {
 
                     row.status = Statuses.IN_PROGRESS;
                     row.statusMessage = 'Rezerwacja nie została potwierdzona — próbuję dalej';
-                    row.lastError = 'Booking verification failed';
+                    row.lastError = `Booking verification failed | group=${groupClone.id} | row=${row.id} | target=${row.targetStartLocal}`;
                     const takenRow = addHistory(
                         row,
                         'taken',
@@ -771,24 +786,26 @@ export class GctWatcherService {
                     Object.assign(row, takenRow);
                 } catch (error) {
                     const classification = classifyError(error);
+                    const diagnosticError = buildDiagnosticError(groupClone, row, 'booking', error);
+                    consoleError('[GCT] Booking cycle failed', diagnosticError);
 
                     if (classification === 'terminal') {
                         row.status = Statuses.ERROR;
                         row.statusMessage = error instanceof Error ? error.message : String(error);
-                        row.lastError = row.statusMessage;
+                        row.lastError = diagnosticError;
                         row.active = false;
                         const errorRow = addHistory(row, 'error', row.statusMessage);
                         Object.assign(row, errorRow);
                     } else if (classification === 'auth') {
                         row.status = Statuses.AUTHORIZATION_ERROR;
                         row.statusMessage = 'Błąd autoryzacji GCT — ponowię po odświeżeniu sesji';
-                        row.lastError = row.statusMessage;
+                        row.lastError = diagnosticError;
                         const authRow = addHistory(row, 'auth-lost', row.statusMessage);
                         Object.assign(row, authRow);
                     } else {
                         row.status = Statuses.NETWORK_ERROR;
                         row.statusMessage = 'Błąd sieci — ponowię próbę';
-                        row.lastError = error instanceof Error ? error.message : String(error);
+                        row.lastError = diagnosticError;
                         const networkRow = addHistory(row, 'network-error', row.lastError);
                         Object.assign(row, networkRow);
                     }
@@ -828,31 +845,33 @@ export class GctWatcherService {
         group: GctWatchGroup,
         classification: 'auth' | 'network' | 'terminal',
         error: unknown,
+        phase: string,
     ): void {
         for (const row of group.rows) {
             if (!row.active || row.isManualPause || isTerminalRow(row)) {
                 continue;
             }
 
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = errorText(error);
+            const diagnosticError = buildDiagnosticError(group, row, phase, error);
 
             if (classification === 'auth') {
                 row.status = Statuses.AUTHORIZATION_ERROR;
                 row.statusMessage = 'Błąd uwierzytelnienia GCT — ponowię próbę';
-                row.lastError = errorMessage;
+                row.lastError = diagnosticError;
                 const authRow = addHistory(row, 'auth-lost', errorMessage);
                 Object.assign(row, authRow);
             } else if (classification === 'terminal') {
                 row.status = Statuses.ERROR;
                 row.statusMessage = errorMessage;
-                row.lastError = errorMessage;
+                row.lastError = diagnosticError;
                 row.active = false;
                 const terminalRow = addHistory(row, 'error', errorMessage);
                 Object.assign(row, terminalRow);
             } else {
                 row.status = Statuses.NETWORK_ERROR;
                 row.statusMessage = 'Błąd sieci — ponowię próbę';
-                row.lastError = errorMessage;
+                row.lastError = diagnosticError;
                 const networkRow = addHistory(row, 'network-error', errorMessage);
                 Object.assign(row, networkRow);
             }

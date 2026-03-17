@@ -360,7 +360,7 @@ describe('GctWatcherService', () => {
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.ERROR,
             statusMessage: 'Wykryto niejednoznaczne dopasowanie slotu',
-            lastError: 'Ambiguous slot match',
+            lastError: 'Ambiguous slot match (2)',
         });
     });
 
@@ -430,7 +430,7 @@ describe('GctWatcherService', () => {
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.IN_PROGRESS,
             statusMessage: 'Rezerwacja nie została potwierdzona — próbuję dalej',
-            lastError: 'Booking verification failed',
+            lastError: expect.stringContaining('Booking verification failed'),
         });
         expect(state.groups[0].status).toBe('watching');
     });
