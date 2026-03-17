@@ -1089,7 +1089,7 @@ tr[data-is-open='false'] .status-icon {
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
-    gap: 4px;
+    gap: 5px;
     width: fit-content;
     max-width: 100%;
 }
@@ -1113,20 +1113,20 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input-document {
-    width: 12ch;
+    width: 14.5ch;
 }
 
 .gct-input-vehicle {
-    width: 10.5ch;
+    width: 11.5ch;
 }
 
 .gct-input-container {
-    width: 14ch;
+    width: 13.5ch;
 }
 
 .gct-input::placeholder {
     color: #94a3b8;
-    font-size: 11px;
+    font-size: 12px;
     text-transform: none;
 }
 
