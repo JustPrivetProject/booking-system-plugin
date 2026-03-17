@@ -11,7 +11,7 @@ export interface SessionLogEntry {
 }
 
 function canUseSessionStorage(): boolean {
-    return Boolean(globalThis.chrome?.runtime?.id && globalThis.chrome?.storage?.session);
+    return Boolean(globalThis.chrome?.storage?.session);
 }
 
 function formatLogMessage(args: unknown[]): string {
