@@ -78,7 +78,7 @@ body {
 }
 
 body.gct-group-edit-open {
-    min-height: 600px;
+    min-height: 300px;
 }
 
 /* ===== TABLE ===== */
@@ -1560,7 +1560,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-queue-container {
-    margin-top: 1px;
+    margin-top: 2px;
 }
 
 #gctTable {
