@@ -758,15 +758,17 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
             <div class="gct-group-meta">${group.documentNumber} • ${group.vehicleNumber}</div>
         </td>
         <td class="group-header actions">
-            <button class="group-resume-button resume-button" title="Wznów grupę" ${group.status === 'watching' || group.status === 'success' ? 'disabled' : ''}>
-                <span class="material-icons icon">play_arrow</span>
-            </button>
-            <button class="group-pause-button pause-button" title="Wstrzymaj grupę" ${group.status !== 'watching' ? 'disabled' : ''}>
-                <span class="material-icons icon">pause</span>
-            </button>
-            <button class="group-remove-button remove-button" title="Usuń grupę">
-                <span class="material-icons icon">delete</span>
-            </button>
+            <div class="gct-group-actions">
+                <button class="group-resume-button resume-button" title="Wznów grupę" ${group.status === 'watching' || group.status === 'success' ? 'disabled' : ''}>
+                    <span class="material-icons icon">play_arrow</span>
+                </button>
+                <button class="group-pause-button pause-button" title="Wstrzymaj grupę" ${group.status !== 'watching' ? 'disabled' : ''}>
+                    <span class="material-icons icon">pause</span>
+                </button>
+                <button class="group-remove-button remove-button" title="Usuń grupę">
+                    <span class="material-icons icon">delete</span>
+                </button>
+            </div>
         </td>
     `;
 

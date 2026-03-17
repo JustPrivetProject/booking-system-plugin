@@ -382,10 +382,15 @@ td.group-header.actions {
     min-width: 108px;
     max-width: 108px;
     text-align: right;
-    display: flex;
-    justify-content: flex-end;
+    vertical-align: middle;
+}
+
+.gct-group-actions {
+    display: inline-flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 4px;
+    width: 100%;
 }
 
 td.group-header.toggle-cell,
