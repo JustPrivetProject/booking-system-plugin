@@ -1079,16 +1079,19 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-controls {
-    width: 100%;
+    width: auto;
     margin-bottom: 0;
+    display: flex;
+    align-items: flex-start;
 }
 
 .gct-controls-row {
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
-    gap: 6px;
-    width: 100%;
+    gap: 4px;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .gct-input,
@@ -1110,20 +1113,20 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input-document {
-    width: 17ch;
-}
-
-.gct-input-vehicle {
     width: 12ch;
 }
 
+.gct-input-vehicle {
+    width: 10.5ch;
+}
+
 .gct-input-container {
-    width: 13ch;
+    width: 14ch;
 }
 
 .gct-input::placeholder {
     color: #94a3b8;
-    font-size: 12px;
+    font-size: 11px;
     text-transform: none;
 }
 
@@ -1154,14 +1157,15 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-picker-host {
     position: relative;
-    flex: 0 0 126px;
-    min-width: 126px;
+    flex: 0 0 auto;
+    min-width: 0;
 }
 
 #gctTimePicker {
     position: relative;
     min-width: 0;
     color: #222;
+    width: max-content;
 }
 
 #gctTimePicker *,
@@ -1172,16 +1176,16 @@ tr[data-is-open='false'] .status-icon {
 
 #gctTimePicker .gp-collapsed {
     display: inline-flex;
-    width: 100%;
+    width: auto;
     min-height: 26px;
     height: 26px;
     align-items: center;
     justify-content: flex-start;
-    gap: 4px;
+    gap: 3px;
     background: #fff;
     border: 1px solid var(--color-border-light);
     border-radius: 8px;
-    padding: 4px 8px;
+    padding: 4px 7px;
     cursor: pointer;
     user-select: none;
     transition: border-color 0.15s;
@@ -1220,7 +1224,7 @@ tr[data-is-open='false'] .status-icon {
 
 #gctTimePicker .gp-badge {
     display: none;
-    margin-left: 0;
+    margin-left: 2px;
     font-size: 11px;
     background: #dbeafe;
     color: #1d5fa0;
