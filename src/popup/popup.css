@@ -378,9 +378,9 @@ td.group-header {
 
 td.group-header.actions {
     padding: var(--spacing-small);
-    width: 108px !important;
-    min-width: 108px;
-    max-width: 108px;
+    width: 138px !important;
+    min-width: 138px;
+    max-width: 138px;
     text-align: right;
     vertical-align: middle;
 }
@@ -391,6 +391,24 @@ td.group-header.actions {
     justify-content: flex-end;
     gap: 4px;
     width: 100%;
+}
+
+td.actions .group-add-button {
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow:
+        var(--shadow-button),
+        0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+td.actions .group-add-button span {
+    color: var(--color-white);
+}
+
+td.actions .group-add-button:hover {
+    background: rgba(255, 255, 255, 0.26);
+    box-shadow:
+        var(--shadow-hover),
+        0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 td.group-header.toggle-cell,
@@ -1604,6 +1622,48 @@ tr[data-is-open='false'] .status-icon {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.gct-add-slots-dialog {
+    width: 420px;
+}
+
+.gct-add-slots-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.gct-add-slots-summary span {
+    font-size: 12px;
+    font-weight: 400;
+    color: #64748b;
+}
+
+.gct-add-slots-picker {
+    position: relative;
+}
+
+.gct-add-slots-picker #gctTimePicker,
+.gct-add-slots-picker .gp-collapsed {
+    width: 100%;
+}
+
+.gct-add-slots-picker .gp-dropdown {
+    position: static;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 8px;
+    box-shadow: none;
+    border: 1px solid #ddd;
+}
+
+.gct-add-slots-picker .gp-confirm {
+    display: flex;
 }
 
 .gct-edit-dialog h3 {

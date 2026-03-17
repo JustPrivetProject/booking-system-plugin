@@ -3,6 +3,7 @@ import {
     GCT_ALLOWED_START_TIMES,
     type GctAllowedStartTime,
     type GctState,
+    type GctTargetSlotDraft,
     type GctWatchGroup,
     type GctWatchRow,
 } from '../gct/types';
@@ -739,6 +740,15 @@ function renderEmptyState(body: HTMLElement): void {
     body.innerHTML = '';
 }
 
+function mapSelectionToSlots(selection: GctPickerSelection): GctTargetSlotDraft[] {
+    return selection.selections.flatMap(entry =>
+        entry.slots.map(startTime => ({
+            date: entry.date,
+            startTime,
+        })),
+    );
+}
+
 function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
     const row = document.createElement('tr');
     row.className = 'group-row gct-group-row';
@@ -759,6 +769,9 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
         </td>
         <td class="group-header actions">
             <div class="gct-group-actions">
+                <button class="group-add-button" title="Dodaj slot do grupy">
+                    <span class="material-icons icon">add</span>
+                </button>
                 <button class="group-resume-button resume-button" title="Wznów grupę" ${group.status === 'watching' || group.status === 'success' ? 'disabled' : ''}>
                     <span class="material-icons icon">play_arrow</span>
                 </button>
@@ -773,6 +786,75 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
     `;
 
     return row;
+}
+
+function showGroupAddSlotsModal(group: GctWatchGroup): void {
+    const overlay = document.createElement('div');
+    overlay.className = 'gct-edit-overlay';
+    overlay.innerHTML = `
+        <div class="gct-edit-dialog gct-add-slots-dialog">
+            <h3>Dodaj sloty do grupy</h3>
+            <div class="gct-add-slots-summary">${group.containerNumber}<span>${group.documentNumber} • ${group.vehicleNumber}</span></div>
+            <div class="gct-add-slots-picker" id="gctGroupAddPicker"></div>
+            <div class="gct-edit-actions">
+                <button type="button" class="secondary-button" id="gctGroupAddCancel">Anuluj</button>
+                <button type="button" id="gctGroupAddSave" disabled>Dodaj sloty</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const pickerHost = overlay.querySelector('#gctGroupAddPicker') as HTMLElement | null;
+    const saveButton = overlay.querySelector('#gctGroupAddSave') as HTMLButtonElement | null;
+    const picker = pickerHost ? createGctTimePicker(pickerHost) : null;
+
+    const updateSaveButtonState = (): void => {
+        if (!saveButton || !picker) {
+            return;
+        }
+
+        saveButton.disabled = mapSelectionToSlots(picker.getSelection()).length === 0;
+    };
+
+    if (picker) {
+        picker.onchange = () => {
+            updateSaveButtonState();
+        };
+        updateSaveButtonState();
+    }
+
+    overlay.querySelector('#gctGroupAddCancel')?.addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', event => {
+        if (event.target === overlay) {
+            overlay.remove();
+        }
+    });
+
+    saveButton?.addEventListener('click', async () => {
+        if (!picker) {
+            return;
+        }
+
+        const slots = mapSelectionToSlots(picker.getSelection());
+        if (slots.length === 0) {
+            return;
+        }
+
+        try {
+            await sendGctMessage('ADD_GROUP', {
+                group: {
+                    documentNumber: group.documentNumber,
+                    vehicleNumber: group.vehicleNumber,
+                    containerNumber: group.containerNumber,
+                    slots,
+                },
+            });
+            overlay.remove();
+        } catch (error) {
+            consoleError('Add GCT slots to existing group failed:', error);
+        }
+    });
 }
 
 function createChildRow(group: GctWatchGroup, rowState: GctWatchRow): HTMLTableRowElement {
@@ -810,6 +892,8 @@ function bindGroupEvents(groupRow: HTMLTableRowElement): void {
     const groupId = groupRow.dataset.groupId;
     if (!groupId) return;
 
+    const group = currentGctState?.groups.find(entry => entry.id === groupId) || null;
+
     groupRow.querySelector('.gct-toggle-cell')?.addEventListener('click', async () => {
         try {
             await sendGctMessage('TOGGLE_GROUP_EXPANDED', { groupId });
@@ -843,6 +927,15 @@ function bindGroupEvents(groupRow: HTMLTableRowElement): void {
         } catch (error) {
             consoleError('Resume GCT group failed:', error);
         }
+    });
+
+    groupRow.querySelector('.group-add-button')?.addEventListener('click', event => {
+        event.stopPropagation();
+        if (!group) {
+            return;
+        }
+
+        showGroupAddSlotsModal(group);
     });
 }
 
@@ -989,6 +1082,7 @@ function renderGroups(state: GctState): void {
 async function refreshState(): Promise<void> {
     try {
         const state = await sendGctMessage('GET_STATE');
+        currentGctState = state;
         renderGroups(state);
     } catch (error) {
         consoleError('Refresh GCT state failed:', error);
@@ -1008,12 +1102,7 @@ async function handleAdd(): Promise<void> {
     const vehicleNumber = vehicleInput.value.trim().toUpperCase();
     const containerNumber = containerInput.value.trim().toUpperCase();
     const selection = gctTimePicker.getSelection();
-    const slots = selection.selections.flatMap(entry =>
-        entry.slots.map(startTime => ({
-            date: entry.date,
-            startTime,
-        })),
-    );
+    const slots = mapSelectionToSlots(selection);
 
     if (!documentNumber || !vehicleNumber || !containerNumber || slots.length === 0) {
         return;
@@ -1038,6 +1127,7 @@ async function handleAdd(): Promise<void> {
 }
 
 let gctUiInitialized = false;
+let currentGctState: GctState | null = null;
 
 export function initGctUI(): void {
     if (gctUiInitialized) {
