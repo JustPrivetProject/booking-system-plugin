@@ -29,6 +29,7 @@ import {
 } from '../../utils';
 import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
 import { ContainerCheckerHandler, type ContainerCheckerMessage } from './ContainerCheckerHandler';
+import { GctHandler, type GctMessage } from './GctHandler';
 
 type SendResponse = (response?: unknown) => void;
 
@@ -77,9 +78,11 @@ function getTablePayload(message: HandlerMessage): TableData | null {
 
 export class MessageHandler {
     private containerCheckerHandler: ContainerCheckerHandler;
+    private gctHandler: GctHandler;
 
     constructor(private queueManager: QueueManagerAdapter) {
         this.containerCheckerHandler = new ContainerCheckerHandler();
+        this.gctHandler = new GctHandler();
     }
 
     handleMessage(
@@ -139,6 +142,10 @@ export class MessageHandler {
         // Handle Container Checker actions
         if (message.target === 'containerChecker') {
             return this.handleContainerCheckerActions(message, sendResponse);
+        }
+
+        if (message.target === 'gct') {
+            return this.handleGctActions(message, sendResponse);
         }
 
         return true;
@@ -721,6 +728,19 @@ export class MessageHandler {
     ): boolean {
         this.containerCheckerHandler
             .handleMessage(message as ContainerCheckerMessage)
+            .then(result => sendResponse({ ok: true, result }))
+            .catch(error =>
+                sendResponse({
+                    ok: false,
+                    error: (error as Error)?.message || String(error),
+                }),
+            );
+        return true;
+    }
+
+    private handleGctActions(message: HandlerMessage, sendResponse: SendResponse): boolean {
+        this.gctHandler
+            .handleMessage(message as GctMessage)
             .then(result => sendResponse({ ok: true, result }))
             .catch(error =>
                 sendResponse({

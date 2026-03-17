@@ -17,6 +17,8 @@ import {
     keepEbramaSessionAlive,
     getEbramaKeepAliveIntervalMs,
 } from '../services/ebramaSessionService';
+import { getGctState } from '../gct/storage';
+import { gctWatcherService } from '../services/gct/gctWatcherService';
 
 const CONTAINER_CHECK_ALARM_NAME = 'container-check';
 const EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS = 60000;
@@ -130,6 +132,23 @@ export class BackgroundController {
                 containerCheckerSettings: { pollingMinutes: 10 },
             });
         }
+
+        const { gctGroups } = await getStorage('gctGroups');
+        if (gctGroups === undefined) {
+            await setStorage({ gctGroups: [] });
+        }
+
+        const { gctSettings } = await getStorage('gctSettings');
+        if (gctSettings === undefined) {
+            await setStorage({
+                gctSettings: {
+                    pollMinMs: 5000,
+                    pollMaxMs: 10000,
+                    jitterMinMs: 2000,
+                    jitterMaxMs: 5000,
+                },
+            });
+        }
     }
 
     private async startQueueProcessing(): Promise<void> {
@@ -174,6 +193,7 @@ export class BackgroundController {
 
         // Initialize Container Checker alarm
         this.initContainerChecker();
+        this.initGctWatcher();
     }
 
     private async initContainerChecker(): Promise<void> {
@@ -182,6 +202,15 @@ export class BackgroundController {
             await updateContainerCheckerAlarm(state.settings.pollingMinutes);
         } catch (error) {
             consoleError('[background] Failed to init Container Checker:', error);
+        }
+    }
+
+    private async initGctWatcher(): Promise<void> {
+        try {
+            await getGctState();
+            await gctWatcherService.ensureSchedules();
+        } catch (error) {
+            consoleError('[background] Failed to init GCT watcher:', error);
         }
     }
 
@@ -252,6 +281,9 @@ export class BackgroundController {
         // Initialize Container Checker alarm on install/update
         this.initContainerChecker().catch(error => {
             consoleError('[background] Failed to init Container Checker on install:', error);
+        });
+        this.initGctWatcher().catch(error => {
+            consoleError('[background] Failed to init GCT watcher on install:', error);
         });
 
         // Migrate auto-login data to fix encoding issues

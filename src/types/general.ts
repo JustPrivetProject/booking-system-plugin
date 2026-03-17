@@ -72,6 +72,9 @@ export interface LocalStorageData {
     deviceId: string;
     tableData: TableData;
     retryQueue: import('./baltichub').RetryObjectArray;
+    gctGroups: import('../gct/types').GctWatchGroup[];
+    gctSettings: import('../gct/types').GctWatcherSettings;
+    gctLastTickAt: string;
     groupStates: import('./baltichub').GroupsStates;
     headerHidden: boolean;
     retryEnabled: boolean;

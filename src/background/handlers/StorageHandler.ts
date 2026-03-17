@@ -3,6 +3,7 @@ import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { syncAuthenticationBadge } from '../../utils/badge';
 import { consoleLog } from '../../utils';
 import { onStorageChange } from '../../utils/storage';
+import { gctWatcherService } from '../../services/gct/gctWatcherService';
 
 export class StorageHandler {
     constructor(private queueManager: QueueManagerAdapter) {}
@@ -27,6 +28,13 @@ export class StorageHandler {
 
     private async handleUserSessionChange(newValue: unknown): Promise<void> {
         await syncAuthenticationBadge(Boolean(newValue));
+
+        if (newValue) {
+            await gctWatcherService.handleExtensionAuthRestored();
+            return;
+        }
+
+        await gctWatcherService.stopAllForExtensionLogout();
     }
 
     private async restoreQueueAfterAuth(): Promise<void> {

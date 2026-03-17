@@ -10,6 +10,7 @@
         "https://baltichub.com/*",
         "https://ebrama.bct.ictsi.com/*",
         "https://terminal.gct.pl/*",
+        "https://api.gct.pl/*",
         "https://api.brevo.com/*"
     ],
     "icons": {

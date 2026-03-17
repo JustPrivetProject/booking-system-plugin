@@ -23,6 +23,7 @@ import { getContainerCheckerState } from '../containerChecker/storage';
 import { updateContainerCheckerAlarm } from '../services/containerChecker/containerCheckerService';
 import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
+import { initGctUI } from './gct';
 
 type PopupTab = 'booking' | 'containerChecker' | 'gct';
 
@@ -35,6 +36,7 @@ const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
 let activePopupTab: PopupTab = 'booking';
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
+let isGctUiInitialized = false;
 
 function requireElement<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
@@ -53,6 +55,15 @@ function initContainerCheckerUiOnce(): void {
 
     initContainerCheckerUI();
     isContainerCheckerUiInitialized = true;
+}
+
+function initGctUiOnce(): void {
+    if (isGctUiInitialized) {
+        return;
+    }
+
+    initGctUI();
+    isGctUiInitialized = true;
 }
 
 function applyTabState(tab: PopupTab, persist = true): void {
@@ -76,6 +87,10 @@ function applyTabState(tab: PopupTab, persist = true): void {
 
     if (resolvedTab === 'containerChecker') {
         initContainerCheckerUiOnce();
+    }
+
+    if (resolvedTab === 'gct' && isGctTabEnabled) {
+        initGctUiOnce();
     }
 
     if (persist) {
@@ -111,6 +126,8 @@ async function refreshFeatureAccessUI(): Promise<void> {
 
     if (!isGctTabEnabled && activePopupTab === 'gct') {
         applyTabState('booking');
+    } else if (isGctTabEnabled && activePopupTab === 'gct') {
+        initGctUiOnce();
     }
 }
 
