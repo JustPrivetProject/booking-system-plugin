@@ -4,6 +4,20 @@ import { consoleError, consoleLog } from '../../utils';
 import type { AutoLoginCredentials } from './autoLoginHelper';
 import { autoLoginHelper } from './autoLoginHelper';
 
+function isExpectedExtensionReloadError(error: chrome.runtime.LastError | null): boolean {
+    const message = error?.message || '';
+    return message.includes('Extension context invalidated');
+}
+
+function logRuntimeIssue(context: string, error: chrome.runtime.LastError | null): void {
+    if (isExpectedExtensionReloadError(error)) {
+        consoleLog(`${context} Extension context invalidated (expected on reload)`);
+        return;
+    }
+
+    consoleError(context, error);
+}
+
 /**
  * Waits for the appearance of an element, then its disappearance, and sends an action to the background.
  * @param {string} selector - CSS selector of the element
@@ -35,7 +49,7 @@ export function sendActionToBackground(action, message, callback) {
     }
     chrome.runtime.sendMessage({ action, message }, response => {
         if (chrome.runtime.lastError) {
-            consoleError(`Error sending ${action} message:`, chrome.runtime.lastError);
+            logRuntimeIssue(`Error sending ${action} message:`, chrome.runtime.lastError);
         }
         if (typeof callback === 'function') {
             callback(response);
@@ -140,7 +154,7 @@ export function isUserAuthenticated(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    consoleError('[content] Runtime error:', chrome.runtime.lastError);
+                    logRuntimeIssue('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
@@ -176,7 +190,7 @@ export function isAppUnauthorized(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    consoleError('[content] Runtime error:', chrome.runtime.lastError);
+                    logRuntimeIssue('[content] Runtime error:', chrome.runtime.lastError);
                     return resolve(false);
                 }
 
@@ -272,15 +286,10 @@ export function checkExtensionConnection(): Promise<boolean> {
                 clearTimeout(timeout);
 
                 if (chrome.runtime.lastError) {
-                    const errorMessage = chrome.runtime.lastError.message || '';
-                    if (errorMessage.includes('Extension context invalidated')) {
-                        consoleLog('[content] Extension context invalidated (expected on reload)');
-                    } else {
-                        consoleError(
-                            '[content] Extension connection error:',
-                            chrome.runtime.lastError,
-                        );
-                    }
+                    logRuntimeIssue(
+                        '[content] Extension connection error:',
+                        chrome.runtime.lastError,
+                    );
                     return resolve(false);
                 }
 

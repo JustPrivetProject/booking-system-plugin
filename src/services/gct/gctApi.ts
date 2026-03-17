@@ -7,6 +7,9 @@ import type {
 
 const GCT_API_BASE_URL = 'https://api.gct.pl/gctgui';
 const GCT_TIMEZONE = 'Europe/Warsaw';
+const GCT_REQUEST_TIMEOUT_MS = 15000;
+const GCT_NETWORK_RETRY_ATTEMPTS = 2;
+const GCT_NETWORK_RETRY_DELAY_MS = 700;
 
 type GctAvailableSlotTuple = [number, string, string, number, number];
 
@@ -41,6 +44,19 @@ function compactSnippet(value: string, maxLength = 220): string {
     return compact.length > maxLength ? `${compact.slice(0, maxLength)}…` : compact;
 }
 
+function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+    const message = toErrorMessage(error).toLowerCase();
+    return (
+        message.includes('failed to fetch') ||
+        message.includes('network') ||
+        message.includes('timeout')
+    );
+}
+
 async function parseJsonResponse<T>(response: Response, context: string): Promise<T> {
     const text = await response.text();
 
@@ -73,21 +89,47 @@ async function postJson<T>(path: string, body: unknown, bearerToken?: string): P
             : '';
     const context = crud ? `${path} crud=${crud}` : path;
 
-    let response: Response;
-    try {
-        response = await fetch(`${GCT_API_BASE_URL}${path}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
-            },
-            body: JSON.stringify(body),
-        });
-    } catch (error) {
-        throw new Error(`GCT request failed [${context}] ${toErrorMessage(error)}`);
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= GCT_NETWORK_RETRY_ATTEMPTS; attempt += 1) {
+        const startedAt = Date.now();
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+            abortController.abort();
+        }, GCT_REQUEST_TIMEOUT_MS);
+
+        try {
+            const response = await fetch(`${GCT_API_BASE_URL}${path}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json, text/plain, */*',
+                    ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+                },
+                body: JSON.stringify(body),
+                signal: abortController.signal,
+            });
+
+            clearTimeout(timeoutId);
+            return await parseJsonResponse<T>(response, context);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            const elapsedMs = Date.now() - startedAt;
+            const diagnostic = new Error(
+                `GCT request failed [${context}] attempt=${attempt}/${GCT_NETWORK_RETRY_ATTEMPTS} elapsed=${elapsedMs}ms ${toErrorMessage(error)}`,
+            );
+            lastError = diagnostic;
+
+            if (attempt < GCT_NETWORK_RETRY_ATTEMPTS && isRetryableNetworkError(error)) {
+                await delay(GCT_NETWORK_RETRY_DELAY_MS);
+                continue;
+            }
+
+            throw diagnostic;
+        }
     }
 
-    return parseJsonResponse<T>(response, context);
+    throw lastError || new Error(`GCT request failed [${context}] unknown error`);
 }
 
 export async function loginToGct(group: GctWatchGroup): Promise<string> {
