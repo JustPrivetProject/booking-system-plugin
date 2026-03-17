@@ -36,6 +36,8 @@ describe('popup/gct', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-03-17T08:00:00.000Z'));
         sentMessages.length = 0;
         currentState = createState();
         document.body.innerHTML = '<div id="gctView"></div>';
@@ -51,6 +53,10 @@ describe('popup/gct', () => {
         });
     });
 
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
     it('renders controls and empty state on first init', async () => {
         const { initGctUI } = await loadModule();
 
@@ -58,14 +64,15 @@ describe('popup/gct', () => {
         await flushUi();
 
         expect(document.getElementById('gctDocumentInput')).toBeTruthy();
-        expect(document.getElementById('gctSlotSelect')).toBeTruthy();
+        expect(document.getElementById('gctTimePicker')).toBeTruthy();
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina…');
         expect(document.getElementById('gctTableBody')?.textContent).toContain(
             'Dodaj konfigurację GCT',
         );
         expect(sentMessages).toContainEqual({ target: 'gct', type: 'GET_STATE' });
     });
 
-    it('updates slot summary and sends add-group payload', async () => {
+    it('supports multi-date slot selection and sends a combined add-group payload', async () => {
         const { initGctUI } = await loadModule();
 
         initGctUI();
@@ -74,22 +81,37 @@ describe('popup/gct', () => {
         const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
         const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
         const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
-        const dateInput = document.getElementById('gctDateInput') as HTMLInputElement;
-        const slotSelect = document.getElementById('gctSlotSelect') as HTMLSelectElement;
-        const summary = document.getElementById('gctSlotSummary') as HTMLElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
         const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
 
         documentInput.value = 'DOC';
         vehicleInput.value = 'ndz45396';
         containerInput.value = 'tclu3141931';
-        dateInput.value = '2026-03-18';
 
-        Array.from(slotSelect.options).forEach(option => {
-            option.selected = ['04:30', '06:30', '08:30'].includes(option.value);
-        });
-        slotSelect.dispatchEvent(new Event('change'));
+        collapsed.click();
+        await flushUi();
 
-        expect(summary.textContent).toBe('3 sloty wybrane');
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        (document.querySelectorAll('.gp-date-btn')[1] as HTMLButtonElement).click();
+        await flushUi();
+
+        for (const slot of ['00:30', '04:30']) {
+            (
+                Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                    button => (button as HTMLButtonElement).dataset.slotValue === slot,
+                ) as HTMLButtonElement
+            ).click();
+        }
+        await flushUi();
+
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('2 dni');
+        expect(document.querySelector('.gp-badge')?.textContent).toBe('3 sloty');
 
         addButton.click();
         await flushUi();
@@ -102,14 +124,48 @@ describe('popup/gct', () => {
                 vehicleNumber: 'NDZ45396',
                 containerNumber: 'TCLU3141931',
                 slots: [
+                    { date: '2026-03-17', startTime: '22:30' },
+                    { date: '2026-03-18', startTime: '00:30' },
                     { date: '2026-03-18', startTime: '04:30' },
-                    { date: '2026-03-18', startTime: '06:30' },
-                    { date: '2026-03-18', startTime: '08:30' },
                 ],
             },
         });
         expect(containerInput.value).toBe('');
-        expect(summary.textContent).toBe('3 sloty wybrane');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina…');
+        expect(document.querySelector('.gp-badge')?.textContent).toBe('');
+    });
+
+    it('supports custom calendar date selection and clearing slots', async () => {
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        (document.querySelector('.gp-collapsed') as HTMLDivElement).click();
+        await flushUi();
+        (document.querySelectorAll('.gp-date-btn')[2] as HTMLButtonElement).click();
+        await flushUi();
+
+        expect(document.querySelector('.gp-cal.visible')).toBeTruthy();
+
+        const futureDay = Array.from(document.querySelectorAll('.gp-cal-day')).find(
+            button =>
+                !(button as HTMLElement).classList.contains('disabled') &&
+                button.textContent === '20',
+        ) as HTMLButtonElement;
+        futureDay.click();
+        await flushUi();
+
+        const firstSlot = document.querySelector('.gp-slot-btn') as HTMLButtonElement;
+        firstSlot.click();
+        await flushUi();
+
+        expect(document.querySelector('.gp-clear-btn')?.classList.contains('visible')).toBe(true);
+        (document.querySelector('.gp-clear-btn') as HTMLButtonElement).click();
+        await flushUi();
+
+        expect(document.querySelectorAll('.gp-slot-btn.selected')).toHaveLength(0);
+        expect(document.querySelector('.gp-confirm')?.classList.contains('visible')).toBe(false);
     });
 
     it('renders groups and routes group and row actions', async () => {

@@ -1075,6 +1075,7 @@ tr[data-is-open='false'] .status-icon {
     width: 100%;
     min-width: var(--app-width);
     min-height: 240px;
+    padding-top: 4px;
 }
 
 .gct-controls {
@@ -1083,15 +1084,14 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-controls-row {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-small);
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto auto;
+    align-items: start;
+    gap: 6px;
     width: 100%;
 }
 
 .gct-input,
-.gct-date-input,
-.gct-slot-select,
 .gct-edit-dialog input,
 .gct-edit-dialog select {
     border: 1px solid var(--color-border-light);
@@ -1100,54 +1100,386 @@ tr[data-is-open='false'] .status-icon {
     font-size: var(--font-size-small);
 }
 
-.gct-input,
-.gct-date-input {
-    min-height: 28px;
-    padding: 4px var(--spacing-small);
-}
-
 .gct-input {
-    flex: 1 1 0;
-    min-width: 120px;
-}
-
-.gct-date-input {
-    width: 132px;
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    padding: 6px 10px;
 }
 
 .gct-add-button {
-    min-height: 28px;
+    min-width: 96px;
+    min-height: 32px;
+    white-space: nowrap;
+    align-self: start;
+}
+
+.gct-picker-host {
+    position: relative;
+    min-width: 112px;
+}
+
+#gctTimePicker {
+    position: relative;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    color: #222;
+}
+
+#gctTimePicker *,
+#gctTimePicker *::before,
+#gctTimePicker *::after {
+    box-sizing: border-box;
+}
+
+#gctTimePicker .gp-collapsed {
+    display: inline-flex;
+    width: 100%;
+    min-height: 32px;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid var(--color-border-light);
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s;
+}
+
+#gctTimePicker .gp-collapsed:hover {
+    border-color: #999;
+}
+
+#gctTimePicker .gp-collapsed.open {
+    border-color: var(--color-primary-dark);
+}
+
+#gctTimePicker .gp-collapsed-icon {
+    flex-shrink: 0;
+    color: #888;
+    transition: color 0.15s;
+}
+
+#gctTimePicker .gp-collapsed.has-selection .gp-collapsed-icon {
+    color: #1d5fa0;
+}
+
+#gctTimePicker .gp-collapsed-label {
+    flex: 1 1 auto;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #888;
+}
+
+#gctTimePicker .gp-collapsed.has-selection .gp-collapsed-label {
+    color: #222;
+}
+
+#gctTimePicker .gp-badge {
+    display: none;
+    margin-left: auto;
+    font-size: 11px;
+    background: #dbeafe;
+    color: #1d5fa0;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 600;
     white-space: nowrap;
 }
 
-.gct-slot-row {
+#gctTimePicker .gp-collapsed.has-selection .gp-badge {
+    display: inline;
+}
+
+#gctTimePicker .gp-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 9999;
+    width: 440px;
+    max-width: min(440px, calc(var(--app-width) - 14px));
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+#gctTimePicker .gp-dropdown.visible {
+    display: block;
+}
+
+#gctTimePicker .gp-body {
     display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-small);
-    margin-top: 4px;
 }
 
-.gct-slot-label {
-    min-width: 50px;
-    line-height: 28px;
-    font-size: var(--font-size-small);
+#gctTimePicker .gp-date-col {
+    flex: 0 0 126px;
+    padding: 10px;
+    border-right: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
-.gct-slot-select {
+#gctTimePicker .gp-date-btn,
+#gctTimePicker .gp-slot-btn,
+#gctTimePicker .gp-cal-day,
+#gctTimePicker .gp-cal-nav button,
+#gctTimePicker .gp-clear-btn,
+#gctTimePicker .gp-confirm-btn {
+    font-family: inherit;
+}
+
+#gctTimePicker .gp-date-btn {
+    display: block;
+    width: 100%;
+    padding: 7px 9px;
+    text-align: left;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #222;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+}
+
+#gctTimePicker .gp-date-btn:hover {
+    background: #f5f5f5;
+}
+
+#gctTimePicker .gp-date-btn.active {
+    background: #dbeafe;
+    color: #1d5fa0;
+    border-color: #93b4e0;
+    font-weight: 600;
+}
+
+#gctTimePicker .gp-date-btn .gp-sub {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: #888;
+    margin-top: 1px;
+}
+
+#gctTimePicker .gp-date-btn.active .gp-sub {
+    color: #3b82c8;
+}
+
+#gctTimePicker .gp-slots-area {
     flex: 1;
-    min-height: 94px;
-    padding: 4px;
+    min-width: 0;
 }
 
-.gct-slot-summary {
-    width: 124px;
-    min-height: 28px;
-    padding: 6px 8px;
-    border: 1px dashed var(--color-border-light);
-    border-radius: var(--border-radius);
+#gctTimePicker .gp-slots-pane {
+    display: none;
+    padding: 10px;
+}
+
+#gctTimePicker .gp-slots-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+#gctTimePicker .gp-slots-header span {
     font-size: 12px;
-    line-height: 1.3;
-    color: #444;
+    color: #888;
+}
+
+#gctTimePicker .gp-clear-btn {
+    font-size: 11px;
+    color: #1d5fa0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    display: none;
+}
+
+#gctTimePicker .gp-clear-btn.visible {
+    display: block;
+}
+
+#gctTimePicker .gp-slots-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+}
+
+#gctTimePicker .gp-slot-btn {
+    padding: 6px 4px;
+    text-align: center;
+    position: relative;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #222;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+}
+
+#gctTimePicker .gp-slot-btn:hover {
+    background: #f5f5f5;
+}
+
+#gctTimePicker .gp-slot-btn .gp-slot-range {
+    font-size: 10px;
+    color: #888;
+    display: block;
+    margin-top: 1px;
+}
+
+#gctTimePicker .gp-slot-btn.selected {
+    background: #dbeafe;
+    color: #1d5fa0;
+    border-color: #93b4e0;
+}
+
+#gctTimePicker .gp-slot-btn.selected .gp-slot-range {
+    color: #3b82c8;
+}
+
+#gctTimePicker .gp-slot-btn.selected::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #1d5fa0;
+}
+
+#gctTimePicker .gp-no-slots {
+    padding: 28px 12px;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    display: none;
+}
+
+#gctTimePicker .gp-cal {
+    padding: 10px;
+    display: none;
+}
+
+#gctTimePicker .gp-cal.visible {
+    display: block;
+}
+
+#gctTimePicker .gp-cal-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+#gctTimePicker .gp-cal-nav span {
+    font-size: 13px;
+    font-weight: 600;
+    color: #222;
+}
+
+#gctTimePicker .gp-cal-nav button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    color: #666;
+    padding: 2px 6px;
+}
+
+#gctTimePicker .gp-cal-nav button:hover {
+    color: #222;
+}
+
+#gctTimePicker .gp-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+
+#gctTimePicker .gp-cal-hdr {
+    font-size: 11px;
+    color: #888;
+    text-align: center;
+    padding: 2px 0;
+}
+
+#gctTimePicker .gp-cal-day {
+    width: 100%;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    padding: 0;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: #222;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#gctTimePicker .gp-cal-day:hover:not(.disabled):not(.empty) {
+    background: #f5f5f5;
+}
+
+#gctTimePicker .gp-cal-day.disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+#gctTimePicker .gp-cal-day.empty {
+    border: none;
+    background: transparent;
+    cursor: default;
+}
+
+#gctTimePicker .gp-cal-day.selected {
+    background: #dbeafe;
+    color: #1d5fa0;
+    border-color: #93b4e0;
+    font-weight: 600;
+}
+
+#gctTimePicker .gp-confirm {
+    display: none;
+    padding: 8px 12px;
+    border-top: 1px solid #eee;
+    justify-content: flex-end;
+}
+
+#gctTimePicker .gp-confirm.visible {
+    display: flex;
+}
+
+#gctTimePicker .gp-confirm-btn {
+    font-size: 13px;
+    padding: 6px 16px;
+    cursor: pointer;
+    background: #1d5fa0;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+#gctTimePicker .gp-confirm-btn:hover {
+    background: #174d88;
 }
 
 .gct-queue-container {
@@ -1235,6 +1567,22 @@ tr[data-is-open='false'] .status-icon {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+}
+
+@media (max-width: 560px) {
+    .gct-controls-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .gct-picker-host,
+    .gct-add-button {
+        width: 100%;
+    }
+
+    #gctTimePicker .gp-dropdown {
+        width: min(440px, calc(100vw - 32px));
+        right: 0;
+    }
 }
 
 /* ===== CONTAINER CHECKER ===== */
