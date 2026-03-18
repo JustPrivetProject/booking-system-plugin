@@ -183,7 +183,7 @@ function summarizeGroupStatus(
     if (group.rows.every(row => isTerminalRow(row) || row.status === Statuses.ERROR)) {
         return {
             status: 'completed',
-            statusMessage: 'Brak aktywnych targetów w tej grupie',
+            statusMessage: 'W tej grupie nie ma już aktywnych slotów',
         };
     }
 
@@ -903,14 +903,13 @@ export class GctWatcherService {
             this.clearNetworkBackoff(groupClone.id);
 
             let shouldStopGroup = false;
-            let attemptedAnyBooking = false;
 
             for (const row of groupClone.rows) {
                 if (!row.active || row.isManualPause || isTerminalRow(row)) {
                     continue;
                 }
 
-                if (nowLocal >= row.targetStartLocal) {
+                if (nowLocal >= row.targetEndLocal) {
                     row.status = Statuses.EXPIRED;
                     row.statusMessage = Messages.EXPIRED;
                     row.active = false;
@@ -953,7 +952,6 @@ export class GctWatcherService {
                     continue;
                 }
 
-                attemptedAnyBooking = true;
                 const slot = matches[0];
                 row.status = 'attempting';
                 row.statusMessage = `Próba rezerwacji ${slot.startLocal}`;
@@ -1045,9 +1043,7 @@ export class GctWatcherService {
             groupClone.status = shouldStopGroup ? 'success' : summary.status;
             groupClone.statusMessage = shouldStopGroup
                 ? 'Zarezerwowano jeden z targetów — grupa zatrzymana'
-                : attemptedAnyBooking
-                  ? summary.statusMessage
-                  : 'Kontynuuję monitorowanie GCT';
+                : summary.statusMessage;
             groupClone.updatedAt = nowIso();
 
             await this.persistGroup(groupClone);

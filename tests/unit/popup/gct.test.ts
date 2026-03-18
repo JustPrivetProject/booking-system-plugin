@@ -129,6 +129,36 @@ describe('popup/gct', () => {
         expect((document.getElementById('gctAddButton') as HTMLButtonElement).disabled).toBe(false);
     });
 
+    it('keeps partially entered top-form values after popup reopen without pressing add', async () => {
+        const firstModule = await loadModule();
+
+        firstModule.initGctUI();
+        await flushUi();
+
+        const firstDocumentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        setInputValue(firstDocumentInput, 'doc123456');
+        await flushUi();
+
+        expect(storageState.gctPopupDraft).toEqual({
+            documentNumber: 'DOC123456',
+            vehicleNumber: '',
+            containerNumber: '',
+            slots: [],
+        });
+
+        document.body.innerHTML = '<div id="gctView"></div>';
+        const reopenedModule = await loadModule();
+
+        reopenedModule.initGctUI();
+        await flushUi();
+
+        expect((document.getElementById('gctDocumentInput') as HTMLInputElement).value).toBe(
+            'DOC123456',
+        );
+        expect((document.getElementById('gctVehicleInput') as HTMLInputElement).value).toBe('');
+        expect((document.getElementById('gctContainerInput') as HTMLInputElement).value).toBe('');
+    });
+
     it('offers recent values and autofills matching entries', async () => {
         storageState.gctRecentEntries = [
             {
@@ -227,7 +257,71 @@ describe('popup/gct', () => {
             },
         });
         expect(containerInput.value).toBe('TCLU3141931');
-        expect(addButton.disabled).toBe(true);
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('2 dni');
+        expect(document.querySelector('.gp-badge')?.textContent).toBe('3 sloty');
+        expect(addButton.disabled).toBe(false);
+        expect(storageState.gctPopupDraft).toEqual({
+            documentNumber: 'DOC123456',
+            vehicleNumber: 'NDZ45396',
+            containerNumber: 'TCLU3141931',
+            slots: [
+                { date: '2026-03-17', startTime: '22:30' },
+                { date: '2026-03-18', startTime: '00:30' },
+                { date: '2026-03-18', startTime: '04:30' },
+            ],
+        });
+    });
+
+    it('restores full top-panel draft after add when popup is reopened', async () => {
+        const firstModule = await loadModule();
+
+        firstModule.initGctUI();
+        await flushUi();
+
+        const firstDocumentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const firstVehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const firstContainerInput = document.getElementById(
+            'gctContainerInput',
+        ) as HTMLInputElement;
+        const firstCollapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+        const firstAddButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+
+        setInputValue(firstDocumentInput, 'doc123456');
+        setInputValue(firstVehicleInput, 'ndz45396');
+        setInputValue(firstContainerInput, 'tclu3141931');
+
+        firstCollapsed.click();
+        await flushUi();
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        firstAddButton.click();
+        await flushUi();
+        await flushUi();
+
+        document.body.innerHTML = '<div id="gctView"></div>';
+        const reopenedModule = await loadModule();
+
+        reopenedModule.initGctUI();
+        await flushUi();
+
+        const reopenedDocumentInput = document.getElementById(
+            'gctDocumentInput',
+        ) as HTMLInputElement;
+        const reopenedVehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const reopenedContainerInput = document.getElementById(
+            'gctContainerInput',
+        ) as HTMLInputElement;
+
+        expect(reopenedDocumentInput.value).toBe('DOC123456');
+        expect(reopenedVehicleInput.value).toBe('NDZ45396');
+        expect(reopenedContainerInput.value).toBe('TCLU3141931');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Dziś 22:30');
     });
 
     it('shows temporary login feedback when adding a new group fails', async () => {

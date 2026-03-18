@@ -80,6 +80,7 @@ let activeGroupEditOverlay: HTMLDivElement | null = null;
 let gctRecentEntries: GctRecentEntry[] = [];
 let gctAddFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 let isGctAddPending = false;
+let gctDraftPersistenceBound = false;
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -852,6 +853,27 @@ async function persistGctDraft(): Promise<void> {
     });
 }
 
+function bindDraftPersistenceOnHide(): void {
+    if (gctDraftPersistenceBound) {
+        return;
+    }
+
+    gctDraftPersistenceBound = true;
+
+    const persistIfPossible = (): void => {
+        persistGctDraft().catch(consoleError);
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            persistIfPossible();
+        }
+    });
+
+    window.addEventListener('pagehide', persistIfPossible);
+    window.addEventListener('beforeunload', persistIfPossible);
+}
+
 function uniqueRecentFieldValues(
     mapper: (entry: GctRecentEntry) => string,
     currentValue: string,
@@ -1375,7 +1397,6 @@ async function handleAdd(): Promise<void> {
         await persistRecentEntries();
         renderRecentEntrySuggestions();
 
-        gctTimePicker.reset();
         await persistGctDraft();
     } catch (error) {
         showGctAddFeedback('Logowanie nieudane');
@@ -1391,11 +1412,14 @@ let currentGctState: GctState | null = null;
 
 export function initGctUI(): void {
     if (gctUiInitialized) {
+        bindDraftPersistenceOnHide();
+        restoreGctInputs().catch(consoleError);
         refreshState().catch(consoleError);
         return;
     }
 
     gctUiInitialized = true;
+    bindDraftPersistenceOnHide();
 
     const view = byId<HTMLElement>('gctView');
     if (!view) {

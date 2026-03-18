@@ -36,7 +36,6 @@ const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
 let activePopupTab: PopupTab = 'booking';
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
-let isGctUiInitialized = false;
 
 function requireElement<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
@@ -58,12 +57,7 @@ function initContainerCheckerUiOnce(): void {
 }
 
 function initGctUiOnce(): void {
-    if (isGctUiInitialized) {
-        return;
-    }
-
     initGctUI();
-    isGctUiInitialized = true;
 }
 
 function applyTabState(tab: PopupTab, persist = true): void {

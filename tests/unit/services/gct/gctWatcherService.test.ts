@@ -414,9 +414,9 @@ describe('GctWatcherService', () => {
                         targetDate: '2026-03-17',
                         targetStartTime: '08:30',
                         targetEndDate: '2026-03-17',
-                        targetEndTime: '10:30',
+                        targetEndTime: '09:30',
                         targetStartLocal: '2026-03-17 08:30',
-                        targetEndLocal: '2026-03-17 10:30',
+                        targetEndLocal: '2026-03-17 09:30',
                     }),
                     createRow({
                         id: 'future-row',
@@ -442,6 +442,66 @@ describe('GctWatcherService', () => {
             status: Statuses.IN_PROGRESS,
             statusMessage: 'Target jeszcze nie jest dostępny',
         });
+    });
+
+    it('does not expire a row before the slot end time has passed', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        (getNowInGctTimezone as jest.Mock).mockReturnValue('2026-03-18 20:39');
+        state.groups = [
+            createGroup({
+                rows: [
+                    createRow({
+                        id: 'active-row',
+                        targetDate: '2026-03-18',
+                        targetStartTime: '20:30',
+                        targetEndDate: '2026-03-18',
+                        targetEndTime: '22:30',
+                        targetStartLocal: '2026-03-18 20:30',
+                        targetEndLocal: '2026-03-18 22:30',
+                    }),
+                ],
+            }),
+        ];
+
+        await (service as any).processGroup('group-1');
+
+        expect(state.groups[0].rows[0]).toMatchObject({
+            status: Statuses.IN_PROGRESS,
+            statusMessage: 'Target jeszcze nie jest dostępny',
+            active: true,
+        });
+        expect(state.groups[0].status).toBe('watching');
+        expect(state.groups[0].statusMessage).toBe('Aktywne monitorowanie slotów GCT');
+    });
+
+    it('uses the completed group summary after the only row expires', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        (getNowInGctTimezone as jest.Mock).mockReturnValue('2026-03-18 22:31');
+        state.groups = [
+            createGroup({
+                rows: [
+                    createRow({
+                        id: 'expired-row',
+                        targetDate: '2026-03-18',
+                        targetStartTime: '20:30',
+                        targetEndDate: '2026-03-18',
+                        targetEndTime: '22:30',
+                        targetStartLocal: '2026-03-18 20:30',
+                        targetEndLocal: '2026-03-18 22:30',
+                    }),
+                ],
+            }),
+        ];
+
+        await (service as any).processGroup('group-1');
+
+        expect(state.groups[0].rows[0]).toMatchObject({
+            status: Statuses.EXPIRED,
+            statusMessage: Messages.EXPIRED,
+            active: false,
+        });
+        expect(state.groups[0].status).toBe('completed');
+        expect(state.groups[0].statusMessage).toBe('W tej grupie nie ma już aktywnych slotów');
     });
 
     it('marks ambiguous slot matches as errors', async () => {
