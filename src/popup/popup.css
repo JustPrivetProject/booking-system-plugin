@@ -1160,8 +1160,17 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-input-document,
 .gct-input-vehicle {
-    flex: 1 1 0;
     min-width: 0;
+}
+
+.gct-input-document {
+    flex-basis: 29%;
+    min-width: 96px;
+}
+
+.gct-input-vehicle {
+    flex-basis: 24%;
+    min-width: 86px;
 }
 
 .gct-input-container {

@@ -395,9 +395,9 @@ function buildControlsMarkup(): string {
     return `
         <div class="gct-controls">
             <div class="gct-controls-row">
-                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" list="gctDocumentRecentList" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctDocumentInput" name="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" list="gctDocumentRecentList" autocomplete="on" autocapitalize="characters" spellcheck="false" />
                 <datalist id="gctDocumentRecentList"></datalist>
-                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" list="gctVehicleRecentList" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctVehicleInput" name="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" list="gctVehicleRecentList" autocomplete="on" autocapitalize="characters" spellcheck="false" />
                 <datalist id="gctVehicleRecentList"></datalist>
                 <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
