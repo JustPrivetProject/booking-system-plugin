@@ -939,19 +939,17 @@ function renderRecentEntrySuggestions(): void {
     );
 }
 
-function applyRecentEntryAutofill(sourceField: keyof GctRecentEntry): void {
+function applyRecentEntryAutofill(sourceField: 'documentNumber' | 'vehicleNumber'): void {
     const documentInput = byId<HTMLInputElement>('gctDocumentInput');
     const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
-    const containerInput = byId<HTMLInputElement>('gctContainerInput');
 
-    if (!documentInput || !vehicleInput || !containerInput) {
+    if (!documentInput || !vehicleInput) {
         return;
     }
 
     const currentValues = {
         documentNumber: normalizeCompactUppercaseValue(documentInput.value),
         vehicleNumber: normalizeCompactUppercaseValue(vehicleInput.value),
-        containerNumber: normalizeCompactUppercaseValue(containerInput.value),
     };
 
     const matchingEntries = gctRecentEntries.filter(entry => {
@@ -962,9 +960,7 @@ function applyRecentEntryAutofill(sourceField: keyof GctRecentEntry): void {
         return (
             (!currentValues.documentNumber ||
                 currentValues.documentNumber === entry.documentNumber) &&
-            (!currentValues.vehicleNumber || currentValues.vehicleNumber === entry.vehicleNumber) &&
-            (!currentValues.containerNumber ||
-                currentValues.containerNumber === entry.containerNumber)
+            (!currentValues.vehicleNumber || currentValues.vehicleNumber === entry.vehicleNumber)
         );
     });
 
@@ -975,7 +971,6 @@ function applyRecentEntryAutofill(sourceField: keyof GctRecentEntry): void {
     const match = matchingEntries[0];
     documentInput.value = match.documentNumber;
     vehicleInput.value = match.vehicleNumber;
-    containerInput.value = match.containerNumber;
 }
 
 function rememberRecentEntry(entry: GctRecentEntry): void {
@@ -1492,8 +1487,6 @@ export function initGctUI(): void {
                 applyRecentEntryAutofill('documentNumber');
             } else if (id === 'gctVehicleInput') {
                 applyRecentEntryAutofill('vehicleNumber');
-            } else {
-                applyRecentEntryAutofill('containerNumber');
             }
 
             renderRecentEntrySuggestions();

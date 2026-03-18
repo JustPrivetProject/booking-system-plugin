@@ -187,7 +187,7 @@ describe('popup/gct', () => {
         );
     });
 
-    it('offers recent values and autofills matching entries', async () => {
+    it('offers recent values and autofills only document and vehicle fields', async () => {
         storageState.gctRecentEntries = [
             {
                 documentNumber: 'DOC123456',
@@ -216,7 +216,7 @@ describe('popup/gct', () => {
 
         expect(documentInput.value).toBe('DOC123456');
         expect(vehicleInput.value).toBe('NDZ45396');
-        expect(containerInput.value).toBe('TCLU3141931');
+        expect(containerInput.value).toBe('');
     });
 
     it('supports multi-date slot selection and sends a combined add-group payload', async () => {
