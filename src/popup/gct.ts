@@ -14,6 +14,7 @@ const GCT_DOCUMENT_NUMBER_LENGTH = 9;
 const GCT_VEHICLE_NUMBER_LENGTH = 8;
 const GCT_CONTAINER_NUMBER_LENGTH = 11;
 const GCT_DRAFT_STORAGE_KEY = 'gctPopupDraft';
+const GCT_DRAFT_LOCAL_FALLBACK_KEY = 'gctPopupDraftFallback';
 const GCT_RECENT_ENTRIES_STORAGE_KEY = 'gctRecentEntries';
 const GCT_RECENT_ENTRIES_LIMIT = 10;
 const GCT_ADD_FEEDBACK_DURATION_MS = 3000;
@@ -137,6 +138,14 @@ function formatRowTime(row: GctWatchRow): string {
     const endDatePrefix =
         row.targetDate === row.targetEndDate ? '' : ` → ${formatDateDisplay(row.targetEndDate)}`;
     return `${formatDateDisplay(row.targetDate)} ${timeRange}${endDatePrefix}`;
+}
+
+function formatRowMessageCell(row: GctWatchRow): string {
+    if (row.statusMessage === 'Szukam') {
+        return '<span class="gct-search-message">Szukam<span class="gct-loading-dots" aria-hidden="true">...</span></span>';
+    }
+
+    return row.statusMessage;
 }
 
 async function sendGctMessage<T = GctState>(
@@ -265,16 +274,13 @@ function buildControlsMarkup(): string {
     return `
         <div class="gct-controls">
             <div class="gct-controls-row">
-                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctDocumentSuggestions" />
-                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctVehicleSuggestions" />
-                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctContainerSuggestions" />
+                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
                 <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
             </div>
             <div id="gctAddFeedback" class="gct-add-feedback" aria-live="polite"></div>
-            <datalist id="gctDocumentSuggestions"></datalist>
-            <datalist id="gctVehicleSuggestions"></datalist>
-            <datalist id="gctContainerSuggestions"></datalist>
         </div>
         <div class="queue-container gct-queue-container">
             <table id="gctTable">
@@ -848,8 +854,16 @@ function getCurrentGctDraft(): GctPopupDraft {
 }
 
 async function persistGctDraft(): Promise<void> {
+    const draft = getCurrentGctDraft();
+
+    try {
+        localStorage.setItem(GCT_DRAFT_LOCAL_FALLBACK_KEY, JSON.stringify(draft));
+    } catch {
+        // Ignore localStorage failures and still try chrome.storage fallback.
+    }
+
     await setChromeStorageLocal({
-        [GCT_DRAFT_STORAGE_KEY]: getCurrentGctDraft(),
+        [GCT_DRAFT_STORAGE_KEY]: draft,
     });
 }
 
@@ -996,7 +1010,26 @@ async function restoreGctInputs(): Promise<void> {
         gctRecentEntries?: GctRecentEntry[];
     });
 
-    const draft = storageResult.gctPopupDraft;
+    let draft = storageResult.gctPopupDraft;
+
+    if (!draft) {
+        try {
+            const rawFallbackDraft = localStorage.getItem(GCT_DRAFT_LOCAL_FALLBACK_KEY);
+            if (rawFallbackDraft) {
+                const parsedFallbackDraft = JSON.parse(rawFallbackDraft) as Partial<GctPopupDraft>;
+                draft = {
+                    documentNumber: String(parsedFallbackDraft.documentNumber || ''),
+                    vehicleNumber: String(parsedFallbackDraft.vehicleNumber || ''),
+                    containerNumber: String(parsedFallbackDraft.containerNumber || ''),
+                    slots: Array.isArray(parsedFallbackDraft.slots)
+                        ? (parsedFallbackDraft.slots as GctTargetSlotDraft[])
+                        : [],
+                };
+            }
+        } catch {
+            // Ignore malformed fallback payloads.
+        }
+    }
     gctRecentEntries = Array.isArray(storageResult.gctRecentEntries)
         ? storageResult.gctRecentEntries
               .map(normalizeRecentEntry)
@@ -1219,13 +1252,15 @@ function createChildRow(group: GctWatchGroup, rowState: GctWatchRow): HTMLTableR
     row.style.display = group.isExpanded ? 'table-row' : 'none';
 
     const cssClass = rowStatusClass(rowState);
+    const rowMessageTitle =
+        rowState.statusMessage === 'Szukam' ? 'Szukam...' : rowState.statusMessage;
     row.innerHTML = `
         <td></td>
         <td class="status ${cssClass}" title="${rowState.statusMessage}">
             <span class="status-icon material-icons">${iconForRow(rowState)}</span>
         </td>
         <td class="slot-time gct-slot-time-cell" title="${rowState.targetStartLocal}">${formatRowTime(rowState)}</td>
-        <td class="gct-row-message" title="${rowState.statusMessage}">${rowState.statusMessage}</td>
+        <td class="gct-row-message" title="${rowMessageTitle}">${formatRowMessageCell(rowState)}</td>
         <td class="actions">
             <button class="resume-button" title="Wznów" ${rowState.active || rowState.status === Statuses.SUCCESS || rowState.status === Statuses.EXPIRED || rowState.status === 'completed' ? 'disabled' : ''}>
                 <span class="material-icons icon">play_arrow</span>

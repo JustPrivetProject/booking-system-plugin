@@ -47,6 +47,7 @@ describe('popup/gct', () => {
         sentMessages.length = 0;
         currentState = createState();
         storageState = {};
+        localStorage.clear();
         document.body.innerHTML = '<div id="gctView"></div>';
 
         chromeMock.runtime.lastError = null;
@@ -159,6 +160,33 @@ describe('popup/gct', () => {
         expect((document.getElementById('gctContainerInput') as HTMLInputElement).value).toBe('');
     });
 
+    it('restores draft from local fallback when chrome draft is unavailable', async () => {
+        localStorage.setItem(
+            'gctPopupDraftFallback',
+            JSON.stringify({
+                documentNumber: 'DOCFALLBK',
+                vehicleNumber: 'NDZ00001',
+                containerNumber: 'MSCU1234567',
+                slots: [],
+            }),
+        );
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        expect((document.getElementById('gctDocumentInput') as HTMLInputElement).value).toBe(
+            'DOCFALLBK',
+        );
+        expect((document.getElementById('gctVehicleInput') as HTMLInputElement).value).toBe(
+            'NDZ00001',
+        );
+        expect((document.getElementById('gctContainerInput') as HTMLInputElement).value).toBe(
+            'MSCU1234567',
+        );
+    });
+
     it('offers recent values and autofills matching entries', async () => {
         storageState.gctRecentEntries = [
             {
@@ -181,11 +209,6 @@ describe('popup/gct', () => {
         const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
         const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
         const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
-        const documentSuggestions = document.getElementById(
-            'gctDocumentSuggestions',
-        ) as HTMLDataListElement;
-
-        expect(documentSuggestions.querySelectorAll('option')).toHaveLength(2);
 
         documentInput.value = 'doc123456';
         documentInput.dispatchEvent(new Event('change', { bubbles: true }));

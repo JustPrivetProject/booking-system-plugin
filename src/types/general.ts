@@ -55,6 +55,7 @@ export interface NotificationSettings {
 
 export interface BrevoEmailData {
     emails: string[]; // Список email адресов для отправки
+    notificationSource?: 'GCT' | 'DCT';
     userName: string;
     tvAppId: string;
     bookingTime: string;

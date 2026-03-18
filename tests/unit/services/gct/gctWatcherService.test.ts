@@ -224,7 +224,7 @@ describe('GctWatcherService', () => {
         const paused = await service.pauseGroup('group-1');
         expect(paused.groups[0]).toMatchObject({
             status: 'paused',
-            statusMessage: 'Monitorowanie wstrzymane ręcznie',
+            statusMessage: 'Wstrzymane ręcznie',
         });
         expect(paused.groups[0].rows[0]).toMatchObject({
             active: false,
@@ -331,7 +331,7 @@ describe('GctWatcherService', () => {
         (service as any).scheduleGroup('group-1', state);
 
         const delay = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1]?.[1] as number;
-        expect(delay).toBeGreaterThanOrEqual(30000);
+        expect(delay).toBeGreaterThanOrEqual(9000);
         setTimeoutSpy.mockRestore();
     });
 
@@ -440,7 +440,7 @@ describe('GctWatcherService', () => {
         });
         expect(state.groups[0].rows[1]).toMatchObject({
             status: Statuses.IN_PROGRESS,
-            statusMessage: 'Target jeszcze nie jest dostępny',
+            statusMessage: 'Szukam',
         });
     });
 
@@ -467,11 +467,11 @@ describe('GctWatcherService', () => {
 
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.IN_PROGRESS,
-            statusMessage: 'Target jeszcze nie jest dostępny',
+            statusMessage: 'Szukam',
             active: true,
         });
         expect(state.groups[0].status).toBe('watching');
-        expect(state.groups[0].statusMessage).toBe('Aktywne monitorowanie slotów GCT');
+        expect(state.groups[0].statusMessage).toBe('Szukam');
     });
 
     it('uses the completed group summary after the only row expires', async () => {
@@ -501,7 +501,7 @@ describe('GctWatcherService', () => {
             active: false,
         });
         expect(state.groups[0].status).toBe('completed');
-        expect(state.groups[0].statusMessage).toBe('W tej grupie nie ma już aktywnych slotów');
+        expect(state.groups[0].statusMessage).toBe('Brak aktywnych slotów');
     });
 
     it('marks ambiguous slot matches as errors', async () => {
@@ -532,7 +532,7 @@ describe('GctWatcherService', () => {
 
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.ERROR,
-            statusMessage: 'Wykryto niejednoznaczne dopasowanie slotu',
+            statusMessage: 'Niejednoznaczny slot',
             lastError: 'Ambiguous slot match (2)',
         });
     });
@@ -602,7 +602,7 @@ describe('GctWatcherService', () => {
 
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.IN_PROGRESS,
-            statusMessage: 'Rezerwacja nie została potwierdzona — próbuję dalej',
+            statusMessage: 'Brak potwierdzenia, próbuję dalej',
             lastError: expect.stringContaining('Booking verification failed'),
         });
         expect(state.groups[0].status).toBe('watching');
@@ -644,7 +644,7 @@ describe('GctWatcherService', () => {
         await (service as any).processGroup('group-1');
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.NETWORK_ERROR,
-            statusMessage: 'Błąd sieci — ponowię próbę',
+            statusMessage: 'Błąd sieci, ponowię',
         });
     });
 

@@ -94,6 +94,7 @@ export class NotificationService {
             // Prepare email data with formatted time
             const emailData: BrevoEmailData = {
                 emails: emailAddresses,
+                notificationSource: data.notificationSource,
                 userName: currentUser?.email.split('@')[0] || 'Użytkownik',
                 tvAppId: data.tvAppId,
                 bookingTime: data.bookingTime,
@@ -160,6 +161,7 @@ export class NotificationService {
     async sendTestNotifications(): Promise<void> {
         const testData: BrevoEmailData = {
             emails: ['test@example.com'],
+            notificationSource: 'DCT',
             userName: 'Test User',
             tvAppId: 'TEST123',
             bookingTime: new Date().toISOString(),

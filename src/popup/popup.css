@@ -1609,6 +1609,36 @@ tr[data-is-open='false'] .status-icon {
     font-size: 12px;
 }
 
+.gct-search-message {
+    display: inline-flex;
+    align-items: baseline;
+}
+
+.gct-loading-dots {
+    display: inline-block;
+    width: 0;
+    overflow: hidden;
+    animation: gctDots 1.2s steps(3, end) infinite;
+}
+
+@keyframes gctDots {
+    0% {
+        width: 0;
+    }
+
+    33% {
+        width: 0.35em;
+    }
+
+    66% {
+        width: 0.7em;
+    }
+
+    100% {
+        width: 1.05em;
+    }
+}
+
 .gct-empty-cell {
     padding: var(--spacing-medium);
 }

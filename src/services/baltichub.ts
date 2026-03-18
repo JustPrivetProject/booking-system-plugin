@@ -316,6 +316,7 @@ export async function executeRequest(
             consoleLog('🎉 Booking success! Preparing to send notifications...');
 
             const notificationData: Partial<BrevoEmailData> = {
+                notificationSource: 'DCT',
                 tvAppId,
                 bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
                 driverName: req.driverName,

@@ -144,8 +144,8 @@ export class BackgroundController {
                 gctSettings: {
                     pollMinMs: 5000,
                     pollMaxMs: 10000,
-                    jitterMinMs: 2000,
-                    jitterMaxMs: 5000,
+                    jitterMinMs: 1000,
+                    jitterMaxMs: 2500,
                 },
             });
         }

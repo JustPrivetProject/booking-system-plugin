@@ -27,9 +27,10 @@ import {
 const MAX_HISTORY_EVENTS = 25;
 const MIN_GCT_POLL_MS = 10000;
 const GCT_TOKEN_CACHE_TTL_MS = 2 * 60 * 1000;
-const GCT_NETWORK_BACKOFF_BASE_MS = 30000;
+const GCT_NETWORK_BACKOFF_BASE_MS = 8000;
 const GCT_NETWORK_BACKOFF_MAX_MS = 5 * 60 * 1000;
-const GCT_LOGIN_RETRY_MIN_MS = 8250;
+const GCT_RETRY_JITTER_MIN_MS = 1000;
+const GCT_RETRY_JITTER_MAX_MS = 2500;
 const GCT_LOGIN_BLOCK_COOLDOWN_MS = 30 * 60 * 1000;
 
 interface GctCachedToken {
@@ -44,6 +45,18 @@ function nowIso(): string {
 
 function wait(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function randomInt(min: number, max: number): number {
+    return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function getRetryJitterMs(): number {
+    return randomInt(GCT_RETRY_JITTER_MIN_MS, GCT_RETRY_JITTER_MAX_MS);
+}
+
+function getBaseRetryDelayMs(): number {
+    return GCT_NETWORK_BACKOFF_BASE_MS + getRetryJitterMs();
 }
 
 function createId(prefix: string): string {
@@ -95,7 +108,7 @@ function createRow(slot: GctTargetSlotDraft): GctWatchRow {
         id: createId('gct-row'),
         ...window,
         status: Statuses.IN_PROGRESS,
-        statusMessage: 'Oczekiwanie na dopasowanie slotu',
+        statusMessage: 'Szukam',
         active: true,
         isManualPause: false,
         lastAttemptAt: null,
@@ -155,41 +168,41 @@ function summarizeGroupStatus(
     if (group.rows.some(row => row.isManualPause)) {
         return {
             status: 'paused',
-            statusMessage: 'Monitorowanie wstrzymane ręcznie',
+            statusMessage: 'Wstrzymane ręcznie',
         };
     }
 
     if (hasActiveRows(group)) {
         return {
             status: 'watching',
-            statusMessage: 'Aktywne monitorowanie slotów GCT',
+            statusMessage: 'Szukam',
         };
     }
 
     if (group.rows.some(row => row.status === Statuses.SUCCESS)) {
         return {
             status: 'success',
-            statusMessage: 'Jeden z targetów został zarezerwowany',
+            statusMessage: 'Slot zarezerwowany w GCT',
         };
     }
 
     if (group.rows.some(row => row.status === Statuses.AUTHORIZATION_ERROR)) {
         return {
             status: 'auth-lost',
-            statusMessage: 'Wymagane ponowne uwierzytelnienie',
+            statusMessage: 'Wymagane logowanie',
         };
     }
 
     if (group.rows.every(row => isTerminalRow(row) || row.status === Statuses.ERROR)) {
         return {
             status: 'completed',
-            statusMessage: 'W tej grupie nie ma już aktywnych slotów',
+            statusMessage: 'Brak aktywnych slotów',
         };
     }
 
     return {
         status: 'error',
-        statusMessage: 'Wymaga uwagi użytkownika',
+        statusMessage: 'Wymaga uwagi',
     };
 }
 
@@ -198,8 +211,8 @@ function nextDelayMs(state: GctState): number {
     const max = Math.max(min, state.settings.pollMaxMs);
     const jitterMin = Math.max(0, state.settings.jitterMinMs);
     const jitterMax = Math.max(jitterMin, state.settings.jitterMaxMs);
-    const base = min + Math.floor(Math.random() * (max - min + 1));
-    const jitter = jitterMin + Math.floor(Math.random() * (jitterMax - jitterMin + 1));
+    const base = randomInt(min, max);
+    const jitter = randomInt(jitterMin, jitterMax);
     const direction = Math.random() >= 0.5 ? 1 : -1;
     const total = Math.max(1000, base + direction * jitter);
 
@@ -288,6 +301,7 @@ function buildDiagnosticError(
 function buildSuccessNotificationPayload(group: GctWatchGroup, row: GctWatchRow) {
     return {
         emails: [],
+        notificationSource: 'GCT' as const,
         userName: group.documentNumber,
         tvAppId: group.containerNumber,
         bookingTime: row.targetStartLocal,
@@ -370,11 +384,11 @@ export class GctWatcherService {
                 createdAt: now,
                 updatedAt: now,
                 status: 'watching',
-                statusMessage: 'Aktywne monitorowanie slotów GCT',
+                statusMessage: 'Szukam',
                 isExpanded: true,
             };
 
-            await this.loginAndCacheToken(createdGroup, GCT_LOGIN_RETRY_MIN_MS + 1000);
+            await this.loginAndCacheToken(createdGroup, getBaseRetryDelayMs() + 1000);
             nextGroups = [...state.groups, createdGroup];
         }
 
@@ -471,7 +485,7 @@ export class GctWatcherService {
                               active: false,
                               isManualPause: true,
                               status: Statuses.PAUSED,
-                              statusMessage: 'Monitorowanie wstrzymane ręcznie',
+                              statusMessage: 'Wstrzymane ręcznie',
                           },
                           'stopped',
                           'Wstrzymano monitorowanie ręcznie',
@@ -483,7 +497,7 @@ export class GctWatcherService {
                 rows,
                 updatedAt: nowIso(),
                 status: 'paused' as GctGroupStatus,
-                statusMessage: 'Monitorowanie wstrzymane ręcznie',
+                statusMessage: 'Wstrzymane ręcznie',
             };
         });
 
@@ -508,7 +522,7 @@ export class GctWatcherService {
                         active: true,
                         isManualPause: false,
                         status: Statuses.IN_PROGRESS,
-                        statusMessage: 'Aktywne monitorowanie slotu',
+                        statusMessage: 'Szukam',
                         lastError: null,
                     },
                     'watching',
@@ -537,7 +551,7 @@ export class GctWatcherService {
                     active: false,
                     isManualPause: true,
                     status: Statuses.PAUSED,
-                    statusMessage: 'Monitorowanie wstrzymane ręcznie',
+                    statusMessage: 'Wstrzymane ręcznie',
                 },
                 'stopped',
                 'Wstrzymano monitorowanie ręcznie',
@@ -553,7 +567,7 @@ export class GctWatcherService {
                     active: true,
                     isManualPause: false,
                     status: Statuses.IN_PROGRESS,
-                    statusMessage: 'Aktywne monitorowanie slotu',
+                    statusMessage: 'Szukam',
                     lastError: null,
                 },
                 'watching',
@@ -579,7 +593,7 @@ export class GctWatcherService {
                         active: false,
                         isManualPause: false,
                         status: Statuses.AUTHORIZATION_ERROR,
-                        statusMessage: 'Monitorowanie zatrzymane po wylogowaniu z rozszerzenia',
+                        statusMessage: 'Zatrzymane po wylogowaniu',
                     },
                     'auth-lost',
                     'Rozszerzenie zostało wylogowane',
@@ -591,7 +605,7 @@ export class GctWatcherService {
                 rows,
                 updatedAt: nowIso(),
                 status: 'auth-lost' as GctGroupStatus,
-                statusMessage: 'Wylogowano z rozszerzenia',
+                statusMessage: 'Wylogowano',
             };
         });
 
@@ -624,7 +638,7 @@ export class GctWatcherService {
                         ...row,
                         active: true,
                         status: Statuses.IN_PROGRESS,
-                        statusMessage: 'Przywrócono monitorowanie po odzyskaniu sesji',
+                        statusMessage: 'Szukam',
                         lastError: null,
                     },
                     'watching',
@@ -712,9 +726,10 @@ export class GctWatcherService {
         }
 
         const nextLevel = (this.networkBackoffLevel.get(groupId) || 0) + 1;
+        const jitterMs = getRetryJitterMs();
         const delayMs = Math.min(
             GCT_NETWORK_BACKOFF_MAX_MS,
-            GCT_NETWORK_BACKOFF_BASE_MS * 2 ** (nextLevel - 1),
+            GCT_NETWORK_BACKOFF_BASE_MS * 2 ** (nextLevel - 1) + jitterMs,
         );
         this.networkBackoffLevel.set(groupId, nextLevel);
         this.networkBackoffUntil.set(groupId, Date.now() + delayMs);
@@ -729,7 +744,7 @@ export class GctWatcherService {
     private registerLoginCooldown(groupId: string, error: unknown): void {
         const delayMs = isLikelyLoginBlockError(error)
             ? GCT_LOGIN_BLOCK_COOLDOWN_MS
-            : GCT_LOGIN_RETRY_MIN_MS;
+            : getBaseRetryDelayMs();
         const nextAllowedAt = Date.now() + delayMs;
         const current = this.loginCooldownUntil.get(groupId) || 0;
 
@@ -798,7 +813,7 @@ export class GctWatcherService {
         this.activeLoginGroupId = groupId;
         this.globalLoginCooldownUntil = Math.max(
             this.globalLoginCooldownUntil,
-            now + GCT_LOGIN_RETRY_MIN_MS,
+            now + getBaseRetryDelayMs(),
         );
 
         return true;
@@ -929,7 +944,7 @@ export class GctWatcherService {
 
                 if (matches.length === 0) {
                     row.status = Statuses.IN_PROGRESS;
-                    row.statusMessage = 'Target jeszcze nie jest dostępny';
+                    row.statusMessage = 'Szukam';
                     const watchingRow = addHistory(
                         row,
                         'not-found',
@@ -941,7 +956,7 @@ export class GctWatcherService {
 
                 if (matches.length > 1) {
                     row.status = Statuses.ERROR;
-                    row.statusMessage = 'Wykryto niejednoznaczne dopasowanie slotu';
+                    row.statusMessage = 'Niejednoznaczny slot';
                     row.lastError = `Ambiguous slot match (${matches.length})`;
                     const ambiguousRow = addHistory(
                         row,
@@ -954,7 +969,7 @@ export class GctWatcherService {
 
                 const slot = matches[0];
                 row.status = 'attempting';
-                row.statusMessage = `Próba rezerwacji ${slot.startLocal}`;
+                row.statusMessage = `Rezerwuję ${slot.startLocal}`;
                 row.lastAttemptAt = nowIso();
                 row.lastMatchedAt = nowIso();
                 const attemptRow = addHistory(
@@ -970,7 +985,7 @@ export class GctWatcherService {
 
                     if (matchesCurrentBooking(booking, row.targetStartLocal, row.targetEndLocal)) {
                         row.status = Statuses.SUCCESS;
-                        row.statusMessage = 'Zweryfikowano sukces rezerwacji';
+                        row.statusMessage = 'Slot zarezerwowany w GCT';
                         row.active = false;
                         row.lastVerifiedAt = nowIso();
                         row.lastError = null;
@@ -988,7 +1003,7 @@ export class GctWatcherService {
                             sibling.active = false;
                             sibling.isManualPause = false;
                             sibling.status = 'completed';
-                            sibling.statusMessage = 'Zatrzymano po sukcesie innego targetu';
+                            sibling.statusMessage = 'Zatrzymane po sukcesie grupy';
                             const siblingRow = addHistory(
                                 sibling,
                                 'stopped',
@@ -1002,7 +1017,7 @@ export class GctWatcherService {
                     }
 
                     row.status = Statuses.IN_PROGRESS;
-                    row.statusMessage = 'Rezerwacja nie została potwierdzona — próbuję dalej';
+                    row.statusMessage = 'Brak potwierdzenia, próbuję dalej';
                     row.lastError = `Booking verification failed | group=${groupClone.id} | row=${row.id} | target=${row.targetStartLocal}`;
                     const takenRow = addHistory(
                         row,
@@ -1025,13 +1040,13 @@ export class GctWatcherService {
                     } else if (classification === 'auth') {
                         this.clearCachedToken(groupClone.id);
                         row.status = Statuses.AUTHORIZATION_ERROR;
-                        row.statusMessage = 'Błąd autoryzacji GCT — ponowię po odświeżeniu sesji';
+                        row.statusMessage = 'Błąd logowania, ponowię';
                         row.lastError = diagnosticError;
                         const authRow = addHistory(row, 'auth-lost', row.statusMessage);
                         Object.assign(row, authRow);
                     } else {
                         row.status = Statuses.NETWORK_ERROR;
-                        row.statusMessage = 'Błąd sieci — ponowię próbę';
+                        row.statusMessage = 'Błąd sieci, ponowię';
                         row.lastError = diagnosticError;
                         const networkRow = addHistory(row, 'network-error', row.lastError);
                         Object.assign(row, networkRow);
@@ -1042,7 +1057,7 @@ export class GctWatcherService {
             const summary = summarizeGroupStatus(groupClone);
             groupClone.status = shouldStopGroup ? 'success' : summary.status;
             groupClone.statusMessage = shouldStopGroup
-                ? 'Zarezerwowano jeden z targetów — grupa zatrzymana'
+                ? 'Slot zarezerwowany w GCT'
                 : summary.statusMessage;
             groupClone.updatedAt = nowIso();
 
@@ -1082,7 +1097,7 @@ export class GctWatcherService {
 
             if (classification === 'auth') {
                 row.status = Statuses.AUTHORIZATION_ERROR;
-                row.statusMessage = 'Błąd uwierzytelnienia GCT — ponowię próbę';
+                row.statusMessage = 'Błąd logowania, ponowię';
                 row.lastError = diagnosticError;
                 const authRow = addHistory(row, 'auth-lost', errorMessage);
                 Object.assign(row, authRow);
@@ -1095,7 +1110,7 @@ export class GctWatcherService {
                 Object.assign(row, terminalRow);
             } else {
                 row.status = Statuses.NETWORK_ERROR;
-                row.statusMessage = 'Błąd sieci — ponowię próbę';
+                row.statusMessage = 'Błąd sieci, ponowię';
                 row.lastError = diagnosticError;
                 const networkRow = addHistory(row, 'network-error', errorMessage);
                 Object.assign(row, networkRow);

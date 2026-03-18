@@ -9,8 +9,8 @@ export const GCT_STORAGE_KEYS = {
 export const GCT_WATCHER_DEFAULTS = {
     pollMinMs: 10000,
     pollMaxMs: 15000,
-    jitterMinMs: 2000,
-    jitterMaxMs: 5000,
+    jitterMinMs: 1000,
+    jitterMaxMs: 2500,
 } as const;
 
 export const GCT_ALLOWED_START_TIMES = [
