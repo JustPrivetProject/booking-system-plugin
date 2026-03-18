@@ -219,7 +219,7 @@ describe('popup/gct', () => {
         expect(containerInput.value).toBe('');
     });
 
-    it('shows clickable recent suggestions for document prefix without native triangle UI', async () => {
+    it('renders native datalist history without custom suggestion UI', async () => {
         storageState.gctRecentEntries = [
             {
                 documentNumber: 'DGG683895',
@@ -235,25 +235,23 @@ describe('popup/gct', () => {
 
         const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
         const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
-        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const documentList = document.getElementById(
+            'gctDocumentRecentList',
+        ) as HTMLDataListElement;
+        const vehicleList = document.getElementById('gctVehicleRecentList') as HTMLDataListElement;
 
-        documentInput.focus();
-        setInputValue(documentInput, 'DGG');
-        await flushUi();
+        expect(documentInput.getAttribute('list')).toBe('gctDocumentRecentList');
+        expect(vehicleInput.getAttribute('list')).toBe('gctVehicleRecentList');
+        expect(documentList).toBeTruthy();
+        expect(vehicleList).toBeTruthy();
+        expect(documentList.querySelectorAll('option')).toHaveLength(1);
+        expect(vehicleList.querySelectorAll('option')).toHaveLength(1);
+        expect((documentList.querySelector('option') as HTMLOptionElement).value).toBe('DGG683895');
+        expect((vehicleList.querySelector('option') as HTMLOptionElement).value).toBe('NDZ47390');
 
-        const suggestion = document.querySelector(
-            '#gctDocumentSuggestions .gct-recent-suggestion',
-        ) as HTMLButtonElement;
-
-        expect(suggestion).toBeTruthy();
-        expect(suggestion.textContent).toBe('DGG683895');
-
-        suggestion.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-        await flushUi();
-
-        expect(documentInput.value).toBe('DGG683895');
-        expect(vehicleInput.value).toBe('NDZ47390');
-        expect(containerInput.value).toBe('');
+        expect(document.getElementById('gctDocumentSuggestions')).toBeNull();
+        expect(document.getElementById('gctVehicleSuggestions')).toBeNull();
+        expect(document.querySelector('.gct-recent-suggestion')).toBeNull();
     });
 
     it('supports multi-date slot selection and sends a combined add-group payload', async () => {
@@ -749,38 +747,6 @@ describe('popup/gct', () => {
         expect(currentSlotButton.dataset.disabledReason).toBe('Obecny slot');
         expect(nextSlotButton).toBeTruthy();
         expect(nextSlotButton.disabled).toBe(false);
-    });
-
-    it('does not show recent suggestions before a prefix is typed', async () => {
-        storageState.gctRecentEntries = [
-            {
-                documentNumber: 'DOC123456',
-                vehicleNumber: 'NDZ45396',
-                containerNumber: 'TCLU3141931',
-            },
-        ];
-
-        const { initGctUI } = await loadModule();
-
-        initGctUI();
-        await flushUi();
-
-        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
-        const documentSuggestions = document.getElementById(
-            'gctDocumentSuggestions',
-        ) as HTMLElement;
-
-        documentInput.focus();
-        await flushUi();
-
-        expect(documentSuggestions.hidden).toBe(true);
-        expect(documentSuggestions.childElementCount).toBe(0);
-
-        setInputValue(documentInput, 'DOC');
-        await flushUi();
-
-        expect(documentSuggestions.hidden).toBe(false);
-        expect(documentSuggestions.childElementCount).toBe(1);
     });
 
     it('renders groups and routes group and row actions', async () => {
