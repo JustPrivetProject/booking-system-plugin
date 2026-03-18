@@ -72,6 +72,14 @@ describe('gctApi', () => {
         );
     });
 
+    it('does not immediately retry failed login requests', async () => {
+        (global.fetch as jest.Mock).mockRejectedValue(new Error('timeout'));
+
+        await expect(loginToGct({} as any)).rejects.toThrow('GCT request failed');
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
     it('maps available slots into local and utc fields', async () => {
         (global.fetch as jest.Mock).mockResolvedValue(
             responseWith(

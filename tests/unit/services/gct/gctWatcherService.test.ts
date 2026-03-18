@@ -281,6 +281,46 @@ describe('GctWatcherService', () => {
         expect((service as any).timers.has('paused-group')).toBe(false);
     });
 
+    it('reuses a cached GCT token across consecutive cycles', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        state.groups = [createGroup()];
+
+        await (service as any).processGroup('group-1');
+        await (service as any).processGroup('group-1');
+
+        expect(loginToGct).toHaveBeenCalledTimes(1);
+        expect(getGctAvailableSlots).toHaveBeenCalledTimes(2);
+    });
+
+    it('applies timeout backoff when login hits a transport failure', async () => {
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        (service as any).registerNetworkBackoff('group-1', new Error('ERR_CONNECTION_TIMED_OUT'));
+
+        (service as any).scheduleGroup('group-1', state);
+
+        const delay = setTimeoutSpy.mock.calls[setTimeoutSpy.mock.calls.length - 1]?.[1] as number;
+        expect(delay).toBeGreaterThanOrEqual(30000);
+        setTimeoutSpy.mockRestore();
+    });
+
+    it('applies a long cooldown when login looks temporarily blocked', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        state.groups = [createGroup()];
+        (loginToGct as jest.Mock).mockRejectedValueOnce(
+            new Error('GCT login did not return a bearer token'),
+        );
+
+        await (service as any).processGroup('group-1');
+
+        expect(state.groups[0].rows[0]).toMatchObject({
+            status: Statuses.NETWORK_ERROR,
+            active: true,
+        });
+        expect((service as any).loginCooldownUntil.get('group-1')).toBeGreaterThanOrEqual(
+            Date.now() + 30 * 60 * 1000 - 1000,
+        );
+    });
+
     it('stops all watchers when extension auth is missing during a cycle', async () => {
         (authService.isAuthenticated as jest.Mock).mockResolvedValue(false);
         const stopSpy = jest.spyOn(service, 'stopAllForExtensionLogout').mockResolvedValue();

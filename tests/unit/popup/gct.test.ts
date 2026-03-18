@@ -23,6 +23,7 @@ const createState = (overrides: any = {}) => ({
 describe('popup/gct', () => {
     const sentMessages: unknown[] = [];
     let currentState = createState();
+    let storageState: Record<string, unknown>;
 
     const flushUi = async () => {
         await Promise.resolve();
@@ -45,9 +46,36 @@ describe('popup/gct', () => {
         jest.setSystemTime(new Date('2026-03-17T08:00:00.000Z'));
         sentMessages.length = 0;
         currentState = createState();
+        storageState = {};
         document.body.innerHTML = '<div id="gctView"></div>';
 
         chromeMock.runtime.lastError = null;
+        chromeMock.storage.local.get.mockImplementation(
+            (keys: any, callback: (value: any) => void) => {
+                if (typeof callback !== 'function') {
+                    return;
+                }
+
+                if (keys && typeof keys === 'object' && !Array.isArray(keys)) {
+                    const result = Object.fromEntries(
+                        Object.keys(keys).map(key => [
+                            key,
+                            key in storageState ? storageState[key] : keys[key],
+                        ]),
+                    );
+                    callback(result);
+                    return;
+                }
+
+                callback(storageState);
+            },
+        );
+        chromeMock.storage.local.set.mockImplementation(
+            (data: Record<string, unknown>, callback?: () => void) => {
+                storageState = { ...storageState, ...data };
+                callback?.();
+            },
+        );
         chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
             sentMessages.push(message);
             if (message.type === 'GET_STATE') {
@@ -73,6 +101,69 @@ describe('popup/gct', () => {
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
         expect(document.getElementById('gctTableBody')?.textContent).toBe('');
         expect(sentMessages).toContainEqual({ target: 'gct', type: 'GET_STATE' });
+    });
+
+    it('restores the saved draft after reopening the popup', async () => {
+        storageState.gctPopupDraft = {
+            documentNumber: 'DOC123456',
+            vehicleNumber: 'NDZ45396',
+            containerNumber: 'TCLU3141931',
+            slots: [{ date: '2026-03-17', startTime: '22:30' }],
+        };
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        expect((document.getElementById('gctDocumentInput') as HTMLInputElement).value).toBe(
+            'DOC123456',
+        );
+        expect((document.getElementById('gctVehicleInput') as HTMLInputElement).value).toBe(
+            'NDZ45396',
+        );
+        expect((document.getElementById('gctContainerInput') as HTMLInputElement).value).toBe(
+            'TCLU3141931',
+        );
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Dziś 22:30');
+        expect((document.getElementById('gctAddButton') as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('offers recent values and autofills matching entries', async () => {
+        storageState.gctRecentEntries = [
+            {
+                documentNumber: 'DOC123456',
+                vehicleNumber: 'NDZ45396',
+                containerNumber: 'TCLU3141931',
+            },
+            {
+                documentNumber: 'DOC654321',
+                vehicleNumber: 'WWL11111',
+                containerNumber: 'MSCU1234567',
+            },
+        ];
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const documentSuggestions = document.getElementById(
+            'gctDocumentSuggestions',
+        ) as HTMLDataListElement;
+
+        expect(documentSuggestions.querySelectorAll('option')).toHaveLength(2);
+
+        documentInput.value = 'doc123456';
+        documentInput.dispatchEvent(new Event('change', { bubbles: true }));
+        await flushUi();
+
+        expect(documentInput.value).toBe('DOC123456');
+        expect(vehicleInput.value).toBe('NDZ45396');
+        expect(containerInput.value).toBe('TCLU3141931');
     });
 
     it('supports multi-date slot selection and sends a combined add-group payload', async () => {
@@ -119,6 +210,7 @@ describe('popup/gct', () => {
 
         addButton.click();
         await flushUi();
+        await flushUi();
 
         expect(sentMessages).toContainEqual({
             target: 'gct',
@@ -134,9 +226,7 @@ describe('popup/gct', () => {
                 ],
             },
         });
-        expect(containerInput.value).toBe('');
-        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
-        expect(document.querySelector('.gp-badge')?.textContent).toBe('');
+        expect(containerInput.value).toBe('TCLU3141931');
         expect(addButton.disabled).toBe(true);
     });
 

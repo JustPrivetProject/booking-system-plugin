@@ -13,6 +13,9 @@ const GCT_TIMEZONE = 'Europe/Warsaw';
 const GCT_DOCUMENT_NUMBER_LENGTH = 9;
 const GCT_VEHICLE_NUMBER_LENGTH = 8;
 const GCT_CONTAINER_NUMBER_LENGTH = 11;
+const GCT_DRAFT_STORAGE_KEY = 'gctPopupDraft';
+const GCT_RECENT_ENTRIES_STORAGE_KEY = 'gctRecentEntries';
+const GCT_RECENT_ENTRIES_LIMIT = 10;
 const GCT_PICKER_MONTHS_PL = [
     'Styczeń',
     'Luty',
@@ -57,9 +60,23 @@ interface GctPickerWindow extends Window {
     godzinaPicker?: GctPickerApi;
 }
 
+interface GctPopupDraft {
+    documentNumber: string;
+    vehicleNumber: string;
+    containerNumber: string;
+    slots: GctTargetSlotDraft[];
+}
+
+interface GctRecentEntry {
+    documentNumber: string;
+    vehicleNumber: string;
+    containerNumber: string;
+}
+
 let gctTimePicker: GctPickerApi | null = null;
 let activeGroupEditPicker: GctPickerApi | null = null;
 let activeGroupEditOverlay: HTMLDivElement | null = null;
+let gctRecentEntries: GctRecentEntry[] = [];
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -244,12 +261,15 @@ function buildControlsMarkup(): string {
     return `
         <div class="gct-controls">
             <div class="gct-controls-row">
-                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctDocumentSuggestions" />
+                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctVehicleSuggestions" />
+                <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" list="gctContainerSuggestions" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
                 <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
             </div>
+            <datalist id="gctDocumentSuggestions"></datalist>
+            <datalist id="gctVehicleSuggestions"></datalist>
+            <datalist id="gctContainerSuggestions"></datalist>
         </div>
         <div class="queue-container gct-queue-container">
             <table id="gctTable">
@@ -787,6 +807,191 @@ function normalizeCompactUppercaseValue(value: string): string {
     return value.replace(/\s+/g, '').toUpperCase();
 }
 
+function normalizeRecentEntry(entry: GctRecentEntry): GctRecentEntry {
+    return {
+        documentNumber: normalizeCompactUppercaseValue(entry.documentNumber),
+        vehicleNumber: normalizeCompactUppercaseValue(entry.vehicleNumber),
+        containerNumber: normalizeCompactUppercaseValue(entry.containerNumber),
+    };
+}
+
+function getChromeStorageLocal<T>(defaults: T): Promise<T> {
+    return new Promise(resolve => {
+        chrome.storage.local.get(defaults as Record<string, unknown>, result => {
+            resolve(result as T);
+        });
+    });
+}
+
+function setChromeStorageLocal(data: Record<string, unknown>): Promise<void> {
+    return new Promise(resolve => {
+        chrome.storage.local.set(data, () => resolve());
+    });
+}
+
+function getCurrentGctDraft(): GctPopupDraft {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    return {
+        documentNumber: normalizeCompactUppercaseValue(documentInput?.value || ''),
+        vehicleNumber: normalizeCompactUppercaseValue(vehicleInput?.value || ''),
+        containerNumber: normalizeCompactUppercaseValue(containerInput?.value || ''),
+        slots: gctTimePicker ? mapSelectionToSlots(gctTimePicker.getSelection()) : [],
+    };
+}
+
+async function persistGctDraft(): Promise<void> {
+    await setChromeStorageLocal({
+        [GCT_DRAFT_STORAGE_KEY]: getCurrentGctDraft(),
+    });
+}
+
+function uniqueRecentFieldValues(
+    mapper: (entry: GctRecentEntry) => string,
+    currentValue: string,
+): string[] {
+    const seen = new Set<string>();
+    const values: string[] = [];
+    const normalizedCurrentValue = normalizeCompactUppercaseValue(currentValue);
+
+    for (const entry of gctRecentEntries) {
+        const value = mapper(entry);
+        if (!value || value === normalizedCurrentValue || seen.has(value)) {
+            continue;
+        }
+
+        seen.add(value);
+        values.push(value);
+    }
+
+    return values;
+}
+
+function renderRecentEntrySuggestions(): void {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+    const documentList = byId<HTMLDataListElement>('gctDocumentSuggestions');
+    const vehicleList = byId<HTMLDataListElement>('gctVehicleSuggestions');
+    const containerList = byId<HTMLDataListElement>('gctContainerSuggestions');
+
+    if (!documentList || !vehicleList || !containerList) {
+        return;
+    }
+
+    const fillList = (list: HTMLDataListElement, values: string[]): void => {
+        list.innerHTML = values.map(value => `<option value="${value}"></option>`).join('');
+    };
+
+    fillList(
+        documentList,
+        uniqueRecentFieldValues(entry => entry.documentNumber, documentInput?.value || ''),
+    );
+    fillList(
+        vehicleList,
+        uniqueRecentFieldValues(entry => entry.vehicleNumber, vehicleInput?.value || ''),
+    );
+    fillList(
+        containerList,
+        uniqueRecentFieldValues(entry => entry.containerNumber, containerInput?.value || ''),
+    );
+}
+
+function applyRecentEntryAutofill(sourceField: keyof GctRecentEntry): void {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    if (!documentInput || !vehicleInput || !containerInput) {
+        return;
+    }
+
+    const currentValues = {
+        documentNumber: normalizeCompactUppercaseValue(documentInput.value),
+        vehicleNumber: normalizeCompactUppercaseValue(vehicleInput.value),
+        containerNumber: normalizeCompactUppercaseValue(containerInput.value),
+    };
+
+    const matchingEntries = gctRecentEntries.filter(entry => {
+        if (entry[sourceField] !== currentValues[sourceField]) {
+            return false;
+        }
+
+        return (
+            (!currentValues.documentNumber ||
+                currentValues.documentNumber === entry.documentNumber) &&
+            (!currentValues.vehicleNumber || currentValues.vehicleNumber === entry.vehicleNumber) &&
+            (!currentValues.containerNumber ||
+                currentValues.containerNumber === entry.containerNumber)
+        );
+    });
+
+    if (matchingEntries.length !== 1) {
+        return;
+    }
+
+    const match = matchingEntries[0];
+    documentInput.value = match.documentNumber;
+    vehicleInput.value = match.vehicleNumber;
+    containerInput.value = match.containerNumber;
+}
+
+function rememberRecentEntry(entry: GctRecentEntry): void {
+    const normalizedEntry = normalizeRecentEntry(entry);
+    gctRecentEntries = [
+        normalizedEntry,
+        ...gctRecentEntries.filter(existing => {
+            return !(
+                existing.documentNumber === normalizedEntry.documentNumber &&
+                existing.vehicleNumber === normalizedEntry.vehicleNumber &&
+                existing.containerNumber === normalizedEntry.containerNumber
+            );
+        }),
+    ].slice(0, GCT_RECENT_ENTRIES_LIMIT);
+}
+
+async function persistRecentEntries(): Promise<void> {
+    await setChromeStorageLocal({
+        [GCT_RECENT_ENTRIES_STORAGE_KEY]: gctRecentEntries,
+    });
+}
+
+async function restoreGctInputs(): Promise<void> {
+    const storageResult = await getChromeStorageLocal<{
+        gctPopupDraft?: GctPopupDraft;
+        gctRecentEntries?: GctRecentEntry[];
+    }>({
+        [GCT_DRAFT_STORAGE_KEY]: undefined,
+        [GCT_RECENT_ENTRIES_STORAGE_KEY]: [],
+    } as {
+        gctPopupDraft?: GctPopupDraft;
+        gctRecentEntries?: GctRecentEntry[];
+    });
+
+    const draft = storageResult.gctPopupDraft;
+    gctRecentEntries = Array.isArray(storageResult.gctRecentEntries)
+        ? storageResult.gctRecentEntries
+              .map(normalizeRecentEntry)
+              .slice(0, GCT_RECENT_ENTRIES_LIMIT)
+        : [];
+
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    if (documentInput && vehicleInput && containerInput && draft) {
+        documentInput.value = normalizeCompactUppercaseValue(draft.documentNumber || '');
+        vehicleInput.value = normalizeCompactUppercaseValue(draft.vehicleNumber || '');
+        containerInput.value = normalizeCompactUppercaseValue(draft.containerNumber || '');
+        gctTimePicker?.setSlots(Array.isArray(draft.slots) ? draft.slots : []);
+    }
+
+    renderRecentEntrySuggestions();
+    updateAddButtonState();
+}
+
 function hasValidGctAddInputs(): boolean {
     const documentInput = byId<HTMLInputElement>('gctDocumentInput');
     const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
@@ -1120,8 +1325,16 @@ async function handleAdd(): Promise<void> {
             },
         });
 
-        containerInput.value = '';
+        rememberRecentEntry({
+            documentNumber,
+            vehicleNumber,
+            containerNumber,
+        });
+        await persistRecentEntries();
+        renderRecentEntrySuggestions();
+
         gctTimePicker.reset();
+        await persistGctDraft();
         updateAddButtonState();
     } catch (error) {
         consoleError('Add GCT group failed:', error);
@@ -1151,14 +1364,35 @@ export function initGctUI(): void {
         gctTimePicker = createGctTimePicker(timePickerHost);
         gctTimePicker.onchange = () => {
             updateAddButtonState();
+            persistGctDraft().catch(consoleError);
         };
     }
 
     const bindNormalizedInput = (id: string): void => {
-        byId<HTMLInputElement>(id)?.addEventListener('input', event => {
+        const input = byId<HTMLInputElement>(id);
+        input?.addEventListener('input', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
             updateAddButtonState();
+            renderRecentEntrySuggestions();
+            persistGctDraft().catch(consoleError);
+        });
+
+        input?.addEventListener('change', event => {
+            const input = event.currentTarget as HTMLInputElement;
+            input.value = normalizeCompactUppercaseValue(input.value);
+
+            if (id === 'gctDocumentInput') {
+                applyRecentEntryAutofill('documentNumber');
+            } else if (id === 'gctVehicleInput') {
+                applyRecentEntryAutofill('vehicleNumber');
+            } else {
+                applyRecentEntryAutofill('containerNumber');
+            }
+
+            renderRecentEntrySuggestions();
+            updateAddButtonState();
+            persistGctDraft().catch(consoleError);
         });
     };
 
@@ -1171,6 +1405,7 @@ export function initGctUI(): void {
     });
 
     updateAddButtonState();
+    restoreGctInputs().catch(consoleError);
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== 'local') return;

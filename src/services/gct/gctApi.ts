@@ -11,6 +11,11 @@ const GCT_REQUEST_TIMEOUT_MS = 15000;
 const GCT_NETWORK_RETRY_ATTEMPTS = 2;
 const GCT_NETWORK_RETRY_DELAY_MS = 700;
 
+interface GctRequestOptions {
+    retryAttempts?: number;
+    retryDelayMs?: number;
+}
+
 type GctAvailableSlotTuple = [number, string, string, number, number];
 
 interface GctLoginResponse {
@@ -82,16 +87,23 @@ async function parseJsonResponse<T>(response: Response, context: string): Promis
     }
 }
 
-async function postJson<T>(path: string, body: unknown, bearerToken?: string): Promise<T> {
+async function postJson<T>(
+    path: string,
+    body: unknown,
+    bearerToken?: string,
+    options: GctRequestOptions = {},
+): Promise<T> {
     const crud =
         typeof body === 'object' && body !== null && 'crud' in body
             ? String((body as { crud?: unknown }).crud || '')
             : '';
     const context = crud ? `${path} crud=${crud}` : path;
+    const retryAttempts = Math.max(1, options.retryAttempts ?? GCT_NETWORK_RETRY_ATTEMPTS);
+    const retryDelayMs = Math.max(0, options.retryDelayMs ?? GCT_NETWORK_RETRY_DELAY_MS);
 
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= GCT_NETWORK_RETRY_ATTEMPTS; attempt += 1) {
+    for (let attempt = 1; attempt <= retryAttempts; attempt += 1) {
         const startedAt = Date.now();
         const abortController = new AbortController();
         const timeoutId = setTimeout(() => {
@@ -116,12 +128,12 @@ async function postJson<T>(path: string, body: unknown, bearerToken?: string): P
             clearTimeout(timeoutId);
             const elapsedMs = Date.now() - startedAt;
             const diagnostic = new Error(
-                `GCT request failed [${context}] attempt=${attempt}/${GCT_NETWORK_RETRY_ATTEMPTS} elapsed=${elapsedMs}ms ${toErrorMessage(error)}`,
+                `GCT request failed [${context}] attempt=${attempt}/${retryAttempts} elapsed=${elapsedMs}ms ${toErrorMessage(error)}`,
             );
             lastError = diagnostic;
 
-            if (attempt < GCT_NETWORK_RETRY_ATTEMPTS && isRetryableNetworkError(error)) {
-                await delay(GCT_NETWORK_RETRY_DELAY_MS);
+            if (attempt < retryAttempts && isRetryableNetworkError(error)) {
+                await delay(retryDelayMs);
                 continue;
             }
 
@@ -133,11 +145,18 @@ async function postJson<T>(path: string, body: unknown, bearerToken?: string): P
 }
 
 export async function loginToGct(group: GctWatchGroup): Promise<string> {
-    const response = await postJson<GctLoginResponse>('/kierowca/login', {
-        dokument: group.documentNumber,
-        pojazd: group.vehicleNumber,
-        kontener: group.containerNumber,
-    });
+    const response = await postJson<GctLoginResponse>(
+        '/kierowca/login',
+        {
+            dokument: group.documentNumber,
+            pojazd: group.vehicleNumber,
+            kontener: group.containerNumber,
+        },
+        undefined,
+        {
+            retryAttempts: 1,
+        },
+    );
 
     if (!response.csrf) {
         throw new Error('GCT login did not return a bearer token');

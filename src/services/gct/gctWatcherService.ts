@@ -25,6 +25,18 @@ import {
 } from './gctApi';
 
 const MAX_HISTORY_EVENTS = 25;
+const MIN_GCT_POLL_MS = 10000;
+const GCT_TOKEN_CACHE_TTL_MS = 2 * 60 * 1000;
+const GCT_NETWORK_BACKOFF_BASE_MS = 30000;
+const GCT_NETWORK_BACKOFF_MAX_MS = 5 * 60 * 1000;
+const GCT_LOGIN_RETRY_MIN_MS = 8250;
+const GCT_LOGIN_BLOCK_COOLDOWN_MS = 30 * 60 * 1000;
+
+interface GctCachedToken {
+    token: string;
+    identityKey: string;
+    expiresAt: number;
+}
 
 function nowIso(): string {
     return new Date().toISOString();
@@ -178,7 +190,7 @@ function summarizeGroupStatus(
 }
 
 function nextDelayMs(state: GctState): number {
-    const min = Math.max(1000, state.settings.pollMinMs);
+    const min = Math.max(MIN_GCT_POLL_MS, state.settings.pollMinMs);
     const max = Math.max(min, state.settings.pollMaxMs);
     const jitterMin = Math.max(0, state.settings.jitterMinMs);
     const jitterMax = Math.max(jitterMin, state.settings.jitterMaxMs);
@@ -195,6 +207,33 @@ function nextDelayMs(state: GctState): number {
     );
 
     return total;
+}
+
+function isTimeoutLikeNetworkError(error: unknown): boolean {
+    const message = errorText(error).toLowerCase();
+    return (
+        message.includes('failed to fetch') ||
+        message.includes('timeout') ||
+        message.includes('timed out') ||
+        message.includes('err_connection_timed_out')
+    );
+}
+
+function isLikelyLoginBlockError(error: unknown): boolean {
+    const message = errorText(error).toLowerCase();
+
+    return (
+        message.includes('too many') ||
+        message.includes('rate limit') ||
+        message.includes('429') ||
+        message.includes('blocked') ||
+        message.includes('forbidden') ||
+        message.includes('did not return a bearer token')
+    );
+}
+
+function buildGroupIdentityKey(group: GctWatchGroup): string {
+    return `${group.documentNumber}|${group.vehicleNumber}|${group.containerNumber}`;
 }
 
 function classifyError(error: unknown): 'auth' | 'network' | 'terminal' {
@@ -255,6 +294,10 @@ export class GctWatcherService {
     private static instance: GctWatcherService | null = null;
     private timers = new Map<string, ReturnType<typeof setTimeout>>();
     private processingGroups = new Set<string>();
+    private tokenCache = new Map<string, GctCachedToken>();
+    private networkBackoffLevel = new Map<string, number>();
+    private networkBackoffUntil = new Map<string, number>();
+    private loginCooldownUntil = new Map<string, number>();
 
     static getInstance(): GctWatcherService {
         if (!GctWatcherService.instance) {
@@ -334,6 +377,9 @@ export class GctWatcherService {
     async removeGroup(groupId: string): Promise<GctState> {
         const state = await this.getState();
         this.clearTimer(groupId);
+        this.clearCachedToken(groupId);
+        this.clearNetworkBackoff(groupId);
+        this.clearLoginCooldown(groupId);
         await saveGctGroups(state.groups.filter(group => group.id !== groupId));
         return this.getState();
     }
@@ -540,6 +586,10 @@ export class GctWatcherService {
         });
 
         await saveGctGroups(nextGroups);
+        this.tokenCache.clear();
+        this.networkBackoffLevel.clear();
+        this.networkBackoffUntil.clear();
+        this.loginCooldownUntil.clear();
         for (const group of nextGroups) {
             this.clearTimer(group.id);
         }
@@ -615,12 +665,83 @@ export class GctWatcherService {
         }
     }
 
+    private getCachedToken(group: GctWatchGroup): string | null {
+        const cachedToken = this.tokenCache.get(group.id);
+        if (!cachedToken) {
+            return null;
+        }
+
+        if (
+            cachedToken.expiresAt <= Date.now() ||
+            cachedToken.identityKey !== buildGroupIdentityKey(group)
+        ) {
+            this.tokenCache.delete(group.id);
+            return null;
+        }
+
+        return cachedToken.token;
+    }
+
+    private storeCachedToken(group: GctWatchGroup, token: string): void {
+        this.tokenCache.set(group.id, {
+            token,
+            identityKey: buildGroupIdentityKey(group),
+            expiresAt: Date.now() + GCT_TOKEN_CACHE_TTL_MS,
+        });
+    }
+
+    private clearCachedToken(groupId: string): void {
+        this.tokenCache.delete(groupId);
+    }
+
+    private registerNetworkBackoff(groupId: string, error: unknown): void {
+        if (!isTimeoutLikeNetworkError(error)) {
+            return;
+        }
+
+        const nextLevel = (this.networkBackoffLevel.get(groupId) || 0) + 1;
+        const delayMs = Math.min(
+            GCT_NETWORK_BACKOFF_MAX_MS,
+            GCT_NETWORK_BACKOFF_BASE_MS * 2 ** (nextLevel - 1),
+        );
+        this.networkBackoffLevel.set(groupId, nextLevel);
+        this.networkBackoffUntil.set(groupId, Date.now() + delayMs);
+        consoleLog('[GCT] Applied network backoff', `group=${groupId}`, `delay=${delayMs}ms`);
+    }
+
+    private clearNetworkBackoff(groupId: string): void {
+        this.networkBackoffLevel.delete(groupId);
+        this.networkBackoffUntil.delete(groupId);
+    }
+
+    private registerLoginCooldown(groupId: string, error: unknown): void {
+        const delayMs = isLikelyLoginBlockError(error)
+            ? GCT_LOGIN_BLOCK_COOLDOWN_MS
+            : GCT_LOGIN_RETRY_MIN_MS;
+        const nextAllowedAt = Date.now() + delayMs;
+        const current = this.loginCooldownUntil.get(groupId) || 0;
+
+        this.loginCooldownUntil.set(groupId, Math.max(current, nextAllowedAt));
+        consoleLog('[GCT] Applied login cooldown', `group=${groupId}`, `delay=${delayMs}ms`);
+    }
+
+    private clearLoginCooldown(groupId: string): void {
+        this.loginCooldownUntil.delete(groupId);
+    }
+
     private scheduleGroup(groupId: string, state: GctState): void {
         if (this.timers.has(groupId)) {
             return;
         }
 
-        const delay = nextDelayMs(state);
+        const baseDelay = nextDelayMs(state);
+        const backoffUntil = this.networkBackoffUntil.get(groupId) || 0;
+        const loginCooldownUntil = this.loginCooldownUntil.get(groupId) || 0;
+        const delay = Math.max(
+            baseDelay,
+            Math.max(0, backoffUntil - Date.now()),
+            Math.max(0, loginCooldownUntil - Date.now()),
+        );
         const timeout = setTimeout(() => {
             this.timers.delete(groupId);
             this.processGroup(groupId).catch(error => {
@@ -661,26 +782,45 @@ export class GctWatcherService {
             const nowLocal = getNowInGctTimezone();
             touchGctLastTickAt(nowIso()).catch(consoleError);
 
-            let token: string;
-            try {
-                token = await loginToGct(groupClone);
-            } catch (error) {
-                const classification = classifyError(error);
-                this.applyErrorToActiveRows(groupClone, classification, error, 'login');
-                consoleError('[GCT] Login failed for group', groupClone.id, error);
-                await this.persistAndReschedule(groupClone);
-                return;
+            let token = this.getCachedToken(groupClone);
+            if (!token) {
+                try {
+                    token = await loginToGct(groupClone);
+                    this.storeCachedToken(groupClone, token);
+                    this.clearLoginCooldown(groupClone.id);
+                } catch (error) {
+                    this.registerLoginCooldown(groupClone.id, error);
+                    const classification = isLikelyLoginBlockError(error)
+                        ? 'network'
+                        : classifyError(error);
+                    if (classification === 'network') {
+                        this.registerNetworkBackoff(groupClone.id, error);
+                    }
+                    this.applyErrorToActiveRows(groupClone, classification, error, 'login');
+                    consoleError('[GCT] Login failed for group', groupClone.id, error);
+                    await this.persistAndReschedule(groupClone);
+                    return;
+                }
             }
 
             let availableSlots: GctSlotMatch[];
             try {
                 availableSlots = await getGctAvailableSlots(token);
             } catch (error) {
-                this.applyErrorToActiveRows(groupClone, 'network', error, 'slots-fetch');
+                const classification = classifyError(error);
+                if (classification === 'auth') {
+                    this.clearCachedToken(groupClone.id);
+                }
+                if (classification === 'network') {
+                    this.registerNetworkBackoff(groupClone.id, error);
+                }
+                this.applyErrorToActiveRows(groupClone, classification, error, 'slots-fetch');
                 consoleError('[GCT] Slots fetch failed for group', groupClone.id, error);
                 await this.persistAndReschedule(groupClone);
                 return;
             }
+
+            this.clearNetworkBackoff(groupClone.id);
 
             let shouldStopGroup = false;
             let attemptedAnyBooking = false;
@@ -805,6 +945,7 @@ export class GctWatcherService {
                         const errorRow = addHistory(row, 'error', row.statusMessage);
                         Object.assign(row, errorRow);
                     } else if (classification === 'auth') {
+                        this.clearCachedToken(groupClone.id);
                         row.status = Statuses.AUTHORIZATION_ERROR;
                         row.statusMessage = 'Błąd autoryzacji GCT — ponowię po odświeżeniu sesji';
                         row.lastError = diagnosticError;
