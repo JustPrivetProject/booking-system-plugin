@@ -319,6 +319,39 @@ describe('GctWatcherService', () => {
         expect((service as any).loginCooldownUntil.get('group-1')).toBeGreaterThanOrEqual(
             Date.now() + 30 * 60 * 1000 - 1000,
         );
+        expect((service as any).globalLoginCooldownUntil).toBeGreaterThanOrEqual(
+            Date.now() + 30 * 60 * 1000 - 1000,
+        );
+    });
+
+    it('serializes login attempts across different groups', async () => {
+        let resolveLogin!: (token: string) => void;
+        (loginToGct as jest.Mock).mockImplementationOnce(
+            () =>
+                new Promise<string>(resolve => {
+                    resolveLogin = resolve;
+                }),
+        );
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        state.groups = [
+            createGroup({ id: 'group-1', containerNumber: 'TCLU3141931' }),
+            createGroup({ id: 'group-2', containerNumber: 'MSCU1234567' }),
+        ];
+
+        const firstCycle = (service as any).processGroup('group-1');
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+        const secondCycle = (service as any).processGroup('group-2');
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(loginToGct).toHaveBeenCalledTimes(1);
+        expect((service as any).globalLoginCooldownUntil).toBeGreaterThanOrEqual(Date.now() + 8000);
+
+        resolveLogin('csrf-token');
+        await firstCycle;
+        await secondCycle;
     });
 
     it('stops all watchers when extension auth is missing during a cycle', async () => {
@@ -491,6 +524,9 @@ describe('GctWatcherService', () => {
         await (service as any).processGroup('group-1');
         expect(state.groups[0].rows[0].status).toBe(Statuses.AUTHORIZATION_ERROR);
 
+        (service as any).globalLoginCooldownUntil = 0;
+        (service as any).activeLoginGroupId = null;
+        (service as any).loginCooldownUntil.clear();
         state.groups = [createGroup()];
         (loginToGct as jest.Mock).mockResolvedValue('csrf-token');
         (getGctAvailableSlots as jest.Mock).mockResolvedValue([

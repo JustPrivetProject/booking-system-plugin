@@ -298,6 +298,8 @@ export class GctWatcherService {
     private networkBackoffLevel = new Map<string, number>();
     private networkBackoffUntil = new Map<string, number>();
     private loginCooldownUntil = new Map<string, number>();
+    private globalLoginCooldownUntil = 0;
+    private activeLoginGroupId: string | null = null;
 
     static getInstance(): GctWatcherService {
         if (!GctWatcherService.instance) {
@@ -590,6 +592,8 @@ export class GctWatcherService {
         this.networkBackoffLevel.clear();
         this.networkBackoffUntil.clear();
         this.loginCooldownUntil.clear();
+        this.globalLoginCooldownUntil = 0;
+        this.activeLoginGroupId = null;
         for (const group of nextGroups) {
             this.clearTimer(group.id);
         }
@@ -722,11 +726,38 @@ export class GctWatcherService {
         const current = this.loginCooldownUntil.get(groupId) || 0;
 
         this.loginCooldownUntil.set(groupId, Math.max(current, nextAllowedAt));
+        this.globalLoginCooldownUntil = Math.max(this.globalLoginCooldownUntil, nextAllowedAt);
         consoleLog('[GCT] Applied login cooldown', `group=${groupId}`, `delay=${delayMs}ms`);
     }
 
     private clearLoginCooldown(groupId: string): void {
         this.loginCooldownUntil.delete(groupId);
+    }
+
+    private tryAcquireLoginSlot(groupId: string): boolean {
+        const now = Date.now();
+
+        if (this.activeLoginGroupId && this.activeLoginGroupId !== groupId) {
+            return false;
+        }
+
+        if (this.globalLoginCooldownUntil > now) {
+            return false;
+        }
+
+        this.activeLoginGroupId = groupId;
+        this.globalLoginCooldownUntil = Math.max(
+            this.globalLoginCooldownUntil,
+            now + GCT_LOGIN_RETRY_MIN_MS,
+        );
+
+        return true;
+    }
+
+    private releaseLoginSlot(groupId: string): void {
+        if (this.activeLoginGroupId === groupId) {
+            this.activeLoginGroupId = null;
+        }
     }
 
     private scheduleGroup(groupId: string, state: GctState): void {
@@ -737,10 +768,12 @@ export class GctWatcherService {
         const baseDelay = nextDelayMs(state);
         const backoffUntil = this.networkBackoffUntil.get(groupId) || 0;
         const loginCooldownUntil = this.loginCooldownUntil.get(groupId) || 0;
+        const globalLoginCooldownUntil = this.globalLoginCooldownUntil;
         const delay = Math.max(
             baseDelay,
             Math.max(0, backoffUntil - Date.now()),
             Math.max(0, loginCooldownUntil - Date.now()),
+            Math.max(0, globalLoginCooldownUntil - Date.now()),
         );
         const timeout = setTimeout(() => {
             this.timers.delete(groupId);
@@ -784,6 +817,12 @@ export class GctWatcherService {
 
             let token = this.getCachedToken(groupClone);
             if (!token) {
+                if (!this.tryAcquireLoginSlot(groupClone.id)) {
+                    this.registerLoginCooldown(groupClone.id, new Error('GCT login throttled'));
+                    await this.persistAndReschedule(groupClone);
+                    return;
+                }
+
                 try {
                     token = await loginToGct(groupClone);
                     this.storeCachedToken(groupClone, token);
@@ -800,6 +839,8 @@ export class GctWatcherService {
                     consoleError('[GCT] Login failed for group', groupClone.id, error);
                     await this.persistAndReschedule(groupClone);
                     return;
+                } finally {
+                    this.releaseLoginSlot(groupClone.id);
                 }
             }
 
