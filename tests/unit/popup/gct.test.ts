@@ -230,6 +230,62 @@ describe('popup/gct', () => {
         expect(addButton.disabled).toBe(true);
     });
 
+    it('shows temporary login feedback when adding a new group fails', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'ADD_GROUP') {
+                cb({ ok: false, error: '406 Not Acceptable' });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+        const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+        const feedback = document.getElementById('gctAddFeedback') as HTMLDivElement;
+
+        setInputValue(documentInput, 'doc123456');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
+
+        collapsed.click();
+        await flushUi();
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        addButton.click();
+        await flushUi();
+        await flushUi();
+
+        expect(feedback.textContent).toBe('Logowanie nieudane');
+        expect(addButton.disabled).toBe(false);
+        expect(storageState.gctRecentEntries).toBeUndefined();
+
+        jest.advanceTimersByTime(3000);
+        await flushUi();
+
+        expect(feedback.textContent).toBe('');
+    });
+
     it('keeps the add button disabled until all fields and slots are populated', async () => {
         const { initGctUI } = await loadModule();
 

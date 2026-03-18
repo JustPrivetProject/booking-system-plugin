@@ -154,6 +154,22 @@ describe('GctWatcherService', () => {
         expect(state.groups[0].rows).toHaveLength(2);
     });
 
+    it('does not create a new group when the initial login fails', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        (loginToGct as jest.Mock).mockRejectedValueOnce(new Error('406 Not Acceptable'));
+
+        await expect(
+            service.addGroup({
+                documentNumber: 'DOC123',
+                vehicleNumber: 'NDZ45396',
+                containerNumber: 'TCLU3141931',
+                slots: [{ date: '2026-03-18', startTime: '04:30' }],
+            }),
+        ).rejects.toThrow('406 Not Acceptable');
+
+        expect(state.groups).toEqual([]);
+    });
+
     it('removes rows and drops empty groups', async () => {
         jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
         state.groups = [createGroup({ rows: [createRow({ id: 'row-1' })] })];
@@ -290,6 +306,22 @@ describe('GctWatcherService', () => {
 
         expect(loginToGct).toHaveBeenCalledTimes(1);
         expect(getGctAvailableSlots).toHaveBeenCalledTimes(2);
+    });
+
+    it('reuses the add-time login token on the first watcher cycle', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+
+        await service.addGroup({
+            documentNumber: 'DOC123',
+            vehicleNumber: 'NDZ45396',
+            containerNumber: 'TCLU3141931',
+            slots: [{ date: '2026-03-18', startTime: '04:30' }],
+        });
+
+        await (service as any).processGroup(state.groups[0].id);
+
+        expect(loginToGct).toHaveBeenCalledTimes(1);
+        expect(getGctAvailableSlots).toHaveBeenCalledTimes(1);
     });
 
     it('applies timeout backoff when login hits a transport failure', async () => {

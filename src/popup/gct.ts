@@ -16,6 +16,7 @@ const GCT_CONTAINER_NUMBER_LENGTH = 11;
 const GCT_DRAFT_STORAGE_KEY = 'gctPopupDraft';
 const GCT_RECENT_ENTRIES_STORAGE_KEY = 'gctRecentEntries';
 const GCT_RECENT_ENTRIES_LIMIT = 10;
+const GCT_ADD_FEEDBACK_DURATION_MS = 3000;
 const GCT_PICKER_MONTHS_PL = [
     'Styczeń',
     'Luty',
@@ -77,6 +78,8 @@ let gctTimePicker: GctPickerApi | null = null;
 let activeGroupEditPicker: GctPickerApi | null = null;
 let activeGroupEditOverlay: HTMLDivElement | null = null;
 let gctRecentEntries: GctRecentEntry[] = [];
+let gctAddFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+let isGctAddPending = false;
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -267,6 +270,7 @@ function buildControlsMarkup(): string {
                 <div id="gctTimePicker" class="gct-picker-host"></div>
                 <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
             </div>
+            <div id="gctAddFeedback" class="gct-add-feedback" aria-live="polite"></div>
             <datalist id="gctDocumentSuggestions"></datalist>
             <datalist id="gctVehicleSuggestions"></datalist>
             <datalist id="gctContainerSuggestions"></datalist>
@@ -1018,7 +1022,41 @@ function updateAddButtonState(): void {
         return;
     }
 
-    addButton.disabled = !hasValidGctAddInputs();
+    addButton.disabled = isGctAddPending || !hasValidGctAddInputs();
+}
+
+function showGctAddFeedback(message: string): void {
+    const feedback = byId<HTMLElement>('gctAddFeedback');
+    if (!feedback) {
+        return;
+    }
+
+    if (gctAddFeedbackTimer) {
+        clearTimeout(gctAddFeedbackTimer);
+    }
+
+    feedback.textContent = message;
+    feedback.classList.add('visible');
+    gctAddFeedbackTimer = setTimeout(() => {
+        feedback.textContent = '';
+        feedback.classList.remove('visible');
+        gctAddFeedbackTimer = null;
+    }, GCT_ADD_FEEDBACK_DURATION_MS);
+}
+
+function clearGctAddFeedback(): void {
+    const feedback = byId<HTMLElement>('gctAddFeedback');
+    if (!feedback) {
+        return;
+    }
+
+    if (gctAddFeedbackTimer) {
+        clearTimeout(gctAddFeedbackTimer);
+        gctAddFeedbackTimer = null;
+    }
+
+    feedback.textContent = '';
+    feedback.classList.remove('visible');
 }
 
 function renderEmptyState(body: HTMLElement): void {
@@ -1316,6 +1354,10 @@ async function handleAdd(): Promise<void> {
     }
 
     try {
+        isGctAddPending = true;
+        clearGctAddFeedback();
+        updateAddButtonState();
+
         await sendGctMessage('ADD_GROUP', {
             group: {
                 documentNumber,
@@ -1335,9 +1377,12 @@ async function handleAdd(): Promise<void> {
 
         gctTimePicker.reset();
         await persistGctDraft();
-        updateAddButtonState();
     } catch (error) {
+        showGctAddFeedback('Logowanie nieudane');
         consoleError('Add GCT group failed:', error);
+    } finally {
+        isGctAddPending = false;
+        updateAddButtonState();
     }
 }
 
@@ -1373,6 +1418,7 @@ export function initGctUI(): void {
         input?.addEventListener('input', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
+            clearGctAddFeedback();
             updateAddButtonState();
             renderRecentEntrySuggestions();
             persistGctDraft().catch(consoleError);
@@ -1381,6 +1427,7 @@ export function initGctUI(): void {
         input?.addEventListener('change', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
+            clearGctAddFeedback();
 
             if (id === 'gctDocumentInput') {
                 applyRecentEntryAutofill('documentNumber');

@@ -42,6 +42,10 @@ function nowIso(): string {
     return new Date().toISOString();
 }
 
+function wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function createId(prefix: string): string {
     return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -256,7 +260,9 @@ function classifyError(error: unknown): 'auth' | 'network' | 'terminal' {
 
     if (
         message.includes('400') ||
+        message.includes('406') ||
         message.includes('404') ||
+        message.includes('not acceptable') ||
         message.includes('required') ||
         message.includes('did not return a bearer token')
     ) {
@@ -367,6 +373,8 @@ export class GctWatcherService {
                 statusMessage: 'Aktywne monitorowanie slotów GCT',
                 isExpanded: true,
             };
+
+            await this.loginAndCacheToken(createdGroup, GCT_LOGIN_RETRY_MIN_MS + 1000);
             nextGroups = [...state.groups, createdGroup];
         }
 
@@ -734,6 +742,48 @@ export class GctWatcherService {
         this.loginCooldownUntil.delete(groupId);
     }
 
+    private async acquireLoginSlot(groupId: string, maxWaitMs = 0): Promise<boolean> {
+        const deadline = Date.now() + Math.max(0, maxWaitMs);
+
+        do {
+            if (this.tryAcquireLoginSlot(groupId)) {
+                return true;
+            }
+
+            if (Date.now() >= deadline) {
+                return false;
+            }
+
+            const loginCooldownUntil = this.loginCooldownUntil.get(groupId) || 0;
+            const waitUntil = Math.max(this.globalLoginCooldownUntil, loginCooldownUntil);
+            const waitMs = Math.max(50, Math.min(deadline - Date.now(), waitUntil - Date.now()));
+
+            await wait(waitMs);
+        } while (Date.now() <= deadline);
+
+        return false;
+    }
+
+    private async loginAndCacheToken(group: GctWatchGroup, maxWaitMs = 0): Promise<string> {
+        const acquired = await this.acquireLoginSlot(group.id, maxWaitMs);
+        if (!acquired) {
+            this.registerLoginCooldown(group.id, new Error('GCT login throttled'));
+            throw new Error('GCT login throttled');
+        }
+
+        try {
+            const token = await loginToGct(group);
+            this.storeCachedToken(group, token);
+            this.clearLoginCooldown(group.id);
+            return token;
+        } catch (error) {
+            this.registerLoginCooldown(group.id, error);
+            throw error;
+        } finally {
+            this.releaseLoginSlot(group.id);
+        }
+    }
+
     private tryAcquireLoginSlot(groupId: string): boolean {
         const now = Date.now();
 
@@ -817,18 +867,9 @@ export class GctWatcherService {
 
             let token = this.getCachedToken(groupClone);
             if (!token) {
-                if (!this.tryAcquireLoginSlot(groupClone.id)) {
-                    this.registerLoginCooldown(groupClone.id, new Error('GCT login throttled'));
-                    await this.persistAndReschedule(groupClone);
-                    return;
-                }
-
                 try {
-                    token = await loginToGct(groupClone);
-                    this.storeCachedToken(groupClone, token);
-                    this.clearLoginCooldown(groupClone.id);
+                    token = await this.loginAndCacheToken(groupClone);
                 } catch (error) {
-                    this.registerLoginCooldown(groupClone.id, error);
                     const classification = isLikelyLoginBlockError(error)
                         ? 'network'
                         : classifyError(error);
@@ -839,8 +880,6 @@ export class GctWatcherService {
                     consoleError('[GCT] Login failed for group', groupClone.id, error);
                     await this.persistAndReschedule(groupClone);
                     return;
-                } finally {
-                    this.releaseLoginSlot(groupClone.id);
                 }
             }
 
