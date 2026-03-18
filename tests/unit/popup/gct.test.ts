@@ -257,6 +257,29 @@ describe('popup/gct', () => {
     });
 
     it('supports multi-date slot selection and sends a combined add-group payload', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
         const { initGctUI } = await loadModule();
 
         initGctUI();
@@ -305,6 +328,7 @@ describe('popup/gct', () => {
         expect(sentMessages).toContainEqual({
             target: 'gct',
             type: 'ADD_GROUP',
+            prefetchedToken: 'prefetched-token',
             group: {
                 documentNumber: 'DOC123456',
                 vehicleNumber: 'NDZ45396',
@@ -406,6 +430,29 @@ describe('popup/gct', () => {
     });
 
     it('restores full top-panel draft after add when popup is reopened', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
         const firstModule = await loadModule();
 
         firstModule.initGctUI();
@@ -465,6 +512,18 @@ describe('popup/gct', () => {
                 return;
             }
 
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
             if (message.type === 'ADD_GROUP') {
                 cb({ ok: false, error: '406 Not Acceptable' });
                 return;
@@ -506,6 +565,54 @@ describe('popup/gct', () => {
         expect(feedback.textContent).toBe('Logowanie nieudane');
         expect(addButton.disabled).toBe(false);
         expect(storageState.gctRecentEntries).toBeUndefined();
+
+        jest.advanceTimersByTime(3000);
+        await flushUi();
+
+        expect(feedback.textContent).toBe('');
+    });
+
+    it('shows temporary login feedback and closes picker when Godzina precheck fails', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({ ok: false, error: '406 Not Acceptable' });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+        const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+        const feedback = document.getElementById('gctAddFeedback') as HTMLDivElement;
+        const dropdown = document.querySelector('.gp-dropdown') as HTMLDivElement;
+
+        setInputValue(documentInput, 'doc123456');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
+
+        collapsed.click();
+        await flushUi();
+        await flushUi();
+
+        expect(feedback.textContent).toBe('Logowanie nieudane');
+        expect(dropdown.classList.contains('visible')).toBe(false);
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
+        expect(addButton.disabled).toBe(true);
 
         jest.advanceTimersByTime(3000);
         await flushUi();
@@ -585,22 +692,95 @@ describe('popup/gct', () => {
         expect(document.querySelector('.gp-confirm')?.classList.contains('visible')).toBe(false);
     });
 
-    it('keeps the ongoing slot visible for today until its end time', async () => {
+    it('keeps the ongoing slot visible for today until its end time, but disabled', async () => {
         jest.setSystemTime(new Date('2026-03-17T19:39:00.000Z'));
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: {
+                            date: '2026-03-17',
+                            startTime: '20:30',
+                        },
+                        fetchedAt: '2026-03-17T19:39:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
         const { initGctUI } = await loadModule();
 
         initGctUI();
         await flushUi();
 
+        setInputValue(document.getElementById('gctDocumentInput') as HTMLInputElement, 'doc123456');
+        setInputValue(document.getElementById('gctVehicleInput') as HTMLInputElement, 'ndz45396');
+        setInputValue(
+            document.getElementById('gctContainerInput') as HTMLInputElement,
+            'tclu3141931',
+        );
+        await flushUi();
+
         (document.querySelector('.gp-collapsed') as HTMLDivElement).click();
         await flushUi();
 
-        const slots = Array.from(document.querySelectorAll('.gp-slot-btn')).map(
-            button => (button as HTMLButtonElement).dataset.slotValue,
-        );
+        const currentSlotButton = Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+            button => (button as HTMLButtonElement).dataset.slotValue === '20:30',
+        ) as HTMLButtonElement;
+        const nextSlotButton = Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+            button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+        ) as HTMLButtonElement;
 
-        expect(slots).toContain('20:30');
-        expect(slots).toContain('22:30');
+        expect(currentSlotButton).toBeTruthy();
+        expect(currentSlotButton.disabled).toBe(true);
+        expect(currentSlotButton.title).toBe('Obecny slot');
+        expect(currentSlotButton.dataset.disabledReason).toBe('Obecny slot');
+        expect(nextSlotButton).toBeTruthy();
+        expect(nextSlotButton.disabled).toBe(false);
+    });
+
+    it('does not show recent suggestions before a prefix is typed', async () => {
+        storageState.gctRecentEntries = [
+            {
+                documentNumber: 'DOC123456',
+                vehicleNumber: 'NDZ45396',
+                containerNumber: 'TCLU3141931',
+            },
+        ];
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const documentSuggestions = document.getElementById(
+            'gctDocumentSuggestions',
+        ) as HTMLElement;
+
+        documentInput.focus();
+        await flushUi();
+
+        expect(documentSuggestions.hidden).toBe(true);
+        expect(documentSuggestions.childElementCount).toBe(0);
+
+        setInputValue(documentInput, 'DOC');
+        await flushUi();
+
+        expect(documentSuggestions.hidden).toBe(false);
+        expect(documentSuggestions.childElementCount).toBe(1);
     });
 
     it('renders groups and routes group and row actions', async () => {

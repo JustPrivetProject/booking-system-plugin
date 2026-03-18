@@ -50,7 +50,7 @@ interface GctPickerSelection {
 interface GctPickerApi {
     onchange: ((selection: GctPickerSelection) => void) | null;
     onconfirm: ((selection: GctPickerSelection) => void | boolean | Promise<void | boolean>) | null;
-    onopen: (() => void | Promise<void>) | null;
+    onopen: (() => void | boolean | Promise<void | boolean>) | null;
     getSelection(): GctPickerSelection;
     setSlots(slots: GctTargetSlotDraft[]): void;
     setDisabledSlots(slots: GctTargetSlotDraft[]): void;
@@ -308,7 +308,7 @@ function clearPrefetchedSlotContext(): void {
     gctTimePicker?.setDisabledSlots([]);
 }
 
-async function ensureSlotContextForCurrentInputs(): Promise<void> {
+async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
     const documentInput = byId<HTMLInputElement>('gctDocumentInput');
     const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
     const containerInput = byId<HTMLInputElement>('gctContainerInput');
@@ -319,7 +319,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<void> {
 
     if (!documentNumber || !vehicleNumber || !containerNumber) {
         clearPrefetchedSlotContext();
-        return;
+        return true;
     }
 
     const identityKey = buildGctIdentityKey(documentNumber, vehicleNumber, containerNumber);
@@ -331,24 +331,41 @@ async function ensureSlotContextForCurrentInputs(): Promise<void> {
 
     if (isFreshContext && prefetchedContext) {
         gctTimePicker?.setDisabledSlots(prefetchedContext.disabledSlots);
-        return;
+        return true;
     }
 
-    const result = await sendGctMessage<Partial<GctSlotContextResponse>>('GET_SLOT_CONTEXT', {
-        credentials: {
-            documentNumber,
-            vehicleNumber,
-            containerNumber,
-        },
-    });
+    clearGctAddFeedback();
+
+    let result: Partial<GctSlotContextResponse> | null = null;
+    try {
+        result = await sendGctMessage<Partial<GctSlotContextResponse>>('GET_SLOT_CONTEXT', {
+            credentials: {
+                documentNumber,
+                vehicleNumber,
+                containerNumber,
+            },
+        });
+    } catch (error) {
+        gctPrefetchedSlotContext = null;
+        gctTimePicker?.setDisabledSlots([]);
+        gctTimePicker?.setSlots([]);
+        updateAddButtonState();
+        showGctAddFeedback('Logowanie nieudane');
+        consoleError('Prefetch GCT slot context failed:', error);
+        return false;
+    }
 
     if (!result || typeof result.token !== 'string' || result.token.trim().length === 0) {
-        clearPrefetchedSlotContext();
-        return;
+        gctPrefetchedSlotContext = null;
+        gctTimePicker?.setDisabledSlots([]);
+        gctTimePicker?.setSlots([]);
+        updateAddButtonState();
+        showGctAddFeedback('Logowanie nieudane');
+        return false;
     }
 
     const currentSlot = result.currentSlot;
-    const disabledSlots: GctTargetSlotDraft[] =
+    const liveDisabledSlots: GctTargetSlotDraft[] =
         currentSlot &&
         typeof currentSlot.date === 'string' &&
         typeof currentSlot.startTime === 'string' &&
@@ -360,7 +377,6 @@ async function ensureSlotContextForCurrentInputs(): Promise<void> {
                   },
               ]
             : [];
-
     const fetchedAtMs =
         typeof result.fetchedAt === 'string' && Number.isFinite(Date.parse(result.fetchedAt))
             ? Date.parse(result.fetchedAt)
@@ -369,11 +385,12 @@ async function ensureSlotContextForCurrentInputs(): Promise<void> {
     gctPrefetchedSlotContext = {
         identityKey,
         token: result.token.trim(),
-        disabledSlots,
+        disabledSlots: liveDisabledSlots,
         fetchedAtMs,
     };
 
-    gctTimePicker?.setDisabledSlots(disabledSlots);
+    gctTimePicker?.setDisabledSlots(liveDisabledSlots);
+    return true;
 }
 
 function buildControlsMarkup(): string {
@@ -633,7 +650,13 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         collapsed.classList.add('open');
         collapsed.setAttribute('aria-expanded', 'true');
         renderAll();
-        Promise.resolve(api.onopen?.()).catch(consoleError);
+        Promise.resolve(api.onopen?.())
+            .then(result => {
+                if (result === false) {
+                    closeDropdown();
+                }
+            })
+            .catch(consoleError);
     };
 
     const closeDropdown = (): void => {
@@ -741,9 +764,14 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             const disabled = isSlotDisabledForDate(activeDate, slot);
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = `gp-slot-btn${selected ? ' selected' : ''}`;
+            button.className = `gp-slot-btn${selected ? ' selected' : ''}${disabled ? ' current-slot' : ''}`;
             button.dataset.slotValue = slot;
             button.disabled = disabled;
+            if (disabled) {
+                button.title = 'Obecny slot';
+                button.setAttribute('aria-label', `${slot} ${getSlotEndTime(slot)}. Obecny slot`);
+                button.dataset.disabledReason = 'Obecny slot';
+            }
             button.innerHTML = `${slot}<span class="gp-slot-range">– ${getSlotEndTime(slot)}</span>`;
             if (disabled) {
                 slotsGrid.appendChild(button);
@@ -1071,8 +1099,12 @@ function uniqueRecentFieldValues(
 function getRecentFieldSuggestions(sourceField: GctRecentField, currentValue: string): string[] {
     const normalizedCurrentValue = normalizeCompactUppercaseValue(currentValue);
 
+    if (!normalizedCurrentValue) {
+        return [];
+    }
+
     return uniqueRecentFieldValues(entry => entry[sourceField], currentValue).filter(value =>
-        normalizedCurrentValue ? value.startsWith(normalizedCurrentValue) : true,
+        value.startsWith(normalizedCurrentValue),
     );
 }
 
@@ -1671,7 +1703,7 @@ export function initGctUI(): void {
             persistGctDraft().catch(consoleError);
         };
         gctTimePicker.onopen = () => {
-            ensureSlotContextForCurrentInputs().catch(consoleError);
+            return ensureSlotContextForCurrentInputs();
         };
     }
 
