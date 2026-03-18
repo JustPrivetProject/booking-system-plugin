@@ -295,6 +295,79 @@ describe('popup/gct', () => {
         });
     });
 
+    it('prefetches slot context on Godzina open and reuses token on add', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: {
+                            date: '2026-03-17',
+                            startTime: '22:30',
+                        },
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+        const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+
+        setInputValue(documentInput, 'doc123456');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
+
+        collapsed.click();
+        await flushUi();
+
+        const blockedSlot = Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+            button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+        ) as HTMLButtonElement;
+        expect(blockedSlot.disabled).toBe(true);
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '20:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        addButton.click();
+        await flushUi();
+
+        expect(sentMessages).toContainEqual(
+            expect.objectContaining({ target: 'gct', type: 'GET_SLOT_CONTEXT' }),
+        );
+
+        expect(sentMessages).toContainEqual(
+            expect.objectContaining({
+                target: 'gct',
+                type: 'ADD_GROUP',
+                prefetchedToken: 'prefetched-token',
+            }),
+        );
+    });
+
     it('restores full top-panel draft after add when popup is reopened', async () => {
         const firstModule = await loadModule();
 
@@ -473,6 +546,24 @@ describe('popup/gct', () => {
 
         expect(document.querySelectorAll('.gp-slot-btn.selected')).toHaveLength(0);
         expect(document.querySelector('.gp-confirm')?.classList.contains('visible')).toBe(false);
+    });
+
+    it('does not show current ongoing slot for today in Godzina picker', async () => {
+        jest.setSystemTime(new Date('2026-03-17T19:39:00.000Z'));
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        (document.querySelector('.gp-collapsed') as HTMLDivElement).click();
+        await flushUi();
+
+        const slots = Array.from(document.querySelectorAll('.gp-slot-btn')).map(
+            button => (button as HTMLButtonElement).dataset.slotValue,
+        );
+
+        expect(slots).not.toContain('20:30');
+        expect(slots).toContain('22:30');
     });
 
     it('renders groups and routes group and row actions', async () => {

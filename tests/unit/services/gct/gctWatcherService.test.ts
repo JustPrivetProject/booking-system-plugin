@@ -324,6 +324,27 @@ describe('GctWatcherService', () => {
         expect(getGctAvailableSlots).toHaveBeenCalledTimes(1);
     });
 
+    it('reuses a prefetched token on add without immediate re-login', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+
+        await service.addGroup(
+            {
+                documentNumber: 'DOC123',
+                vehicleNumber: 'NDZ45396',
+                containerNumber: 'TCLU3141931',
+                slots: [{ date: '2026-03-18', startTime: '04:30' }],
+            },
+            'prefetched-token',
+        );
+
+        expect(loginToGct).not.toHaveBeenCalled();
+
+        await (service as any).processGroup(state.groups[0].id);
+
+        expect(getGctAvailableSlots).toHaveBeenCalledWith('prefetched-token');
+        expect(loginToGct).not.toHaveBeenCalled();
+    });
+
     it('applies timeout backoff when login hits a transport failure', async () => {
         const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
         (service as any).registerNetworkBackoff('group-1', new Error('ERR_CONNECTION_TIMED_OUT'));

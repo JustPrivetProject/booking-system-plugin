@@ -50,8 +50,10 @@ interface GctPickerSelection {
 interface GctPickerApi {
     onchange: ((selection: GctPickerSelection) => void) | null;
     onconfirm: ((selection: GctPickerSelection) => void | boolean | Promise<void | boolean>) | null;
+    onopen: (() => void | Promise<void>) | null;
     getSelection(): GctPickerSelection;
     setSlots(slots: GctTargetSlotDraft[]): void;
+    setDisabledSlots(slots: GctTargetSlotDraft[]): void;
     reset(): void;
     open(): void;
     close(): void;
@@ -75,6 +77,22 @@ interface GctRecentEntry {
     containerNumber: string;
 }
 
+interface GctSlotContextResponse {
+    token: string;
+    currentSlot: {
+        date: string;
+        startTime: string;
+    } | null;
+    fetchedAt: string;
+}
+
+interface GctPrefetchedSlotContext {
+    identityKey: string;
+    token: string;
+    disabledSlots: GctTargetSlotDraft[];
+    fetchedAtMs: number;
+}
+
 let gctTimePicker: GctPickerApi | null = null;
 let activeGroupEditPicker: GctPickerApi | null = null;
 let activeGroupEditOverlay: HTMLDivElement | null = null;
@@ -82,6 +100,9 @@ let gctRecentEntries: GctRecentEntry[] = [];
 let gctAddFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 let isGctAddPending = false;
 let gctDraftPersistenceBound = false;
+let gctPrefetchedSlotContext: GctPrefetchedSlotContext | null = null;
+
+const GCT_PREFETCH_CONTEXT_TTL_MS = 2 * 60 * 1000;
 
 function byId<T extends HTMLElement>(id: string): T | null {
     return document.getElementById(id) as T | null;
@@ -265,9 +286,91 @@ function getAvailablePickerSlots(date: string | null): GctAllowedStartTime[] {
     return GCT_ALLOWED_START_TIMES.filter(time => {
         const [hours, minutes] = time.split(':').map(Number);
         const slotStartMinutes = hours * 60 + minutes;
-        const slotEndMinutes = slotStartMinutes + 120;
-        return slotEndMinutes > currentMinutes;
+        return slotStartMinutes > currentMinutes;
     });
+}
+
+function buildGctIdentityKey(
+    documentNumber: string,
+    vehicleNumber: string,
+    containerNumber: string,
+): string {
+    return [documentNumber, vehicleNumber, containerNumber]
+        .map(value => normalizeCompactUppercaseValue(value))
+        .join('|');
+}
+
+function clearPrefetchedSlotContext(): void {
+    gctPrefetchedSlotContext = null;
+    gctTimePicker?.setDisabledSlots([]);
+}
+
+async function ensureSlotContextForCurrentInputs(): Promise<void> {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    const documentNumber = normalizeCompactUppercaseValue(documentInput?.value || '');
+    const vehicleNumber = normalizeCompactUppercaseValue(vehicleInput?.value || '');
+    const containerNumber = normalizeCompactUppercaseValue(containerInput?.value || '');
+
+    if (!documentNumber || !vehicleNumber || !containerNumber) {
+        clearPrefetchedSlotContext();
+        return;
+    }
+
+    const identityKey = buildGctIdentityKey(documentNumber, vehicleNumber, containerNumber);
+    const prefetchedContext = gctPrefetchedSlotContext;
+    const isFreshContext =
+        prefetchedContext &&
+        prefetchedContext.identityKey === identityKey &&
+        Date.now() - prefetchedContext.fetchedAtMs <= GCT_PREFETCH_CONTEXT_TTL_MS;
+
+    if (isFreshContext && prefetchedContext) {
+        gctTimePicker?.setDisabledSlots(prefetchedContext.disabledSlots);
+        return;
+    }
+
+    const result = await sendGctMessage<Partial<GctSlotContextResponse>>('GET_SLOT_CONTEXT', {
+        credentials: {
+            documentNumber,
+            vehicleNumber,
+            containerNumber,
+        },
+    });
+
+    if (!result || typeof result.token !== 'string' || result.token.trim().length === 0) {
+        clearPrefetchedSlotContext();
+        return;
+    }
+
+    const currentSlot = result.currentSlot;
+    const disabledSlots: GctTargetSlotDraft[] =
+        currentSlot &&
+        typeof currentSlot.date === 'string' &&
+        typeof currentSlot.startTime === 'string' &&
+        GCT_ALLOWED_START_TIMES.includes(currentSlot.startTime as GctAllowedStartTime)
+            ? [
+                  {
+                      date: currentSlot.date,
+                      startTime: currentSlot.startTime as GctAllowedStartTime,
+                  },
+              ]
+            : [];
+
+    const fetchedAtMs =
+        typeof result.fetchedAt === 'string' && Number.isFinite(Date.parse(result.fetchedAt))
+            ? Date.parse(result.fetchedAt)
+            : Date.now();
+
+    gctPrefetchedSlotContext = {
+        identityKey,
+        token: result.token.trim(),
+        disabledSlots,
+        fetchedAtMs,
+    };
+
+    gctTimePicker?.setDisabledSlots(disabledSlots);
 }
 
 function buildControlsMarkup(): string {
@@ -293,6 +396,7 @@ function buildControlsMarkup(): string {
 function createGctTimePicker(host: HTMLElement): GctPickerApi {
     let selectedDateId: GctPickerDateKey = 'today';
     let selectedSlotsByDate: Record<string, GctAllowedStartTime[]> = {};
+    let disabledSlotsByDate: Record<string, GctAllowedStartTime[]> = {};
     let customDate: string | null = null;
     let calendarMonth = parseIsoDate(nowLocalDate()).getMonth();
     let calendarYear = parseIsoDate(nowLocalDate()).getFullYear();
@@ -395,6 +499,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     const api: GctPickerApi = {
         onchange: null,
         onconfirm: null,
+        onopen: null,
         getSelection(): GctPickerSelection {
             return {
                 date: getActiveDate(),
@@ -404,6 +509,35 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         },
         setSlots(slots: GctTargetSlotDraft[]): void {
             applySlots(slots);
+        },
+        setDisabledSlots(slots: GctTargetSlotDraft[]): void {
+            const nextByDate: Record<string, GctAllowedStartTime[]> = {};
+            for (const slot of slots) {
+                const normalizedDate = String(slot.date || '');
+                const normalizedStartTime = slot.startTime as GctAllowedStartTime;
+                if (!normalizedDate || !GCT_ALLOWED_START_TIMES.includes(normalizedStartTime)) {
+                    continue;
+                }
+
+                const current = nextByDate[normalizedDate] || [];
+                if (!current.includes(normalizedStartTime)) {
+                    nextByDate[normalizedDate] = sortSlots([...current, normalizedStartTime]);
+                }
+            }
+
+            disabledSlotsByDate = nextByDate;
+
+            const nextSelectedSlotsByDate: Record<string, GctAllowedStartTime[]> = {};
+            for (const [date, selectedSlots] of Object.entries(selectedSlotsByDate)) {
+                const disabledSlots = new Set(disabledSlotsByDate[date] || []);
+                const allowedSelectedSlots = selectedSlots.filter(slot => !disabledSlots.has(slot));
+                if (allowedSelectedSlots.length > 0) {
+                    nextSelectedSlotsByDate[date] = allowedSelectedSlots;
+                }
+            }
+            selectedSlotsByDate = nextSelectedSlotsByDate;
+            renderAll();
+            fireChange();
         },
         reset(): void {
             selectedDateId = 'today';
@@ -448,6 +582,14 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         return sortSlots(selectedSlotsByDate[date] || []);
     };
 
+    const isSlotDisabledForDate = (date: string | null, slot: GctAllowedStartTime): boolean => {
+        if (!date) {
+            return false;
+        }
+
+        return (disabledSlotsByDate[date] || []).includes(slot);
+    };
+
     const setSelectedSlotsForDate = (date: string | null, slots: GctAllowedStartTime[]): void => {
         if (!date) {
             return;
@@ -482,6 +624,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         collapsed.classList.add('open');
         collapsed.setAttribute('aria-expanded', 'true');
         renderAll();
+        Promise.resolve(api.onopen?.()).catch(consoleError);
     };
 
     const closeDropdown = (): void => {
@@ -586,11 +729,18 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
 
         for (const slot of availableSlots) {
             const selected = selectedSlots.includes(slot);
+            const disabled = isSlotDisabledForDate(activeDate, slot);
             const button = document.createElement('button');
             button.type = 'button';
             button.className = `gp-slot-btn${selected ? ' selected' : ''}`;
             button.dataset.slotValue = slot;
+            button.disabled = disabled;
             button.innerHTML = `${slot}<span class="gp-slot-range">– ${getSlotEndTime(slot)}</span>`;
+            if (disabled) {
+                slotsGrid.appendChild(button);
+                continue;
+            }
+
             button.addEventListener('click', event => {
                 event.stopPropagation();
 
@@ -1398,6 +1548,11 @@ async function handleAdd(): Promise<void> {
     const documentNumber = documentInput.value.trim();
     const vehicleNumber = vehicleInput.value.trim().toUpperCase();
     const containerNumber = containerInput.value.trim().toUpperCase();
+    const identityKey = buildGctIdentityKey(documentNumber, vehicleNumber, containerNumber);
+    const prefetchedToken =
+        gctPrefetchedSlotContext && gctPrefetchedSlotContext.identityKey === identityKey
+            ? gctPrefetchedSlotContext.token
+            : undefined;
     const selection = gctTimePicker.getSelection();
     const slots = mapSelectionToSlots(selection);
 
@@ -1410,14 +1565,20 @@ async function handleAdd(): Promise<void> {
         clearGctAddFeedback();
         updateAddButtonState();
 
-        await sendGctMessage('ADD_GROUP', {
+        const addPayload: Record<string, unknown> = {
             group: {
                 documentNumber,
                 vehicleNumber,
                 containerNumber,
                 slots,
             },
-        });
+        };
+
+        if (prefetchedToken) {
+            addPayload.prefetchedToken = prefetchedToken;
+        }
+
+        await sendGctMessage('ADD_GROUP', addPayload);
 
         rememberRecentEntry({
             documentNumber,
@@ -1465,6 +1626,9 @@ export function initGctUI(): void {
             updateAddButtonState();
             persistGctDraft().catch(consoleError);
         };
+        gctTimePicker.onopen = () => {
+            ensureSlotContextForCurrentInputs().catch(consoleError);
+        };
     }
 
     const bindNormalizedInput = (id: string): void => {
@@ -1472,6 +1636,7 @@ export function initGctUI(): void {
         input?.addEventListener('input', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
+            clearPrefetchedSlotContext();
             clearGctAddFeedback();
             updateAddButtonState();
             renderRecentEntrySuggestions();
@@ -1481,6 +1646,7 @@ export function initGctUI(): void {
         input?.addEventListener('change', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
+            clearPrefetchedSlotContext();
             clearGctAddFeedback();
 
             if (id === 'gctDocumentInput') {

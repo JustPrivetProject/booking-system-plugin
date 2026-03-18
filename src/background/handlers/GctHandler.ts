@@ -1,9 +1,15 @@
 import type { GctGroupDraft, GctTargetSlotDraft, GctWatcherSettings } from '../../gct/types';
 import { gctWatcherService } from '../../services/gct/gctWatcherService';
 import { saveGctSettings } from '../../gct/storage';
+import {
+    formatGctLocalDateTime,
+    getGctCurrentBooking,
+    loginToGctWithCredentials,
+} from '../../services/gct/gctApi';
 
 export type GctMessageType =
     | 'GET_STATE'
+    | 'GET_SLOT_CONTEXT'
     | 'ADD_GROUP'
     | 'REPLACE_GROUP_SLOTS'
     | 'REMOVE_GROUP'
@@ -19,6 +25,12 @@ export interface GctMessage {
     target: 'gct';
     type: GctMessageType;
     group?: GctGroupDraft;
+    credentials?: {
+        documentNumber: string;
+        vehicleNumber: string;
+        containerNumber: string;
+    };
+    prefetchedToken?: string;
     groupId?: string;
     rowId?: string;
     slots?: GctTargetSlotDraft[];
@@ -31,11 +43,42 @@ export class GctHandler {
             case 'GET_STATE':
                 return gctWatcherService.getState();
 
+            case 'GET_SLOT_CONTEXT': {
+                if (!message.credentials) {
+                    throw new Error('Credentials payload is required');
+                }
+
+                const credentials = {
+                    documentNumber: message.credentials.documentNumber.trim(),
+                    vehicleNumber: message.credentials.vehicleNumber.trim().toUpperCase(),
+                    containerNumber: message.credentials.containerNumber.trim().toUpperCase(),
+                };
+
+                const token = await loginToGctWithCredentials(credentials);
+                const currentBooking = await getGctCurrentBooking(token);
+                const startLocal = currentBooking
+                    ? formatGctLocalDateTime(currentBooking.poczatek)
+                    : null;
+                const [date, startTime] = startLocal ? startLocal.split(' ') : [null, null];
+
+                return {
+                    token,
+                    currentSlot:
+                        date && startTime
+                            ? {
+                                  date,
+                                  startTime,
+                              }
+                            : null,
+                    fetchedAt: new Date().toISOString(),
+                };
+            }
+
             case 'ADD_GROUP':
                 if (!message.group) {
                     throw new Error('Group payload is required');
                 }
-                return gctWatcherService.addGroup(message.group);
+                return gctWatcherService.addGroup(message.group, message.prefetchedToken);
 
             case 'REPLACE_GROUP_SLOTS':
                 if (!message.groupId || !message.slots) {

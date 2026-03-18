@@ -36,6 +36,10 @@ function formatLocalDateTime(value: string): string {
     return localDateTimeFormatter.format(new Date(value)).replace(',', '');
 }
 
+export function formatGctLocalDateTime(value: string): string {
+    return formatLocalDateTime(value);
+}
+
 function toErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -151,6 +155,31 @@ export async function loginToGct(group: GctWatchGroup): Promise<string> {
             dokument: group.documentNumber,
             pojazd: group.vehicleNumber,
             kontener: group.containerNumber,
+        },
+        undefined,
+        {
+            retryAttempts: 1,
+        },
+    );
+
+    if (!response.csrf) {
+        throw new Error('GCT login did not return a bearer token');
+    }
+
+    return response.csrf;
+}
+
+export async function loginToGctWithCredentials(credentials: {
+    documentNumber: string;
+    vehicleNumber: string;
+    containerNumber: string;
+}): Promise<string> {
+    const response = await postJson<GctLoginResponse>(
+        '/kierowca/login',
+        {
+            dokument: credentials.documentNumber,
+            pojazd: credentials.vehicleNumber,
+            kontener: credentials.containerNumber,
         },
         undefined,
         {

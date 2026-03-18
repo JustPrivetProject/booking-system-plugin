@@ -345,7 +345,7 @@ export class GctWatcherService {
         }
     }
 
-    async addGroup(draft: GctGroupDraft): Promise<GctState> {
+    async addGroup(draft: GctGroupDraft, prefetchedToken?: string): Promise<GctState> {
         const state = await this.getState();
         const normalizedDraft = {
             documentNumber: draft.documentNumber.trim(),
@@ -388,7 +388,12 @@ export class GctWatcherService {
                 isExpanded: true,
             };
 
-            await this.loginAndCacheToken(createdGroup, getBaseRetryDelayMs() + 1000);
+            if (prefetchedToken && prefetchedToken.trim().length > 0) {
+                this.storeCachedToken(createdGroup, prefetchedToken.trim());
+                this.clearLoginCooldown(createdGroup.id);
+            } else {
+                await this.loginAndCacheToken(createdGroup, getBaseRetryDelayMs() + 1000);
+            }
             nextGroups = [...state.groups, createdGroup];
         }
 
