@@ -60,7 +60,7 @@ describe('GctHandler', () => {
             group,
         });
 
-        expect(gctWatcherService.addGroup).toHaveBeenCalledWith(group);
+        expect(gctWatcherService.addGroup).toHaveBeenCalledWith(group, undefined);
     });
 
     it('throws when add group payload is missing', async () => {
