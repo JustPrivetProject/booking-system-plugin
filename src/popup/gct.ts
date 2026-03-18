@@ -54,6 +54,7 @@ interface GctPickerApi {
     getSelection(): GctPickerSelection;
     setSlots(slots: GctTargetSlotDraft[]): void;
     setDisabledSlots(slots: GctTargetSlotDraft[]): void;
+    setPrecheckLoading(isLoading: boolean): void;
     reset(): void;
     open(): void;
     close(): void;
@@ -316,6 +317,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
     const containerNumber = normalizeCompactUppercaseValue(containerInput?.value || '');
 
     if (!documentNumber || !vehicleNumber || !containerNumber) {
+        gctTimePicker?.setPrecheckLoading(false);
         clearPrefetchedSlotContext();
         return true;
     }
@@ -328,11 +330,13 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
         Date.now() - prefetchedContext.fetchedAtMs <= GCT_PREFETCH_CONTEXT_TTL_MS;
 
     if (isFreshContext && prefetchedContext) {
+        gctTimePicker?.setPrecheckLoading(false);
         gctTimePicker?.setDisabledSlots(prefetchedContext.disabledSlots);
         return true;
     }
 
     clearGctAddFeedback();
+    gctTimePicker?.setPrecheckLoading(true);
 
     let result: Partial<GctSlotContextResponse> | null = null;
     try {
@@ -344,6 +348,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
             },
         });
     } catch (error) {
+        gctTimePicker?.setPrecheckLoading(false);
         gctPrefetchedSlotContext = null;
         gctTimePicker?.setDisabledSlots([]);
         gctTimePicker?.setSlots([]);
@@ -354,6 +359,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
     }
 
     if (!result || typeof result.token !== 'string' || result.token.trim().length === 0) {
+        gctTimePicker?.setPrecheckLoading(false);
         gctPrefetchedSlotContext = null;
         gctTimePicker?.setDisabledSlots([]);
         gctTimePicker?.setSlots([]);
@@ -387,6 +393,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
         fetchedAtMs,
     };
 
+    gctTimePicker?.setPrecheckLoading(false);
     gctTimePicker?.setDisabledSlots(liveDisabledSlots);
     return true;
 }
@@ -443,6 +450,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
                         </div>
                         <div class="gp-slots-grid" data-r="sg"></div>
                     </div>
+                    <div class="gp-slots-loading" data-r="sl">Sprawdzam dane i sloty<span class="gct-loading-dots" aria-hidden="true">...</span></div>
                     <div class="gp-no-slots" data-r="ns">Brak dostępnych slotów</div>
                 </div>
             </div>
@@ -463,11 +471,13 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     const calendar = ref<HTMLDivElement>('cp');
     const slotsPane = ref<HTMLDivElement>('sp');
     const slotsGrid = ref<HTMLDivElement>('sg');
+    const slotsLoading = ref<HTMLDivElement>('sl');
     const clearButton = ref<HTMLButtonElement>('cb');
     const noSlots = ref<HTMLDivElement>('ns');
     const confirmBar = ref<HTMLDivElement>('cf');
     const confirmButton = ref<HTMLButtonElement>('cfb');
     const slotOrder = new Map(GCT_ALLOWED_START_TIMES.map((slot, index) => [slot, index]));
+    let isPrecheckLoading = false;
 
     const sortSlots = (slots: readonly GctAllowedStartTime[]): GctAllowedStartTime[] =>
         [...slots].sort(
@@ -558,6 +568,11 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             selectedSlotsByDate = nextSelectedSlotsByDate;
             renderAll();
             fireChange();
+        },
+        setPrecheckLoading(isLoading: boolean): void {
+            isPrecheckLoading = isLoading;
+            renderSlots();
+            updateConfirm();
         },
         reset(): void {
             selectedDateId = 'today';
@@ -729,10 +744,20 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     const renderSlots = (): void => {
         const activeDate = getActiveDate();
         calendar.classList.remove('visible');
+        slotsLoading.style.display = 'none';
 
         if (!activeDate) {
             slotsPane.style.display = 'none';
             noSlots.style.display = 'none';
+            updateConfirm();
+            return;
+        }
+
+        if (isPrecheckLoading) {
+            slotsPane.style.display = 'none';
+            slotsGrid.innerHTML = '';
+            noSlots.style.display = 'none';
+            slotsLoading.style.display = 'block';
             updateConfirm();
             return;
         }

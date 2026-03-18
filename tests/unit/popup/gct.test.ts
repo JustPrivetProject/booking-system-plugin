@@ -427,6 +427,59 @@ describe('popup/gct', () => {
         );
     });
 
+    it('shows loader and hides slot buttons while Godzina precheck is in progress', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                setTimeout(() => {
+                    cb({
+                        ok: true,
+                        result: {
+                            token: 'prefetched-token',
+                            currentSlot: null,
+                            fetchedAt: '2026-03-17T08:00:00.000Z',
+                        },
+                    });
+                }, 5000);
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        setInputValue(document.getElementById('gctDocumentInput') as HTMLInputElement, 'doc123456');
+        setInputValue(document.getElementById('gctVehicleInput') as HTMLInputElement, 'ndz45396');
+        setInputValue(
+            document.getElementById('gctContainerInput') as HTMLInputElement,
+            'tclu3141931',
+        );
+
+        (document.querySelector('.gp-collapsed') as HTMLDivElement).click();
+        await flushUi();
+
+        const loading = document.querySelector('.gp-slots-loading') as HTMLDivElement;
+        expect(loading).toBeTruthy();
+        expect(loading.style.display).toBe('block');
+        expect(document.querySelectorAll('.gp-slot-btn')).toHaveLength(0);
+
+        jest.advanceTimersByTime(5000);
+        await flushUi();
+
+        expect(loading.style.display).toBe('none');
+        expect(document.querySelectorAll('.gp-slot-btn').length).toBeGreaterThan(0);
+    });
+
     it('restores full top-panel draft after add when popup is reopened', async () => {
         chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
             sentMessages.push(message);
