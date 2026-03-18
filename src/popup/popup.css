@@ -1140,6 +1140,22 @@ tr[data-is-open='false'] .status-icon {
     width: 100%;
 }
 
+.gct-input-stack {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.gct-input-stack-document {
+    flex-basis: 29%;
+    min-width: 96px;
+}
+
+.gct-input-stack-vehicle {
+    flex-basis: 24%;
+    min-width: 86px;
+}
+
 .gct-input,
 .gct-edit-dialog input,
 .gct-edit-dialog select {
@@ -1158,19 +1174,45 @@ tr[data-is-open='false'] .status-icon {
     line-height: 18px;
 }
 
-.gct-input-document {
-    flex-basis: 29%;
-    min-width: 96px;
-}
-
+.gct-input-document,
 .gct-input-vehicle {
-    flex-basis: 24%;
-    min-width: 86px;
+    width: 100%;
 }
 
 .gct-input-container {
     flex-basis: 30%;
     min-width: 96px;
+}
+
+.gct-recent-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10020;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+.gct-recent-suggestion {
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    text-align: left;
+    font-size: 12px;
+    color: #1f2937;
+}
+
+.gct-recent-suggestion:hover {
+    background: #eef6ff;
 }
 
 .gct-input::placeholder {

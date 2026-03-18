@@ -219,6 +219,43 @@ describe('popup/gct', () => {
         expect(containerInput.value).toBe('');
     });
 
+    it('shows clickable recent suggestions for document prefix without native triangle UI', async () => {
+        storageState.gctRecentEntries = [
+            {
+                documentNumber: 'DGG683895',
+                vehicleNumber: 'NDZ47390',
+                containerNumber: 'TEMU1600900',
+            },
+        ];
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+
+        documentInput.focus();
+        setInputValue(documentInput, 'DGG');
+        await flushUi();
+
+        const suggestion = document.querySelector(
+            '#gctDocumentSuggestions .gct-recent-suggestion',
+        ) as HTMLButtonElement;
+
+        expect(suggestion).toBeTruthy();
+        expect(suggestion.textContent).toBe('DGG683895');
+
+        suggestion.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        await flushUi();
+
+        expect(documentInput.value).toBe('DGG683895');
+        expect(vehicleInput.value).toBe('NDZ47390');
+        expect(containerInput.value).toBe('');
+    });
+
     it('supports multi-date slot selection and sends a combined add-group payload', async () => {
         const { initGctUI } = await loadModule();
 
@@ -548,7 +585,7 @@ describe('popup/gct', () => {
         expect(document.querySelector('.gp-confirm')?.classList.contains('visible')).toBe(false);
     });
 
-    it('does not show current ongoing slot for today in Godzina picker', async () => {
+    it('keeps the ongoing slot visible for today until its end time', async () => {
         jest.setSystemTime(new Date('2026-03-17T19:39:00.000Z'));
         const { initGctUI } = await loadModule();
 
@@ -562,7 +599,7 @@ describe('popup/gct', () => {
             button => (button as HTMLButtonElement).dataset.slotValue,
         );
 
-        expect(slots).not.toContain('20:30');
+        expect(slots).toContain('20:30');
         expect(slots).toContain('22:30');
     });
 

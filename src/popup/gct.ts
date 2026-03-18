@@ -77,6 +77,8 @@ interface GctRecentEntry {
     containerNumber: string;
 }
 
+type GctRecentField = 'documentNumber' | 'vehicleNumber';
+
 interface GctSlotContextResponse {
     token: string;
     currentSlot: {
@@ -286,7 +288,8 @@ function getAvailablePickerSlots(date: string | null): GctAllowedStartTime[] {
     return GCT_ALLOWED_START_TIMES.filter(time => {
         const [hours, minutes] = time.split(':').map(Number);
         const slotStartMinutes = hours * 60 + minutes;
-        return slotStartMinutes > currentMinutes;
+        const slotEndMinutes = slotStartMinutes + 120;
+        return slotEndMinutes > currentMinutes;
     });
 }
 
@@ -377,8 +380,14 @@ function buildControlsMarkup(): string {
     return `
         <div class="gct-controls">
             <div class="gct-controls-row">
-                <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
-                <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                <div class="gct-input-stack gct-input-stack-document">
+                    <input id="gctDocumentInput" class="gct-input gct-input-document" type="text" placeholder="Dokument kierowcy" maxlength="${GCT_DOCUMENT_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                    <div id="gctDocumentSuggestions" class="gct-recent-suggestions" hidden></div>
+                </div>
+                <div class="gct-input-stack gct-input-stack-vehicle">
+                    <input id="gctVehicleInput" class="gct-input gct-input-vehicle" type="text" placeholder="Nr. pojazdu" maxlength="${GCT_VEHICLE_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+                    <div id="gctVehicleSuggestions" class="gct-recent-suggestions" hidden></div>
+                </div>
                 <input id="gctContainerInput" class="gct-input gct-input-container" type="text" placeholder="Nr kontenera" maxlength="${GCT_CONTAINER_NUMBER_LENGTH}" autocomplete="off" autocapitalize="characters" spellcheck="false" />
                 <div id="gctTimePicker" class="gct-picker-host"></div>
                 <button id="gctAddButton" type="button" class="secondary-button gct-add-button" disabled>Dodaj</button>
@@ -1059,33 +1068,68 @@ function uniqueRecentFieldValues(
     return values;
 }
 
-function renderRecentEntrySuggestions(): void {
+function getRecentFieldSuggestions(sourceField: GctRecentField, currentValue: string): string[] {
+    const normalizedCurrentValue = normalizeCompactUppercaseValue(currentValue);
+
+    return uniqueRecentFieldValues(entry => entry[sourceField], currentValue).filter(value =>
+        normalizedCurrentValue ? value.startsWith(normalizedCurrentValue) : true,
+    );
+}
+
+function renderRecentEntrySuggestions(activeField: GctRecentField | null = null): void {
     const documentInput = byId<HTMLInputElement>('gctDocumentInput');
     const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
-    const containerInput = byId<HTMLInputElement>('gctContainerInput');
-    const documentList = byId<HTMLDataListElement>('gctDocumentSuggestions');
-    const vehicleList = byId<HTMLDataListElement>('gctVehicleSuggestions');
-    const containerList = byId<HTMLDataListElement>('gctContainerSuggestions');
+    const documentList = byId<HTMLElement>('gctDocumentSuggestions');
+    const vehicleList = byId<HTMLElement>('gctVehicleSuggestions');
 
-    if (!documentList || !vehicleList || !containerList) {
+    if (!documentList || !vehicleList) {
         return;
     }
 
-    const fillList = (list: HTMLDataListElement, values: string[]): void => {
-        list.innerHTML = values.map(value => `<option value="${value}"></option>`).join('');
+    const renderList = (
+        list: HTMLElement,
+        values: string[],
+        sourceField: GctRecentField,
+        input: HTMLInputElement | null,
+    ): void => {
+        if (!input || activeField !== sourceField || values.length === 0) {
+            list.innerHTML = '';
+            list.setAttribute('hidden', 'true');
+            return;
+        }
+
+        list.innerHTML = '';
+
+        for (const value of values) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'gct-recent-suggestion';
+            button.textContent = value;
+            button.addEventListener('mousedown', event => {
+                event.preventDefault();
+                input.value = value;
+                applyRecentEntryAutofill(sourceField);
+                renderRecentEntrySuggestions(null);
+                updateAddButtonState();
+                persistGctDraft().catch(consoleError);
+            });
+            list.appendChild(button);
+        }
+
+        list.removeAttribute('hidden');
     };
 
-    fillList(
+    renderList(
         documentList,
-        uniqueRecentFieldValues(entry => entry.documentNumber, documentInput?.value || ''),
+        getRecentFieldSuggestions('documentNumber', documentInput?.value || ''),
+        'documentNumber',
+        documentInput,
     );
-    fillList(
+    renderList(
         vehicleList,
-        uniqueRecentFieldValues(entry => entry.vehicleNumber, vehicleInput?.value || ''),
-    );
-    fillList(
-        containerList,
-        uniqueRecentFieldValues(entry => entry.containerNumber, containerInput?.value || ''),
+        getRecentFieldSuggestions('vehicleNumber', vehicleInput?.value || ''),
+        'vehicleNumber',
+        vehicleInput,
     );
 }
 
@@ -1633,13 +1677,20 @@ export function initGctUI(): void {
 
     const bindNormalizedInput = (id: string): void => {
         const input = byId<HTMLInputElement>(id);
+        const suggestionField: GctRecentField | null =
+            id === 'gctDocumentInput'
+                ? 'documentNumber'
+                : id === 'gctVehicleInput'
+                  ? 'vehicleNumber'
+                  : null;
+
         input?.addEventListener('input', event => {
             const input = event.currentTarget as HTMLInputElement;
             input.value = normalizeCompactUppercaseValue(input.value);
             clearPrefetchedSlotContext();
             clearGctAddFeedback();
             updateAddButtonState();
-            renderRecentEntrySuggestions();
+            renderRecentEntrySuggestions(suggestionField);
             persistGctDraft().catch(consoleError);
         });
 
@@ -1655,10 +1706,21 @@ export function initGctUI(): void {
                 applyRecentEntryAutofill('vehicleNumber');
             }
 
-            renderRecentEntrySuggestions();
+            renderRecentEntrySuggestions(null);
             updateAddButtonState();
             persistGctDraft().catch(consoleError);
         });
+
+        if (suggestionField) {
+            input?.addEventListener('focus', () => {
+                renderRecentEntrySuggestions(suggestionField);
+            });
+            input?.addEventListener('blur', () => {
+                setTimeout(() => {
+                    renderRecentEntrySuggestions(null);
+                }, 0);
+            });
+        }
     };
 
     bindNormalizedInput('gctDocumentInput');
