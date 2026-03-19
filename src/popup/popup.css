@@ -1252,6 +1252,15 @@ tr[data-is-open='false'] .status-icon {
     border-color: #999;
 }
 
+.gct-picker-host .gp-collapsed.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.gct-picker-host .gp-collapsed.disabled:hover {
+    border-color: var(--color-border-light);
+}
+
 .gct-picker-host .gp-collapsed.open {
     border-color: var(--color-primary-dark);
 }

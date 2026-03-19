@@ -56,6 +56,7 @@ interface GctPickerApi {
     setSlots(slots: GctTargetSlotDraft[]): void;
     setDisabledSlots(slots: GctTargetSlotDraft[]): void;
     setPrecheckLoading(isLoading: boolean): void;
+    setEnabled(isEnabled: boolean): void;
     reset(): void;
     open(): void;
     close(): void;
@@ -428,6 +429,7 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
     let customDate: string | null = null;
     let calendarMonth = parseIsoDate(nowLocalDate()).getMonth();
     let calendarYear = parseIsoDate(nowLocalDate()).getFullYear();
+    let isEnabled = true;
     let isOpen = false;
 
     host.innerHTML = `
@@ -575,6 +577,13 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
             renderSlots();
             updateConfirm();
         },
+        setEnabled(nextIsEnabled: boolean): void {
+            isEnabled = nextIsEnabled;
+            if (!isEnabled) {
+                closeDropdown();
+            }
+            updateField();
+        },
         reset(): void {
             selectedDateId = 'today';
             selectedSlotsByDate = {};
@@ -689,6 +698,9 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
         const totalSelectedDays = selections.length;
         const hasSelection = totalSelectedSlots > 0;
         collapsed.classList.toggle('has-selection', hasSelection);
+        collapsed.classList.toggle('disabled', !isEnabled);
+        collapsed.setAttribute('aria-disabled', String(!isEnabled));
+        collapsed.tabIndex = isEnabled ? 0 : -1;
 
         if (!hasSelection) {
             label.textContent = 'Godzina';
@@ -977,6 +989,10 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
 
     collapsed.addEventListener('click', event => {
         event.stopPropagation();
+        if (!isEnabled) {
+            return;
+        }
+
         if (isOpen) {
             closeDropdown();
         } else {
@@ -991,6 +1007,10 @@ function createGctTimePicker(host: HTMLElement): GctPickerApi {
 
         event.preventDefault();
         event.stopPropagation();
+        if (!isEnabled) {
+            return;
+        }
+
         if (isOpen) {
             closeDropdown();
         } else {
@@ -1262,8 +1282,24 @@ function hasValidGctAddInputs(): boolean {
     );
 }
 
+function hasValidGctPickerInputs(): boolean {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    return (
+        (documentInput?.value.trim().length || 0) > 0 &&
+        (vehicleInput?.value.trim().length || 0) > 0 &&
+        (containerInput?.value.trim().length || 0) > 0
+    );
+}
+
 function updateAddButtonState(): void {
     const addButton = byId<HTMLButtonElement>('gctAddButton');
+    const isPickerEnabled = hasValidGctPickerInputs();
+
+    gctTimePicker?.setEnabled(isPickerEnabled);
+
     if (!addButton) {
         return;
     }

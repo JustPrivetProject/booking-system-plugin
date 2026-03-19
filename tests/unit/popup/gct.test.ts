@@ -738,10 +738,98 @@ describe('popup/gct', () => {
         expect(addButton.disabled).toBe(false);
     });
 
+    it('keeps Godzina disabled until document, vehicle and container are populated', async () => {
+        const { initGctUI } = await loadModule();
+
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+
+        expect(collapsed.classList.contains('disabled')).toBe(true);
+        expect(collapsed.getAttribute('aria-disabled')).toBe('true');
+
+        collapsed.click();
+        await flushUi();
+        expect(document.querySelector('.gp-dropdown.visible')).toBeFalsy();
+
+        setInputValue(documentInput, 'doc1');
+        await flushUi();
+        expect(collapsed.classList.contains('disabled')).toBe(true);
+
+        setInputValue(vehicleInput, 'ndz1');
+        await flushUi();
+        expect(collapsed.classList.contains('disabled')).toBe(true);
+
+        setInputValue(containerInput, 'tclu1');
+        await flushUi();
+
+        expect(collapsed.classList.contains('disabled')).toBe(false);
+        expect(collapsed.getAttribute('aria-disabled')).toBe('false');
+
+        collapsed.click();
+        await flushUi();
+        expect(document.querySelector('.gp-dropdown.visible')).toBeTruthy();
+    });
+
     it('supports custom calendar date selection and clearing slots', async () => {
         const { initGctUI } = await loadModule();
 
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
         initGctUI();
+        await flushUi();
+
+        setInputValue(document.getElementById('gctDocumentInput') as HTMLInputElement, 'doc1');
+        setInputValue(document.getElementById('gctVehicleInput') as HTMLInputElement, 'ndz1');
+        setInputValue(document.getElementById('gctContainerInput') as HTMLInputElement, 'tclu1');
         await flushUi();
 
         (document.querySelector('.gp-collapsed') as HTMLDivElement).click();
