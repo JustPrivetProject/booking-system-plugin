@@ -100,7 +100,9 @@ describe('popup/gct', () => {
         expect(document.getElementById('gctDocumentInput')).toBeTruthy();
         expect(document.getElementById('gctTimePicker')).toBeTruthy();
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
-        expect(document.getElementById('gctTableBody')?.textContent).toBe('');
+        expect(document.querySelector('.gct-empty-cell')?.textContent).toBe(
+            'Wypełnij pola i dodaj zadanie',
+        );
         expect(sentMessages).toContainEqual({ target: 'gct', type: 'GET_STATE' });
     });
 
@@ -995,6 +997,7 @@ describe('popup/gct', () => {
         expect(document.querySelector('.gct-edit-overlay')).toBeNull();
 
         const listener = chromeMock.storage.onChanged.addListener.mock.calls[0][0];
+        currentState = createState({ groups: [] });
         listener({}, 'sync');
         listener({ gctGroups: { newValue: [] } }, 'local');
         await flushUi();
@@ -1006,6 +1009,9 @@ describe('popup/gct', () => {
             ]),
         );
         expect(sentMessages.filter((message: any) => message.type === 'GET_STATE').length).toBe(2);
+        expect(document.querySelector('.gct-empty-cell')?.textContent).toBe(
+            'Wypełnij pola i dodaj zadanie',
+        );
     });
 
     it('logs message errors from the runtime bridge', async () => {

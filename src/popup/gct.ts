@@ -1306,6 +1306,16 @@ function clearGctAddFeedback(): void {
 
 function renderEmptyState(body: HTMLElement): void {
     body.innerHTML = '';
+    const row = document.createElement('tr');
+    row.className = 'gct-empty-row';
+
+    const cell = document.createElement('td');
+    cell.className = 'gct-empty-cell';
+    cell.colSpan = 5;
+    cell.textContent = 'Wypełnij pola i dodaj zadanie';
+
+    row.appendChild(cell);
+    body.appendChild(row);
 }
 
 function mapSelectionToSlots(selection: GctPickerSelection): GctTargetSlotDraft[] {
