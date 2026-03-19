@@ -1119,12 +1119,11 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-add-feedback {
     position: absolute;
-    top: -1px;
+    top: calc(100% + 4px);
     left: 2px;
-    right: 120px;
+    right: 0;
     min-height: 0;
     padding-left: 0;
-    background: #fff;
     color: var(--color-error);
     font-size: 10px;
     line-height: 11px;
@@ -1646,6 +1645,11 @@ tr[data-is-open='false'] .status-icon {
 
 .gct-queue-container {
     margin-top: 5px;
+    transition: margin-top 0.15s ease;
+}
+
+.gct-queue-container.gct-login-error-visible {
+    margin-top: 20px;
 }
 
 #gctTable {

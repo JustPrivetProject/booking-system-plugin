@@ -1294,6 +1294,15 @@ function clearGctTopPanel(): void {
     persistGctDraft().catch(consoleError);
 }
 
+function setGctLoginErrorGapExpanded(isExpanded: boolean): void {
+    const queueContainer = document.querySelector('.gct-queue-container');
+    if (!queueContainer) {
+        return;
+    }
+
+    queueContainer.classList.toggle('gct-login-error-visible', isExpanded);
+}
+
 function showGctAddFeedback(message: string): void {
     const feedback = byId<HTMLElement>('gctAddFeedback');
     if (!feedback) {
@@ -1304,11 +1313,13 @@ function showGctAddFeedback(message: string): void {
         clearTimeout(gctAddFeedbackTimer);
     }
 
+    setGctLoginErrorGapExpanded(message === GCT_LOGIN_FAILED_MESSAGE);
     feedback.textContent = message;
     feedback.classList.add('visible');
     gctAddFeedbackTimer = setTimeout(() => {
         feedback.textContent = '';
         feedback.classList.remove('visible');
+        setGctLoginErrorGapExpanded(false);
         gctAddFeedbackTimer = null;
 
         if (message === GCT_LOGIN_FAILED_MESSAGE) {
@@ -1330,6 +1341,7 @@ function clearGctAddFeedback(): void {
 
     feedback.textContent = '';
     feedback.classList.remove('visible');
+    setGctLoginErrorGapExpanded(false);
 }
 
 function renderEmptyState(body: HTMLElement): void {

@@ -594,6 +594,7 @@ describe('popup/gct', () => {
         const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
         const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
         const feedback = document.getElementById('gctAddFeedback') as HTMLDivElement;
+        const queueContainer = document.querySelector('.gct-queue-container') as HTMLDivElement;
 
         setInputValue(documentInput, 'doc123456');
         setInputValue(vehicleInput, 'ndz45396');
@@ -616,11 +617,13 @@ describe('popup/gct', () => {
         expect(feedback.textContent).toBe('Niepoprawne dane - Logowanie nieudane');
         expect(addButton.disabled).toBe(false);
         expect(storageState.gctRecentEntries).toBeUndefined();
+        expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(true);
 
         jest.advanceTimersByTime(6000);
         await flushUi();
 
         expect(feedback.textContent).toBe('');
+        expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(false);
         expect(documentInput.value).toBe('');
         expect(vehicleInput.value).toBe('');
         expect(containerInput.value).toBe('');
@@ -662,6 +665,7 @@ describe('popup/gct', () => {
         const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
         const feedback = document.getElementById('gctAddFeedback') as HTMLDivElement;
         const dropdown = document.querySelector('.gp-dropdown') as HTMLDivElement;
+        const queueContainer = document.querySelector('.gct-queue-container') as HTMLDivElement;
 
         setInputValue(documentInput, 'doc123456');
         setInputValue(vehicleInput, 'ndz45396');
@@ -675,11 +679,13 @@ describe('popup/gct', () => {
         expect(dropdown.classList.contains('visible')).toBe(false);
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
         expect(addButton.disabled).toBe(true);
+        expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(true);
 
         jest.advanceTimersByTime(6000);
         await flushUi();
 
         expect(feedback.textContent).toBe('');
+        expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(false);
         expect(documentInput.value).toBe('');
         expect(vehicleInput.value).toBe('');
         expect(containerInput.value).toBe('');
