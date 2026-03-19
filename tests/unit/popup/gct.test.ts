@@ -340,19 +340,17 @@ describe('popup/gct', () => {
                 ],
             },
         });
-        expect(containerInput.value).toBe('TCLU3141931');
-        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('2 dni');
-        expect(document.querySelector('.gp-badge')?.textContent).toBe('3 sloty');
-        expect(addButton.disabled).toBe(false);
+        expect(documentInput.value).toBe('');
+        expect(vehicleInput.value).toBe('');
+        expect(containerInput.value).toBe('');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
+        expect(document.querySelector('.gp-badge')?.textContent).toBe('');
+        expect(addButton.disabled).toBe(true);
         expect(storageState.gctPopupDraft).toEqual({
-            documentNumber: 'DOC123456',
-            vehicleNumber: 'NDZ45396',
-            containerNumber: 'TCLU3141931',
-            slots: [
-                { date: '2026-03-17', startTime: '22:30' },
-                { date: '2026-03-18', startTime: '00:30' },
-                { date: '2026-03-18', startTime: '04:30' },
-            ],
+            documentNumber: '',
+            vehicleNumber: '',
+            containerNumber: '',
+            slots: [],
         });
     });
 
@@ -482,7 +480,7 @@ describe('popup/gct', () => {
         expect(document.querySelectorAll('.gp-slot-btn').length).toBeGreaterThan(0);
     });
 
-    it('restores full top-panel draft after add when popup is reopened', async () => {
+    it('clears the top-panel draft after add when popup is reopened', async () => {
         chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
             sentMessages.push(message);
 
@@ -551,10 +549,10 @@ describe('popup/gct', () => {
             'gctContainerInput',
         ) as HTMLInputElement;
 
-        expect(reopenedDocumentInput.value).toBe('DOC123456');
-        expect(reopenedVehicleInput.value).toBe('NDZ45396');
-        expect(reopenedContainerInput.value).toBe('TCLU3141931');
-        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Dziś 22:30');
+        expect(reopenedDocumentInput.value).toBe('');
+        expect(reopenedVehicleInput.value).toBe('');
+        expect(reopenedContainerInput.value).toBe('');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
     });
 
     it('shows temporary login feedback when adding a new group fails', async () => {
@@ -1012,6 +1010,59 @@ describe('popup/gct', () => {
         expect(document.querySelector('.gct-empty-cell')?.textContent).toBe(
             'Wypełnij pola i dodaj zadanie',
         );
+    });
+
+    it('disables all successful-group controls except delete', async () => {
+        currentState = createState({
+            groups: [
+                {
+                    id: 'group-success',
+                    documentNumber: 'DOC111',
+                    vehicleNumber: 'NDZ11111',
+                    containerNumber: 'TCLU1111111',
+                    createdAt: '2026-03-17T10:00:00.000Z',
+                    updatedAt: '2026-03-17T10:00:00.000Z',
+                    status: 'success',
+                    statusMessage: 'Slot zarezerwowany',
+                    isExpanded: false,
+                    rows: [
+                        {
+                            id: 'row-success',
+                            targetDate: '2026-03-17',
+                            targetStartTime: '22:30',
+                            targetEndDate: '2026-03-18',
+                            targetEndTime: '00:30',
+                            targetStartLocal: '2026-03-17 22:30',
+                            targetEndLocal: '2026-03-18 00:30',
+                            status: 'success',
+                            statusMessage: 'Slot zarezerwowany',
+                            active: false,
+                            isManualPause: false,
+                            lastAttemptAt: null,
+                            lastMatchedAt: null,
+                            lastVerifiedAt: '2026-03-17T10:00:00.000Z',
+                            lastError: null,
+                            history: [],
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const { initGctUI } = await loadModule();
+        initGctUI();
+        await flushUi();
+
+        const groupRow = document.querySelector('.gct-group-row') as HTMLTableRowElement;
+        const editButton = groupRow.querySelector('.group-edit-button') as HTMLButtonElement;
+        const resumeButton = groupRow.querySelector('.group-resume-button') as HTMLButtonElement;
+        const pauseButton = groupRow.querySelector('.group-pause-button') as HTMLButtonElement;
+        const removeButton = groupRow.querySelector('.group-remove-button') as HTMLButtonElement;
+
+        expect(editButton.disabled).toBe(true);
+        expect(resumeButton.disabled).toBe(true);
+        expect(pauseButton.disabled).toBe(true);
+        expect(removeButton.disabled).toBe(false);
     });
 
     it('logs message errors from the runtime bridge', async () => {

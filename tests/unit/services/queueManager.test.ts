@@ -49,6 +49,7 @@ jest.mock('../../../src/services/baltichub', () => ({
 jest.mock('../../../src/utils/badge', () => ({
     updateBadge: jest.fn(),
     clearBadge: jest.fn(),
+    syncStatusBadgeFromStorage: jest.fn(),
 }));
 
 // Import AFTER all mocks are declared

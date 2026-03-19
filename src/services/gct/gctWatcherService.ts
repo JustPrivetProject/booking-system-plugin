@@ -13,6 +13,7 @@ import {
 import { getGctState, saveGctGroups, touchGctLastTickAt } from '../../gct/storage';
 import { authService } from '../authService';
 import { notificationService } from '../notificationService';
+import { syncStatusBadgeFromStorage } from '../../utils/badge';
 import { consoleError, consoleLog } from '../../utils';
 import {
     bookGctSlot,
@@ -182,7 +183,7 @@ function summarizeGroupStatus(
     if (group.rows.some(row => row.status === Statuses.SUCCESS)) {
         return {
             status: 'success',
-            statusMessage: 'Slot zarezerwowany w GCT',
+            statusMessage: 'Slot zarezerwowany',
         };
     }
 
@@ -397,7 +398,7 @@ export class GctWatcherService {
             nextGroups = [...state.groups, createdGroup];
         }
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         const nextState = await this.getState();
         await this.ensureSchedules();
         return nextState;
@@ -409,7 +410,7 @@ export class GctWatcherService {
         this.clearCachedToken(groupId);
         this.clearNetworkBackoff(groupId);
         this.clearLoginCooldown(groupId);
-        await saveGctGroups(state.groups.filter(group => group.id !== groupId));
+        await this.saveGroups(state.groups.filter(group => group.id !== groupId));
         return this.getState();
     }
 
@@ -428,7 +429,7 @@ export class GctWatcherService {
             })
             .filter(group => group.rows.length > 0);
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         await this.ensureSchedules();
         return this.getState();
     }
@@ -462,7 +463,7 @@ export class GctWatcherService {
             return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         await this.ensureSchedules();
         return this.getState();
     }
@@ -472,7 +473,7 @@ export class GctWatcherService {
         const nextGroups = state.groups.map(group =>
             group.id === groupId ? { ...group, isExpanded: !group.isExpanded } : group,
         );
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         return this.getState();
     }
 
@@ -506,7 +507,7 @@ export class GctWatcherService {
             };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         this.clearTimer(groupId);
         return this.getState();
     }
@@ -543,7 +544,7 @@ export class GctWatcherService {
             return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         await this.ensureSchedules();
         return this.getState();
     }
@@ -614,7 +615,7 @@ export class GctWatcherService {
             };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         this.tokenCache.clear();
         this.networkBackoffLevel.clear();
         this.networkBackoffUntil.clear();
@@ -660,7 +661,7 @@ export class GctWatcherService {
             return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         await this.ensureSchedules();
     }
 
@@ -683,7 +684,7 @@ export class GctWatcherService {
             return { ...nextGroup, ...summarizeGroupStatus(nextGroup) };
         });
 
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
         await this.ensureSchedules();
         return this.getState();
     }
@@ -990,7 +991,7 @@ export class GctWatcherService {
 
                     if (matchesCurrentBooking(booking, row.targetStartLocal, row.targetEndLocal)) {
                         row.status = Statuses.SUCCESS;
-                        row.statusMessage = 'Slot zarezerwowany w GCT';
+                        row.statusMessage = 'Slot zarezerwowany';
                         row.active = false;
                         row.lastVerifiedAt = nowIso();
                         row.lastError = null;
@@ -1008,7 +1009,7 @@ export class GctWatcherService {
                             sibling.active = false;
                             sibling.isManualPause = false;
                             sibling.status = 'completed';
-                            sibling.statusMessage = 'Zatrzymane po sukcesie grupy';
+                            sibling.statusMessage = '';
                             const siblingRow = addHistory(
                                 sibling,
                                 'stopped',
@@ -1062,7 +1063,7 @@ export class GctWatcherService {
             const summary = summarizeGroupStatus(groupClone);
             groupClone.status = shouldStopGroup ? 'success' : summary.status;
             groupClone.statusMessage = shouldStopGroup
-                ? 'Slot zarezerwowany w GCT'
+                ? 'Slot zarezerwowany'
                 : summary.statusMessage;
             groupClone.updatedAt = nowIso();
 
@@ -1133,12 +1134,17 @@ export class GctWatcherService {
         const nextGroups = state.groups.map(entry =>
             entry.id === group.id ? { ...group } : entry,
         );
-        await saveGctGroups(nextGroups);
+        await this.saveGroups(nextGroups);
     }
 
     private async persistAndReschedule(group: GctWatchGroup): Promise<void> {
         await this.persistGroup(group);
         await this.ensureSchedules();
+    }
+
+    private async saveGroups(nextGroups: GctWatchGroup[]): Promise<void> {
+        await saveGctGroups(nextGroups);
+        await syncStatusBadgeFromStorage();
     }
 }
 

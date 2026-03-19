@@ -3,7 +3,7 @@ import { Statuses, Actions } from '../data';
 import { authService } from '../services/authService';
 import { autoLoginService } from '../services/autoLoginService';
 import type { RetryObjectArray } from '../types/baltichub';
-import { clearBadge } from '../utils/badge';
+import { syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
@@ -332,7 +332,7 @@ async function updateQueueDisplay() {
         // clear states on empty grid
         if (!data.length) {
             clearStateGroups();
-            clearBadge();
+            await syncStatusBadgeFromStorage();
         }
         // Populate the table with data from the queue
         data.forEach(([tvAppId, items]) => {

@@ -16,6 +16,7 @@ import {
     matchesCurrentBooking,
 } from '../../../../src/services/gct/gctApi';
 import { notificationService } from '../../../../src/services/notificationService';
+import { syncStatusBadgeFromStorage } from '../../../../src/utils/badge';
 
 jest.mock('../../../../src/gct/storage');
 jest.mock('../../../../src/services/authService', () => ({
@@ -29,6 +30,9 @@ jest.mock('../../../../src/services/notificationService', () => ({
     },
 }));
 jest.mock('../../../../src/services/gct/gctApi');
+jest.mock('../../../../src/utils/badge', () => ({
+    syncStatusBadgeFromStorage: jest.fn(),
+}));
 jest.mock('../../../../src/utils', () => ({
     consoleError: jest.fn(),
     consoleLog: jest.fn(),
@@ -103,6 +107,7 @@ describe('GctWatcherService', () => {
         (notificationService.sendBookingSuccessNotifications as jest.Mock).mockResolvedValue(
             undefined,
         );
+        (syncStatusBadgeFromStorage as jest.Mock).mockResolvedValue(undefined);
         (loginToGct as jest.Mock).mockResolvedValue('csrf-token');
         (getGctAvailableSlots as jest.Mock).mockResolvedValue([]);
         (bookGctSlot as jest.Mock).mockResolvedValue([]);
@@ -559,6 +564,7 @@ describe('GctWatcherService', () => {
     });
 
     it('verifies booking success and stops sibling rows', async () => {
+        (syncStatusBadgeFromStorage as jest.Mock).mockClear();
         const successRow = createRow({ id: 'success-row' });
         const siblingRow = createRow({
             id: 'sibling-row',
@@ -587,6 +593,7 @@ describe('GctWatcherService', () => {
 
         expect(bookGctSlot).toHaveBeenCalledWith('csrf-token', { idrow: 99 });
         expect(state.groups[0].status).toBe('success');
+        expect(state.groups[0].statusMessage).toBe('Slot zarezerwowany');
         expect(state.groups[0].rows[0]).toMatchObject({
             status: Statuses.SUCCESS,
             active: false,
@@ -601,6 +608,7 @@ describe('GctWatcherService', () => {
                 bookingTime: '2026-03-18 04:30',
             }),
         );
+        expect(syncStatusBadgeFromStorage).toHaveBeenCalled();
     });
 
     it('keeps monitoring when booking verification fails', async () => {

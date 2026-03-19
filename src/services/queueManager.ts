@@ -11,7 +11,7 @@ import type {
     ProcessBatchResult,
 } from '../types/queue';
 import type { ErrorResponse } from '../utils/index';
-import { updateBadge, clearBadge } from '../utils/badge';
+import { clearBadge, syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
@@ -331,7 +331,7 @@ export class QueueManager implements IQueueManager {
         intervalMax: number,
     ): Promise<ProcessBatchResult> {
         const queue = await this.getQueue();
-        updateBadge(queue.map(req => req.status));
+        await syncStatusBadgeFromStorage();
 
         const inProgressRequests = queue.filter(req => req.status === 'in-progress');
         const batch = inProgressRequests.slice(0, this.config.batchSize);

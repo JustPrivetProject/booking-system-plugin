@@ -1364,7 +1364,7 @@ function createGroupHeader(group: GctWatchGroup): HTMLTableRowElement {
         </td>
         <td class="group-header actions">
             <div class="gct-group-actions">
-                <button class="group-edit-button" title="Edytuj sloty grupy">
+                <button class="group-edit-button" title="Edytuj sloty grupy" ${group.status === 'success' ? 'disabled' : ''}>
                     <span class="material-icons icon">edit</span>
                 </button>
                 <button class="group-resume-button resume-button" title="Wznów grupę" ${group.status === 'watching' || group.status === 'success' ? 'disabled' : ''}>
@@ -1642,6 +1642,14 @@ async function handleAdd(): Promise<void> {
         });
         await persistRecentEntries();
         renderNativeRecentDatalists();
+
+        documentInput.value = '';
+        vehicleInput.value = '';
+        containerInput.value = '';
+        gctTimePicker.reset();
+        clearPrefetchedSlotContext();
+        clearGctAddFeedback();
+        updateAddButtonState();
 
         await persistGctDraft();
     } catch (error) {

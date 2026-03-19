@@ -1164,18 +1164,18 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-input-document {
-    flex-basis: 29%;
-    min-width: 96px;
+    flex-basis: calc(29% + 10px);
+    min-width: 106px;
 }
 
 .gct-input-vehicle {
-    flex-basis: 24%;
-    min-width: 86px;
+    flex-basis: calc(24% + 10px);
+    min-width: 96px;
 }
 
 .gct-input-container {
-    flex-basis: 30%;
-    min-width: 96px;
+    flex-basis: calc(30% - 20px);
+    min-width: 76px;
 }
 
 .gct-input::placeholder {
@@ -1636,7 +1636,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-queue-container {
-    margin-top: 2px;
+    margin-top: -8px;
 }
 
 #gctTable {

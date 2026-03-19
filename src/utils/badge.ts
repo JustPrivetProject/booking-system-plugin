@@ -1,6 +1,29 @@
 import { StatusIconMap } from '../data';
 
 import { consoleLog, sortStatusesByPriority } from './index';
+import { getStorage } from './storage';
+
+function isKnownBaseStatus(status: unknown): status is string {
+    return (
+        typeof status === 'string' && Object.prototype.hasOwnProperty.call(StatusIconMap, status)
+    );
+}
+
+function normalizeGctBadgeStatus(status: unknown): string | null {
+    if (status === 'watching' || status === 'attempting') {
+        return 'in-progress';
+    }
+
+    if (status === 'completed') {
+        return 'paused';
+    }
+
+    if (status === 'auth-lost') {
+        return 'authorization-error';
+    }
+
+    return isKnownBaseStatus(status) ? status : null;
+}
 
 class BadgeManager {
     private lastStatus: string = '';
@@ -150,6 +173,38 @@ export function updateBadge(statuses: string[]): Promise<void> {
 
 export function clearBadge(): Promise<void> {
     return badgeManager.clearBadge();
+}
+
+export async function syncStatusBadgeFromStorage(): Promise<void> {
+    const state = (await getStorage(['retryQueue', 'gctGroups'])) as {
+        retryQueue?: Array<{ status?: unknown }>;
+        gctGroups?: Array<{ rows?: Array<{ status?: unknown }> }>;
+    };
+
+    const retryStatuses = Array.isArray(state.retryQueue)
+        ? state.retryQueue
+              .map(item => item?.status)
+              .filter((status): status is string => isKnownBaseStatus(status))
+        : [];
+
+    const gctStatuses = Array.isArray(state.gctGroups)
+        ? state.gctGroups.flatMap(group =>
+              Array.isArray(group?.rows)
+                  ? group.rows
+                        .map(row => normalizeGctBadgeStatus(row?.status))
+                        .filter((status): status is string => status !== null)
+                  : [],
+          )
+        : [];
+
+    const statuses = [...retryStatuses, ...gctStatuses];
+
+    if (!statuses.length) {
+        await clearBadge();
+        return;
+    }
+
+    await updateBadge(statuses);
 }
 
 export function syncAuthenticationBadge(isAuthenticated: boolean): Promise<void> {
