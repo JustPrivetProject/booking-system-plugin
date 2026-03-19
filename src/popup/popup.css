@@ -1112,22 +1112,26 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-controls {
+    position: relative;
     width: 100%;
     margin-bottom: 0;
 }
 
 .gct-add-feedback {
-    min-height: 11px;
-    margin-top: -2px;
-    padding-left: 2px;
+    position: absolute;
+    top: -1px;
+    left: 2px;
+    right: 120px;
+    min-height: 0;
+    padding-left: 0;
+    background: #fff;
     color: var(--color-error);
     font-size: 10px;
     line-height: 11px;
     opacity: 0;
     transition: opacity 0.15s ease;
     pointer-events: none;
-    position: relative;
-    top: -2px;
+    z-index: 2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1641,7 +1645,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-queue-container {
-    margin-top: -8px;
+    margin-top: 5px;
 }
 
 #gctTable {
