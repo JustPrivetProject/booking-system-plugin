@@ -17,7 +17,8 @@ const GCT_DRAFT_STORAGE_KEY = 'gctPopupDraft';
 const GCT_DRAFT_LOCAL_FALLBACK_KEY = 'gctPopupDraftFallback';
 const GCT_RECENT_ENTRIES_STORAGE_KEY = 'gctRecentEntries';
 const GCT_RECENT_ENTRIES_LIMIT = 10;
-const GCT_ADD_FEEDBACK_DURATION_MS = 3000;
+const GCT_ADD_FEEDBACK_DURATION_MS = 6000;
+const GCT_LOGIN_FAILED_MESSAGE = 'Niepoprawne dane - Logowanie nieudane';
 const GCT_PICKER_MONTHS_PL = [
     'Styczeń',
     'Luty',
@@ -353,7 +354,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
         gctTimePicker?.setDisabledSlots([]);
         gctTimePicker?.setSlots([]);
         updateAddButtonState();
-        showGctAddFeedback('Logowanie nieudane');
+        showGctAddFeedback(GCT_LOGIN_FAILED_MESSAGE);
         consoleError('Prefetch GCT slot context failed:', error);
         return false;
     }
@@ -364,7 +365,7 @@ async function ensureSlotContextForCurrentInputs(): Promise<boolean> {
         gctTimePicker?.setDisabledSlots([]);
         gctTimePicker?.setSlots([]);
         updateAddButtonState();
-        showGctAddFeedback('Logowanie nieudane');
+        showGctAddFeedback(GCT_LOGIN_FAILED_MESSAGE);
         return false;
     }
 
@@ -1270,6 +1271,29 @@ function updateAddButtonState(): void {
     addButton.disabled = isGctAddPending || !hasValidGctAddInputs();
 }
 
+function clearGctTopPanel(): void {
+    const documentInput = byId<HTMLInputElement>('gctDocumentInput');
+    const vehicleInput = byId<HTMLInputElement>('gctVehicleInput');
+    const containerInput = byId<HTMLInputElement>('gctContainerInput');
+
+    if (documentInput) {
+        documentInput.value = '';
+    }
+
+    if (vehicleInput) {
+        vehicleInput.value = '';
+    }
+
+    if (containerInput) {
+        containerInput.value = '';
+    }
+
+    gctTimePicker?.reset();
+    clearPrefetchedSlotContext();
+    updateAddButtonState();
+    persistGctDraft().catch(consoleError);
+}
+
 function showGctAddFeedback(message: string): void {
     const feedback = byId<HTMLElement>('gctAddFeedback');
     if (!feedback) {
@@ -1286,6 +1310,10 @@ function showGctAddFeedback(message: string): void {
         feedback.textContent = '';
         feedback.classList.remove('visible');
         gctAddFeedbackTimer = null;
+
+        if (message === GCT_LOGIN_FAILED_MESSAGE) {
+            clearGctTopPanel();
+        }
     }, GCT_ADD_FEEDBACK_DURATION_MS);
 }
 
@@ -1653,7 +1681,7 @@ async function handleAdd(): Promise<void> {
 
         await persistGctDraft();
     } catch (error) {
-        showGctAddFeedback('Logowanie nieudane');
+        showGctAddFeedback(GCT_LOGIN_FAILED_MESSAGE);
         consoleError('Add GCT group failed:', error);
     } finally {
         isGctAddPending = false;

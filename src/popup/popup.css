@@ -1117,15 +1117,20 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .gct-add-feedback {
-    min-height: 14px;
-    margin-top: 3px;
+    min-height: 11px;
+    margin-top: -2px;
     padding-left: 2px;
     color: var(--color-error);
-    font-size: 11px;
-    line-height: 14px;
+    font-size: 10px;
+    line-height: 11px;
     opacity: 0;
     transition: opacity 0.15s ease;
     pointer-events: none;
+    position: relative;
+    top: -2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .gct-add-feedback.visible {

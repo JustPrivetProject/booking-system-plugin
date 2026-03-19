@@ -613,14 +613,25 @@ describe('popup/gct', () => {
         await flushUi();
         await flushUi();
 
-        expect(feedback.textContent).toBe('Logowanie nieudane');
+        expect(feedback.textContent).toBe('Niepoprawne dane - Logowanie nieudane');
         expect(addButton.disabled).toBe(false);
         expect(storageState.gctRecentEntries).toBeUndefined();
 
-        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(6000);
         await flushUi();
 
         expect(feedback.textContent).toBe('');
+        expect(documentInput.value).toBe('');
+        expect(vehicleInput.value).toBe('');
+        expect(containerInput.value).toBe('');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
+        expect(addButton.disabled).toBe(true);
+        expect(storageState.gctPopupDraft).toEqual({
+            documentNumber: '',
+            vehicleNumber: '',
+            containerNumber: '',
+            slots: [],
+        });
     });
 
     it('shows temporary login feedback and closes picker when Godzina precheck fails', async () => {
@@ -660,15 +671,26 @@ describe('popup/gct', () => {
         await flushUi();
         await flushUi();
 
-        expect(feedback.textContent).toBe('Logowanie nieudane');
+        expect(feedback.textContent).toBe('Niepoprawne dane - Logowanie nieudane');
         expect(dropdown.classList.contains('visible')).toBe(false);
         expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
         expect(addButton.disabled).toBe(true);
 
-        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(6000);
         await flushUi();
 
         expect(feedback.textContent).toBe('');
+        expect(documentInput.value).toBe('');
+        expect(vehicleInput.value).toBe('');
+        expect(containerInput.value).toBe('');
+        expect(document.querySelector('.gp-collapsed-label')?.textContent).toBe('Godzina');
+        expect(addButton.disabled).toBe(true);
+        expect(storageState.gctPopupDraft).toEqual({
+            documentNumber: '',
+            vehicleNumber: '',
+            containerNumber: '',
+            slots: [],
+        });
     });
 
     it('keeps the add button disabled until all fields and slots are populated', async () => {
