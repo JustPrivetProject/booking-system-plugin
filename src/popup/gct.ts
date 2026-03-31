@@ -17,7 +17,8 @@ const GCT_DRAFT_STORAGE_KEY = 'gctPopupDraft';
 const GCT_DRAFT_LOCAL_FALLBACK_KEY = 'gctPopupDraftFallback';
 const GCT_RECENT_ENTRIES_STORAGE_KEY = 'gctRecentEntries';
 const GCT_RECENT_ENTRIES_LIMIT = 10;
-const GCT_ADD_FEEDBACK_DURATION_MS = 6000;
+const GCT_ADD_COOLDOWN_MS = 10000;
+const GCT_ADD_FEEDBACK_DURATION_MS = 10000;
 const GCT_LOGIN_FAILED_MESSAGE = 'Niepoprawne dane - Logowanie nieudane';
 const GCT_PICKER_MONTHS_PL = [
     'Styczeń',
@@ -100,8 +101,10 @@ let gctTimePicker: GctPickerApi | null = null;
 let activeGroupEditPicker: GctPickerApi | null = null;
 let activeGroupEditOverlay: HTMLDivElement | null = null;
 let gctRecentEntries: GctRecentEntry[] = [];
+let gctAddCooldownTimer: ReturnType<typeof setTimeout> | null = null;
 let gctAddFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 let isGctAddPending = false;
+let gctAddCooldownUntil = 0;
 let gctDraftPersistenceBound = false;
 let gctPrefetchedSlotContext: GctPrefetchedSlotContext | null = null;
 
@@ -1297,6 +1300,7 @@ function hasValidGctPickerInputs(): boolean {
 function updateAddButtonState(): void {
     const addButton = byId<HTMLButtonElement>('gctAddButton');
     const isPickerEnabled = hasValidGctPickerInputs();
+    const isGctAddCooldownActive = Date.now() < gctAddCooldownUntil;
 
     gctTimePicker?.setEnabled(isPickerEnabled);
 
@@ -1304,7 +1308,21 @@ function updateAddButtonState(): void {
         return;
     }
 
-    addButton.disabled = isGctAddPending || !hasValidGctAddInputs();
+    addButton.disabled = isGctAddPending || isGctAddCooldownActive || !hasValidGctAddInputs();
+}
+
+function startGctAddCooldown(): void {
+    gctAddCooldownUntil = Date.now() + GCT_ADD_COOLDOWN_MS;
+
+    if (gctAddCooldownTimer) {
+        clearTimeout(gctAddCooldownTimer);
+    }
+
+    gctAddCooldownTimer = setTimeout(() => {
+        gctAddCooldownTimer = null;
+        gctAddCooldownUntil = 0;
+        updateAddButtonState();
+    }, GCT_ADD_COOLDOWN_MS);
 }
 
 function clearGctTopPanel(): void {
@@ -1729,6 +1747,7 @@ async function handleAdd(): Promise<void> {
 
         await persistGctDraft();
     } catch (error) {
+        startGctAddCooldown();
         showGctAddFeedback(GCT_LOGIN_FAILED_MESSAGE);
         consoleError('Add GCT group failed:', error);
     } finally {

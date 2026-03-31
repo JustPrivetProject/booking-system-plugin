@@ -427,6 +427,78 @@ describe('popup/gct', () => {
         );
     });
 
+    it('does not apply cooldown after a successful add once valid inputs are entered again', async () => {
+        chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
+            sentMessages.push(message);
+
+            if (message.type === 'GET_STATE') {
+                cb({ ok: true, result: currentState });
+                return;
+            }
+
+            if (message.type === 'GET_SLOT_CONTEXT') {
+                cb({
+                    ok: true,
+                    result: {
+                        token: 'prefetched-token',
+                        currentSlot: null,
+                        fetchedAt: '2026-03-17T08:00:00.000Z',
+                    },
+                });
+                return;
+            }
+
+            cb({ ok: true, result: currentState });
+        });
+
+        const { initGctUI } = await loadModule();
+
+        initGctUI();
+        await flushUi();
+
+        const documentInput = document.getElementById('gctDocumentInput') as HTMLInputElement;
+        const vehicleInput = document.getElementById('gctVehicleInput') as HTMLInputElement;
+        const containerInput = document.getElementById('gctContainerInput') as HTMLInputElement;
+        const collapsed = document.querySelector('.gp-collapsed') as HTMLDivElement;
+        const addButton = document.getElementById('gctAddButton') as HTMLButtonElement;
+
+        setInputValue(documentInput, 'doc123456');
+        setInputValue(vehicleInput, 'ndz45396');
+        setInputValue(containerInput, 'tclu3141931');
+
+        collapsed.click();
+        await flushUi();
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        expect(addButton.disabled).toBe(false);
+
+        addButton.click();
+        await flushUi();
+        await flushUi();
+
+        setInputValue(documentInput, 'doc654321');
+        setInputValue(vehicleInput, 'ndz12345');
+        setInputValue(containerInput, 'tclu7654321');
+
+        collapsed.click();
+        await flushUi();
+
+        (
+            Array.from(document.querySelectorAll('.gp-slot-btn')).find(
+                button => (button as HTMLButtonElement).dataset.slotValue === '22:30',
+            ) as HTMLButtonElement
+        ).click();
+        await flushUi();
+
+        expect(addButton.disabled).toBe(false);
+    });
+
     it('shows loader and hides slot buttons while Godzina precheck is in progress', async () => {
         chromeMock.runtime.sendMessage.mockImplementation((message: any, cb: (v: any) => void) => {
             sentMessages.push(message);
@@ -615,11 +687,26 @@ describe('popup/gct', () => {
         await flushUi();
 
         expect(feedback.textContent).toBe('Niepoprawne dane - Logowanie nieudane');
-        expect(addButton.disabled).toBe(false);
+        expect(addButton.disabled).toBe(true);
         expect(storageState.gctRecentEntries).toBeUndefined();
         expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(true);
 
-        jest.advanceTimersByTime(6000);
+        expect(documentInput.value).toBe('DOC123456');
+        expect(vehicleInput.value).toBe('NDZ45396');
+        expect(containerInput.value).toBe('TCLU3141931');
+
+        jest.advanceTimersByTime(9000);
+        await flushUi();
+
+        expect(addButton.disabled).toBe(true);
+        expect(feedback.textContent).toBe('Niepoprawne dane - Logowanie nieudane');
+        expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(true);
+        expect(documentInput.value).toBe('DOC123456');
+        expect(vehicleInput.value).toBe('NDZ45396');
+        expect(containerInput.value).toBe('TCLU3141931');
+
+        jest.advanceTimersByTime(1000);
+        jest.runOnlyPendingTimers();
         await flushUi();
 
         expect(feedback.textContent).toBe('');
@@ -681,7 +768,8 @@ describe('popup/gct', () => {
         expect(addButton.disabled).toBe(true);
         expect(queueContainer.classList.contains('gct-login-error-visible')).toBe(true);
 
-        jest.advanceTimersByTime(6000);
+        jest.advanceTimersByTime(10000);
+        jest.runOnlyPendingTimers();
         await flushUi();
 
         expect(feedback.textContent).toBe('');
