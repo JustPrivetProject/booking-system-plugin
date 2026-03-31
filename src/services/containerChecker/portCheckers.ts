@@ -1,5 +1,6 @@
 import type { PortCheckResult, SupportedPort } from '../../containerChecker/types';
 import { SUPPORTED_PORTS } from '../../containerChecker/types';
+import { consoleLog } from '../../utils/logging';
 
 function normalizeContainerId(containerId: string): string {
     return containerId.trim().toUpperCase();
@@ -142,6 +143,10 @@ function latestTimestamp(...values: string[]): Date | null {
         return null;
     }
     return new Date(Math.max(...dates.map(d => d.getTime())));
+}
+
+function summarizeFieldKeys(fields: Record<string, string>): string[] {
+    return Object.keys(fields || {}).sort((left, right) => left.localeCompare(right));
 }
 
 function parseBctModalFields(html: string): Record<string, string> {
@@ -369,6 +374,7 @@ export function toMilestone(statusText: string): string {
 
 export async function checkDct(containerId: string): Promise<PortCheckResult | null> {
     const normalized = normalizeContainerId(containerId);
+    consoleLog('[Container Checker][DCT] Starting check', normalized);
     await fetchWithRetry({
         url: 'https://baltichub.com/dla-klienta/sprawdz-kontener',
         options: { credentials: 'include' },
@@ -388,16 +394,33 @@ export async function checkDct(containerId: string): Promise<PortCheckResult | n
     });
 
     const html = await response.text();
-    if (!html || !html.toUpperCase().includes(normalized) || hasDctNoResults(html, normalized)) {
+    const includesContainer = html.toUpperCase().includes(normalized);
+    const noResults = hasDctNoResults(html, normalized);
+    if (!html || !includesContainer || noResults) {
+        consoleLog('[Container Checker][DCT] No match returned', {
+            containerNumber: normalized,
+            hasHtml: Boolean(html),
+            includesContainer,
+            noResults,
+        });
         return null;
     }
 
     const fields = parseDctFields(html);
+    consoleLog('[Container Checker][DCT] Parsed fields', {
+        containerNumber: normalized,
+        fieldKeys: summarizeFieldKeys(fields),
+    });
     const stops = getFieldValue(fields, ['Stops', '*Stops']);
     const tState = getFieldValue(fields, ['T-State']);
     const statusText = `Stops:${asDash(stops)}`;
     const stateText = asDash(tState);
     if (isNonInformativePortStatus(statusText, stateText)) {
+        consoleLog('[Container Checker][DCT] Ignoring non-informative status', {
+            containerNumber: normalized,
+            statusText,
+            stateText,
+        });
         return null;
     }
 
@@ -406,7 +429,7 @@ export async function checkDct(containerId: string): Promise<PortCheckResult | n
         getFieldValue(fields, ['Time In']),
     );
 
-    return {
+    const result: PortCheckResult = {
         port: 'DCT',
         containerNumber: normalized,
         statusText,
@@ -416,10 +439,14 @@ export async function checkDct(containerId: string): Promise<PortCheckResult | n
         observedAt: new Date().toISOString(),
         raw: fields,
     };
+
+    consoleLog('[Container Checker][DCT] Match accepted', result);
+    return result;
 }
 
 export async function checkBct(containerId: string): Promise<PortCheckResult | null> {
     const normalized = normalizeContainerId(containerId);
+    consoleLog('[Container Checker][BCT] Starting check', normalized);
     const page = await fetchWithRetry({
         url: 'https://ebrama.bct.ictsi.com/vbs-check-container',
         options: { credentials: 'include' },
@@ -456,15 +483,28 @@ export async function checkBct(containerId: string): Promise<PortCheckResult | n
 
     const html = await result.text();
     if (!html.toUpperCase().includes(normalized)) {
+        consoleLog('[Container Checker][BCT] No match returned', {
+            containerNumber: normalized,
+            includesContainer: false,
+        });
         return null;
     }
 
     const fields = parseBctModalFields(html);
+    consoleLog('[Container Checker][BCT] Parsed fields', {
+        containerNumber: normalized,
+        fieldKeys: summarizeFieldKeys(fields),
+    });
     const stops = getFieldValue(fields, ['Stops']);
     const tState = getFieldValue(fields, ['T-State']);
     const statusText = `Stops:${asDash(stops)}`;
     const stateText = asDash(tState);
     if (isNonInformativePortStatus(statusText, stateText)) {
+        consoleLog('[Container Checker][BCT] Ignoring non-informative status', {
+            containerNumber: normalized,
+            statusText,
+            stateText,
+        });
         return null;
     }
 
@@ -473,7 +513,7 @@ export async function checkBct(containerId: string): Promise<PortCheckResult | n
         getFieldValue(fields, ['Time In']),
     );
 
-    return {
+    const match: PortCheckResult = {
         port: 'BCT',
         containerNumber: normalized,
         statusText,
@@ -483,10 +523,14 @@ export async function checkBct(containerId: string): Promise<PortCheckResult | n
         observedAt: new Date().toISOString(),
         raw: fields,
     };
+
+    consoleLog('[Container Checker][BCT] Match accepted', match);
+    return match;
 }
 
 export async function checkGct(containerId: string): Promise<PortCheckResult | null> {
     const normalized = normalizeContainerId(containerId);
+    consoleLog('[Container Checker][GCT] Starting check', normalized);
     const url = 'https://terminal.gct.pl/?page=90039_PublicCntrStatus.Report90039Page&lang=pl';
     const page = await fetchWithRetry({
         url,
@@ -520,11 +564,18 @@ export async function checkGct(containerId: string): Promise<PortCheckResult | n
     const html = await result.text();
     const row = parseGctRow(html, normalized);
     if (!row) {
+        consoleLog('[Container Checker][GCT] No match returned', {
+            containerNumber: normalized,
+        });
         return null;
     }
 
     const status = row.status || '';
     if (isNonInformativeStatus(status)) {
+        consoleLog('[Container Checker][GCT] Ignoring non-informative status', {
+            containerNumber: normalized,
+            status,
+        });
         return null;
     }
 
@@ -539,7 +590,7 @@ export async function checkGct(containerId: string): Promise<PortCheckResult | n
     const stateText = asDash(statusPartial);
     const dataTimestamp = latestTimestamp(row.timeOut, row.timeIn);
 
-    return {
+    const match: PortCheckResult = {
         port: 'GCT',
         containerNumber: normalized,
         statusText,
@@ -549,6 +600,9 @@ export async function checkGct(containerId: string): Promise<PortCheckResult | n
         observedAt: new Date().toISOString(),
         raw: row as unknown as Record<string, string>,
     };
+
+    consoleLog('[Container Checker][GCT] Match accepted', match);
+    return match;
 }
 
 export interface CheckPortResult {
@@ -570,13 +624,28 @@ export async function checkPort(containerId: string, port: string): Promise<Chec
     };
 
     try {
+        consoleLog('[Container Checker] checkPort start', {
+            containerNumber: normalized,
+            port: selectedPort,
+        });
         const match = await checkers[selectedPort](normalized);
+        consoleLog('[Container Checker] checkPort result', {
+            containerNumber: normalized,
+            port: selectedPort,
+            matched: Boolean(match),
+            milestone: match?.milestone || null,
+        });
         return {
             match,
             errors: [],
         };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown port error';
+        consoleLog('[Container Checker] checkPort error', {
+            containerNumber: normalized,
+            port: selectedPort,
+            error: message,
+        });
         return {
             match: null,
             errors: [message],
