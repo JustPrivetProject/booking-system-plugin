@@ -273,9 +273,40 @@ function hasTechnicalErrorNoise(text: string): boolean {
     return hasTechnicalMarker && hasTransportOrMediaMarker;
 }
 
+function hasMeaningfulOperationalMarkers(text: string): boolean {
+    const normalized = (text || '').toLowerCase().trim();
+    if (!normalized) {
+        return false;
+    }
+
+    const markers = [
+        'custom',
+        'celn',
+        'hold',
+        'permission',
+        'terminal',
+        'yard',
+        'gate',
+        'time in',
+        'time out',
+        'import',
+        'export',
+        'discharg',
+        'wyład',
+        'wyjazd',
+        'podjęcia',
+    ];
+
+    return markers.some(marker => normalized.includes(marker));
+}
+
 function hasUnexpectedVerboseText(text: string): boolean {
     const normalized = (text || '').trim();
     if (!normalized || normalized === '-' || normalized === '--') {
+        return false;
+    }
+
+    if (hasMeaningfulOperationalMarkers(normalized)) {
         return false;
     }
 
