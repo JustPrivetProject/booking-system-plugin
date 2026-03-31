@@ -17,6 +17,7 @@ import {
     keepEbramaSessionAlive,
     getEbramaKeepAliveIntervalMs,
 } from '../services/ebramaSessionService';
+import { GCT_WATCHER_DEFAULTS } from '../gct/types';
 import { getGctState } from '../gct/storage';
 import { gctWatcherService } from '../services/gct/gctWatcherService';
 
@@ -141,12 +142,7 @@ export class BackgroundController {
         const { gctSettings } = await getStorage('gctSettings');
         if (gctSettings === undefined) {
             await setStorage({
-                gctSettings: {
-                    pollMinMs: 5000,
-                    pollMaxMs: 10000,
-                    jitterMinMs: 1000,
-                    jitterMaxMs: 2500,
-                },
+                gctSettings: { ...GCT_WATCHER_DEFAULTS },
             });
         }
     }

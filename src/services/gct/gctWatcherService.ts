@@ -26,7 +26,7 @@ import {
 } from './gctApi';
 
 const MAX_HISTORY_EVENTS = 25;
-const MIN_GCT_POLL_MS = 10000;
+const MIN_GCT_POLL_MS = 8000;
 const GCT_TOKEN_CACHE_TTL_MS = 2 * 60 * 1000;
 const GCT_NETWORK_BACKOFF_BASE_MS = 8000;
 const GCT_NETWORK_BACKOFF_MAX_MS = 5 * 60 * 1000;

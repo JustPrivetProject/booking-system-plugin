@@ -29,7 +29,7 @@ describe('gct/storage', () => {
     it('merges persisted settings with defaults', async () => {
         (getStorage as jest.Mock).mockResolvedValue({
             gctGroups: [{ id: 'g1' }],
-            gctSettings: { pollMinMs: 3000 },
+            gctSettings: { pollMinMs: 3000, jitterMaxMs: 3000 },
             gctLastTickAt: '2026-03-17T10:00:00.000Z',
         });
 
@@ -38,7 +38,13 @@ describe('gct/storage', () => {
         expect(state.groups).toEqual([{ id: 'g1' }]);
         expect(state.settings).toEqual({
             ...GCT_WATCHER_DEFAULTS,
-            pollMinMs: 3000,
+            jitterMaxMs: 3000,
+        });
+        expect(setStorage).toHaveBeenCalledWith({
+            [GCT_STORAGE_KEYS.SETTINGS]: {
+                ...GCT_WATCHER_DEFAULTS,
+                jitterMaxMs: 3000,
+            },
         });
         expect(state.lastTickAt).toBe('2026-03-17T10:00:00.000Z');
     });
@@ -58,6 +64,7 @@ describe('gct/storage', () => {
             gctSettings: {
                 pollMinMs: 4000,
                 pollMaxMs: 9000,
+                jitterMinMs: 500,
             },
         });
 
@@ -66,8 +73,7 @@ describe('gct/storage', () => {
         expect(setStorage).toHaveBeenCalledWith({
             [GCT_STORAGE_KEYS.SETTINGS]: {
                 ...GCT_WATCHER_DEFAULTS,
-                pollMinMs: 4000,
-                pollMaxMs: 9000,
+                jitterMinMs: 500,
                 jitterMaxMs: 7000,
             },
         });
