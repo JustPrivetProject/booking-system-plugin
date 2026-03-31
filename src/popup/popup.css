@@ -526,8 +526,8 @@ tr[data-is-open='false'] .status-icon {
 /* Auth Container */
 .auth-container {
     width: 100%;
-    max-width: var(--modal-width);
-    margin-top: 8px;
+    max-width: var(--app-width);
+    margin-top: var(--spacing-small);
     background: transparent;
     border-radius: 0;
     box-shadow: none;
@@ -540,14 +540,15 @@ tr[data-is-open='false'] .status-icon {
 /* Auth Form */
 .auth-form {
     width: 100%;
+    max-width: 490px;
     background: var(--color-white);
     border-radius: 12px;
     box-shadow: var(--shadow-light);
-    padding: var(--spacing-small) 16px 16px 16px;
+    padding: 8px 14px 12px 14px;
     margin-bottom: var(--spacing-small);
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-small);
+    gap: 8px;
     opacity: 1;
     transition: opacity 0.3s ease-in-out;
 }
@@ -558,17 +559,17 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .auth-form h2 {
-    margin: 0 0 var(--spacing-medium) 0;
+    margin: 0 0 8px 0;
     text-align: center;
     color: var(--color-primary);
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-large);
 }
 
 .auth-form input {
-    padding: var(--spacing-medium);
+    padding: 10px 12px;
     border: 1px solid var(--color-border-light);
     border-radius: 4px;
-    font-size: var(--font-size-large);
+    font-size: var(--font-size-medium);
     transition: border-color 0.2s ease-in-out;
 }
 
@@ -578,13 +579,14 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .auth-form button {
-    padding: var(--spacing-medium);
+    padding: 10px 12px;
     background-color: var(--color-primary);
     color: var(--color-white);
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    font-size: var(--font-size-large);
+    font-size: var(--font-size-medium);
+    font-weight: 600;
     transition: all 0.2s ease-in-out;
     box-shadow: var(--shadow-button);
 }
@@ -618,9 +620,9 @@ tr[data-is-open='false'] .status-icon {
     background-color: #ffebee;
     border: 1px solid #ffcdd2;
     border-radius: 4px;
-    padding: var(--spacing-medium);
-    margin-bottom: var(--spacing-medium);
-    font-size: var(--font-size-large);
+    padding: 10px;
+    margin-bottom: 8px;
+    font-size: var(--font-size-medium);
     text-align: center;
     box-shadow: var(--shadow-light);
 }
@@ -681,7 +683,7 @@ tr[data-is-open='false'] .status-icon {
 }
 
 .form-links {
-    margin-top: 10px;
+    margin-top: 6px;
     text-align: center;
 }
 
