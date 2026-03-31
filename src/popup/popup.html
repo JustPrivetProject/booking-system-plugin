@@ -111,6 +111,16 @@
             </div>
             <div class="tabs-row">
                 <button id="tabBooking" class="tab-label active" data-tab="booking">DCT</button>
+                <button
+                    id="tabGct"
+                    class="tab-label tab-label-disabled"
+                    data-tab="gct"
+                    title="Brak dostępu do modułu GCT"
+                    aria-disabled="true"
+                >
+                    GCT
+                    <span id="tabGctLockIcon" class="material-icons tab-lock-icon">lock</span>
+                </button>
                 <button id="tabContainerChecker" class="tab-label" data-tab="containerChecker">
                     Monitor kontenerów
                 </button>
@@ -122,6 +132,7 @@
                     </table>
                 </div>
             </div>
+            <div id="gctView" class="tab-content hidden"></div>
             <div id="containerCheckerView" class="tab-content hidden">
                 <div class="container-checker-controls">
                     <div class="container-checker-row">

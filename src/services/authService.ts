@@ -9,6 +9,14 @@ export interface AuthUser {
     deviceId: string;
 }
 
+function requireEmail(email: string | undefined | null): string {
+    if (!email) {
+        throw new Error('User email is missing');
+    }
+
+    return email;
+}
+
 export const authService = {
     async register(email: string, password: string): Promise<AuthUser | null> {
         const deviceId = await getOrCreateDeviceId();
@@ -23,7 +31,7 @@ export const authService = {
         // Не вставляем профиль! Просто возвращаем успех.
         return {
             id: authData.user.id,
-            email: authData.user.email!,
+            email: requireEmail(authData.user.email),
             deviceId,
         };
     },
@@ -60,7 +68,7 @@ export const authService = {
                 .insert([
                     {
                         id: data.user.id,
-                        email: data.user.email!,
+                        email: requireEmail(data.user.email),
                         device_id: deviceId,
                     },
                 ])
@@ -89,7 +97,7 @@ export const authService = {
 
         const user = {
             id: data.user.id,
-            email: data.user.email!,
+            email: requireEmail(data.user.email),
             deviceId: profile?.device_id || deviceId,
         };
 
@@ -130,7 +138,7 @@ export const authService = {
 
         const authUser = {
             id: user.id,
-            email: user.email!,
+            email: requireEmail(user.email),
             deviceId: profile.device_id,
         };
 

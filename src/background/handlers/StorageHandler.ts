@@ -3,13 +3,14 @@ import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { syncAuthenticationBadge } from '../../utils/badge';
 import { consoleLog } from '../../utils';
 import { onStorageChange } from '../../utils/storage';
+import { gctWatcherService } from '../../services/gct/gctWatcherService';
 
 export class StorageHandler {
     constructor(private queueManager: QueueManagerAdapter) {}
 
     setupStorageListener(): void {
         onStorageChange('unauthorized', async (newValue, oldValue) => {
-            await this.handleUnauthorizedChange(newValue, oldValue);
+            await this.handleUnauthorizedChange(Boolean(newValue), Boolean(oldValue));
         });
 
         onStorageChange('user_session', async newValue => {
@@ -27,6 +28,13 @@ export class StorageHandler {
 
     private async handleUserSessionChange(newValue: unknown): Promise<void> {
         await syncAuthenticationBadge(Boolean(newValue));
+
+        if (newValue) {
+            await gctWatcherService.handleExtensionAuthRestored();
+            return;
+        }
+
+        await gctWatcherService.stopAllForExtensionLogout();
     }
 
     private async restoreQueueAfterAuth(): Promise<void> {

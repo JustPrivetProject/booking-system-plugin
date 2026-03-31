@@ -1,3 +1,5 @@
+import { consoleLog } from '../../utils';
+
 // Page-level flag to track if modal was dismissed (not in storage)
 let modalDismissedOnThisPage = false;
 
@@ -9,17 +11,17 @@ let modalDismissedOnThisPage = false;
 export async function showExtensionWarningModal() {
     // Check if modal is already shown
     if (document.getElementById('extension-warning-modal')) {
-        console.log('[content] Extension warning modal already shown');
+        consoleLog('[content] Extension warning modal already shown');
         return;
     }
 
     // Check if warning was already dismissed on this page
     if (modalDismissedOnThisPage) {
-        console.log('[content] Extension warning modal was dismissed on this page');
+        consoleLog('[content] Extension warning modal was dismissed on this page');
         return;
     }
 
-    console.log('[content] Showing extension warning modal');
+    consoleLog('[content] Showing extension warning modal');
 
     const modal = document.createElement('div');
     modal.id = 'extension-warning-modal';
@@ -137,5 +139,5 @@ export async function showExtensionWarningModal() {
     };
     document.addEventListener('keydown', handleKeyDown);
 
-    console.log('[content] Extension warning modal displayed');
+    consoleLog('[content] Extension warning modal displayed');
 }

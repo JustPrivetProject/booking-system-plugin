@@ -13,6 +13,7 @@ import {
     consoleError,
     fetchRequest,
     normalizeFormData,
+    getFirstFormDataString,
     createFormData,
     parseDateTimeFromDMY,
     JSONstringify,
@@ -315,6 +316,7 @@ export async function executeRequest(
             consoleLog('🎉 Booking success! Preparing to send notifications...');
 
             const notificationData: Partial<BrevoEmailData> = {
+                notificationSource: 'DCT',
                 tvAppId,
                 bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
                 driverName: req.driverName,
@@ -358,9 +360,9 @@ export async function validateRequestBeforeSlotCheck(
     queue: RetryObject[],
 ): Promise<RetryObject | null> {
     const body = normalizeFormData(req.body).formData;
-    const tvAppId = body.TvAppId[0];
-    const time = body.SlotStart[0].split(' ');
-    const endTimeStr = parseDateTimeFromDMY(body.SlotEnd[0]); // 26.06.2025 00:59:00
+    const tvAppId = getFirstFormDataString(body?.TvAppId) || '';
+    const time = (getFirstFormDataString(body?.SlotStart) || '').split(' ');
+    const endTimeStr = parseDateTimeFromDMY(getFirstFormDataString(body?.SlotEnd) || '');
     const currentTimeSlot = new Date(req.currentSlot);
     const currentTime = new Date();
 

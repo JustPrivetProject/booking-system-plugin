@@ -1,6 +1,6 @@
 export function createConfirmationModal(message, withInput = false) {
     return new Promise(resolve => {
-        const initialBodyHeight = document.querySelector('body')!.style.height;
+        const initialBodyHeight = document.body.style.height;
         if (withInput) document.body.style.height = '200px';
         else document.body.style.height = '100px';
 

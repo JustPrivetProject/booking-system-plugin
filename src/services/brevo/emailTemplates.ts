@@ -5,6 +5,14 @@ import { formatTimeForEmail } from '../../utils/date-utils';
  * Email template utilities and generators
  */
 export class EmailTemplates {
+    private static getBookingSystemName(emailData: BrevoEmailData): 'GCT' | 'BalticHub' {
+        return emailData.notificationSource === 'GCT' ? 'GCT' : 'BalticHub';
+    }
+
+    private static getBookingSuccessVerb(emailData: BrevoEmailData): 'zamieniona' | 'zmieniona' {
+        return emailData.notificationSource === 'GCT' ? 'zamieniona' : 'zmieniona';
+    }
+
     /**
      * Format time string for display in emails
      * @deprecated Use formatTimeForEmail from utils/date-utils instead
@@ -18,6 +26,8 @@ export class EmailTemplates {
      */
     static generateHTML(emailData: BrevoEmailData): string {
         const currentYear = new Date().getFullYear();
+        const bookingSystemName = EmailTemplates.getBookingSystemName(emailData);
+        const bookingSuccessVerb = EmailTemplates.getBookingSuccessVerb(emailData);
 
         return `<!DOCTYPE html>
 <html lang="pl">
@@ -42,7 +52,7 @@ export class EmailTemplates {
     <tr>
       <td style="padding:20px; color:#333333; font-size:16px;">
         <p style="margin:0 0 20px 0; font-size:16px; color:#333;">
-          Twoja rezerwacja w BalticHub została pomyślnie zmieniona
+          Twoja rezerwacja w ${bookingSystemName} została pomyślnie ${bookingSuccessVerb}
         </p>
         
         <!-- Szczegóły rezerwacji в стиле скриншота -->
@@ -92,11 +102,13 @@ export class EmailTemplates {
      */
     static generateText(emailData: BrevoEmailData): string {
         const currentYear = new Date().getFullYear();
+        const bookingSystemName = EmailTemplates.getBookingSystemName(emailData);
+        const bookingSuccessVerb = EmailTemplates.getBookingSuccessVerb(emailData);
 
         return `Port-Sloty
 Potwierdzenie rezerwacji
 
-Twoja rezerwacja w BalticHub została pomyślnie zmieniona
+Twoja rezerwacja w ${bookingSystemName} została pomyślnie ${bookingSuccessVerb}
 
 SZCZEGÓŁY REZERWACJI:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -127,6 +139,8 @@ To jest automatyczna wiadomość. Prosimy nie odpowiadać na ten e-mail.`.trim()
      * Generate email subject line
      */
     static generateSubject(emailData: BrevoEmailData): string {
+        const sourcePrefix = emailData.notificationSource === 'GCT' ? '[GCT]' : '[DCT]';
+
         // Create more informative subject line
         let subject = `${emailData.containerNumber || emailData.tvAppId}`;
         if (emailData.driverName) {
@@ -135,6 +149,6 @@ To jest automatyczna wiadomość. Prosimy nie odpowiadać na ten e-mail.`.trim()
         if (emailData.bookingTime) {
             subject += ` / ${emailData.bookingTime}`;
         }
-        return subject;
+        return `${sourcePrefix} ${subject}`;
     }
 }

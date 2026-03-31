@@ -1,6 +1,11 @@
 import { jest } from '@jest/globals';
 import { Actions } from '../../../src/data';
 
+jest.mock('../../../src/utils', () => ({
+    consoleLog: jest.fn(),
+    consoleError: jest.fn(),
+}));
+
 // Mock autoLoginHelper before importing contentUtils
 jest.mock('../../../src/content/utils/autoLoginHelper', () => ({
     autoLoginHelper: {
@@ -14,16 +19,10 @@ jest.mock('../../../src/content/modals/extensionWarningModal', () => ({
     showExtensionWarningModal: jest.fn().mockImplementation(() => Promise.resolve()),
 }));
 
-// Mock console to avoid noise in tests
-const originalConsole = { ...console };
-(global as any).console = {
-    ...originalConsole,
-    log: jest.fn(),
-};
-
 describe('contentUtils', () => {
     let contentUtils: any;
     let chrome: any;
+    const mockUtils = require('../../../src/utils');
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -63,7 +62,9 @@ describe('contentUtils', () => {
 
             contentUtils.sendActionToBackground('TEST_ACTION', { data: 'test' });
 
-            expect(console.log).toHaveBeenCalledWith('Chrome runtime API is not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Chrome runtime API is not available',
+            );
         });
 
         it('should return early when chrome.runtime is undefined', () => {
@@ -71,7 +72,9 @@ describe('contentUtils', () => {
 
             contentUtils.sendActionToBackground('TEST_ACTION', { data: 'test' });
 
-            expect(console.log).toHaveBeenCalledWith('Chrome runtime API is not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Chrome runtime API is not available',
+            );
         });
 
         it('should return early when chrome.runtime.sendMessage is undefined', () => {
@@ -79,7 +82,9 @@ describe('contentUtils', () => {
 
             contentUtils.sendActionToBackground('TEST_ACTION', { data: 'test' });
 
-            expect(console.log).toHaveBeenCalledWith('Chrome runtime API is not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Chrome runtime API is not available',
+            );
         });
 
         it('should send message when chrome runtime is available', () => {
@@ -117,9 +122,12 @@ describe('contentUtils', () => {
             const sendMessageCallback = chrome.runtime.sendMessage.mock.calls[0][1];
             sendMessageCallback('response data');
 
-            expect(console.log).toHaveBeenCalledWith('Error sending TEST_ACTION message:', {
-                message: 'Test error',
-            });
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
+                'Error sending TEST_ACTION message:',
+                {
+                    message: 'Test error',
+                },
+            );
             expect(mockCallback).toHaveBeenCalledWith('response data');
         });
     });
@@ -356,7 +364,9 @@ describe('contentUtils', () => {
             }
 
             expect(mockActionFunction).not.toHaveBeenCalled();
-            expect(console.log).toHaveBeenCalledWith('Chrome runtime API is not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Chrome runtime API is not available',
+            );
 
             querySelectorSpy.mockRestore();
         });
@@ -381,7 +391,9 @@ describe('contentUtils', () => {
             }
 
             expect(mockActionFunction).not.toHaveBeenCalled();
-            expect(console.log).toHaveBeenCalledWith('Chrome runtime API is not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Chrome runtime API is not available',
+            );
 
             querySelectorSpy.mockRestore();
         });
@@ -434,7 +446,10 @@ describe('contentUtils', () => {
             }
 
             expect(mockActionFunction).toHaveBeenCalled();
-            expect(console.log).toHaveBeenCalledWith('Error processing ACTION:', expect.any(Error));
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
+                'Error processing ACTION:',
+                expect.any(Error),
+            );
 
             querySelectorSpy.mockRestore();
         });
@@ -528,7 +543,7 @@ describe('contentUtils', () => {
             const result = await contentUtils.isUserAuthenticated();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Error in isUserAuthenticated:',
                 expect.any(Error),
             );
@@ -540,7 +555,9 @@ describe('contentUtils', () => {
             const result = await contentUtils.isUserAuthenticated();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] Chrome runtime not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Chrome runtime not available',
+            );
         });
 
         it('should return false on timeout', async () => {
@@ -556,7 +573,9 @@ describe('contentUtils', () => {
             const result = await resultPromise;
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] isUserAuthenticated timeout');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] isUserAuthenticated timeout',
+            );
         });
 
         it('should return false when runtime error occurs', async () => {
@@ -568,7 +587,7 @@ describe('contentUtils', () => {
             const result = await contentUtils.isUserAuthenticated();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] Runtime error:', {
+            expect(mockUtils.consoleError).toHaveBeenCalledWith('[content] Runtime error:', {
                 message: 'Test error',
             });
         });
@@ -581,7 +600,9 @@ describe('contentUtils', () => {
             const result = await contentUtils.isUserAuthenticated();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] No response from background');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] No response from background',
+            );
         });
 
         it('should return true when user is authenticated', async () => {
@@ -606,7 +627,7 @@ describe('contentUtils', () => {
             const result = await contentUtils.isAppUnauthorized();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Error in isAppUnauthorized:',
                 expect.any(Error),
             );
@@ -618,7 +639,9 @@ describe('contentUtils', () => {
             const result = await contentUtils.isAppUnauthorized();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] Chrome runtime not available');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Chrome runtime not available',
+            );
         });
 
         it('should return false on timeout', async () => {
@@ -634,7 +657,9 @@ describe('contentUtils', () => {
             const result = await resultPromise;
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] isAppUnauthorized timeout');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] isAppUnauthorized timeout',
+            );
         });
 
         it('should return false when runtime error occurs', async () => {
@@ -646,7 +671,7 @@ describe('contentUtils', () => {
             const result = await contentUtils.isAppUnauthorized();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] Runtime error:', {
+            expect(mockUtils.consoleError).toHaveBeenCalledWith('[content] Runtime error:', {
                 message: 'Test error',
             });
         });
@@ -659,7 +684,9 @@ describe('contentUtils', () => {
             const result = await contentUtils.isAppUnauthorized();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('[content] No response from background');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] No response from background',
+            );
         });
 
         it('should return true when app is unauthorized', async () => {
@@ -766,7 +793,7 @@ describe('contentUtils', () => {
 
             await contentUtils.tryClickLoginButton();
 
-            expect(console.log).toHaveBeenCalledWith('[content] Login button not found');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith('[content] Login button not found');
 
             querySelectorSpy.mockRestore();
         });

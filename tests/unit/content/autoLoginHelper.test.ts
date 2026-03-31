@@ -1,16 +1,15 @@
 import { jest } from '@jest/globals';
 import { Actions } from '../../../src/data';
 
-// Mock console to avoid noise in tests
-const originalConsole = { ...console };
-(global as any).console = {
-    ...originalConsole,
-    log: jest.fn(),
-};
+jest.mock('../../../src/utils', () => ({
+    consoleLog: jest.fn(),
+    consoleError: jest.fn(),
+}));
 
 describe('autoLoginHelper', () => {
     let autoLoginHelper: any;
     let chrome: any;
+    const mockUtils = require('../../../src/utils');
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -51,7 +50,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Error loading auto-login credentials:',
                 expect.any(Error),
             );
@@ -63,7 +62,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] Chrome runtime not available for auto-login',
             );
         });
@@ -76,7 +75,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] Chrome runtime not available for auto-login',
             );
         });
@@ -95,7 +94,9 @@ describe('autoLoginHelper', () => {
             const result = await promise;
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith('[content] Auto-login credentials timeout');
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Auto-login credentials timeout',
+            );
             expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
                 { action: Actions.LOAD_AUTO_LOGIN_CREDENTIALS },
                 expect.any(Function),
@@ -111,7 +112,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Runtime error in auto-login:',
                 chrome.runtime.lastError,
             );
@@ -129,7 +130,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] No response from background for auto-login',
             );
         });
@@ -142,7 +143,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
                 '[content] No response from background for auto-login',
             );
         });
@@ -193,7 +194,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.loadCredentials();
 
             expect(result).toBe(null);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Error loading auto-login credentials:',
                 expect.any(Error),
             );
@@ -251,7 +252,7 @@ describe('autoLoginHelper', () => {
             const result = await autoLoginHelper.isEnabled();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockUtils.consoleError).toHaveBeenCalledWith(
                 '[content] Error loading auto-login credentials:',
                 expect.any(Error),
             );

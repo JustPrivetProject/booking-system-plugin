@@ -1,34 +1,60 @@
 import { consoleError } from './logging';
 
-export function normalizeFormData(formData: any): Record<string, any> {
-    const result = {};
+type FormDataAppendable = string | Blob;
+type RequestBody = NonNullable<chrome.webRequest.OnBeforeRequestDetails['requestBody']>;
 
-    for (const key in formData) {
+function isFormDataAppendable(value: unknown): value is FormDataAppendable {
+    return typeof value === 'string' || value instanceof Blob;
+}
+
+export function getFirstFormDataString(values?: chrome.webRequest.FormDataItem[]): string | null {
+    const value = values?.[0];
+    return typeof value === 'string' ? value : null;
+}
+
+export function normalizeFormData(formData: RequestBody): RequestBody;
+export function normalizeFormData<T extends Record<string, unknown>>(formData: T): T;
+export function normalizeFormData(formData: undefined): undefined;
+export function normalizeFormData<T extends RequestBody | Record<string, unknown> | undefined>(
+    formData: T,
+): T {
+    if (!formData) {
+        return formData;
+    }
+
+    const input = formData as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+
+    for (const key in input) {
+        const value = input[key];
+
         // If it's an array with only one item, use that item directly
-        if (Array.isArray(formData[key]) && formData[key].length === 1) {
-            result[key] = formData[key][0];
+        if (Array.isArray(value) && value.length === 1) {
+            result[key] = value[0];
         } else {
-            result[key] = formData[key];
+            result[key] = value;
         }
     }
 
-    return result;
+    return result as T;
 }
 
-export function createFormData(formDataObj: any): FormData {
+export function createFormData<T extends Record<string, unknown>>(formDataObj: T): FormData {
     const formData = new FormData();
 
     Object.entries(formDataObj).forEach(([key, value]) => {
         if (Array.isArray(value)) {
             value.forEach(item => {
-                formData.append(key, item);
+                if (isFormDataAppendable(item)) {
+                    formData.append(key, item);
+                } else {
+                    consoleError(`Unsupported array item type for key "${key}":`, item);
+                }
             });
+        } else if (isFormDataAppendable(value)) {
+            formData.append(key, value);
         } else {
-            if (typeof value === 'string' || value instanceof Blob) {
-                formData.append(key, value);
-            } else {
-                consoleError(`Unsupported value type for key "${key}":`, value);
-            }
+            consoleError(`Unsupported value type for key "${key}":`, value);
         }
     });
 
@@ -57,6 +83,6 @@ export function generateUniqueId(): string {
     return crypto.randomUUID();
 }
 
-export function JSONstringify(object: any): string {
+export function JSONstringify(object: unknown): string {
     return JSON.stringify(object, null, 2);
 }

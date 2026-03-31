@@ -1,4 +1,5 @@
 import { Actions } from '../data';
+import { consoleError, consoleLog } from '../utils';
 
 import { showCountdownModal } from './modals/countdownModal';
 import { showSessionExpireModal } from './modals/sesssionExpireModal';
@@ -14,17 +15,17 @@ import {
     checkConnectionAndShowWarning,
 } from './utils/contentUtils';
 
-console.log('[content] Content script is loaded');
+consoleLog('[content] Content script is loaded');
 
 // Check extension connection on page load
 checkConnectionAndShowWarning()
     .then(isConnected => {
         if (!isConnected) {
-            console.log('[content] Extension connection issues detected');
+            consoleLog('[content] Extension connection issues detected');
         }
     })
     .catch(error => {
-        console.log('[content] Error checking extension connection:', error);
+        consoleError('[content] Error checking extension connection:', error);
     });
 
 setInterval(async () => {
@@ -32,7 +33,7 @@ setInterval(async () => {
         // First check extension connection
         const isConnected = await checkConnectionAndShowWarning();
         if (!isConnected) {
-            console.log('[content] Extension connection lost during interval check');
+            consoleLog('[content] Extension connection lost during interval check');
             return; // Skip other checks if extension is not connected
         }
 
@@ -42,11 +43,11 @@ setInterval(async () => {
         const isUnauthorized = await isAppUnauthorized();
 
         if (isUnauthorized) {
-            console.log('[content] Unauthorized — showing session expire modal');
+            consoleLog('[content] Unauthorized — showing session expire modal');
             showSessionExpireModal();
         }
     } catch (error) {
-        console.log('[content] Error in authorization check:', error);
+        consoleError('[content] Error in authorization check:', error);
         // If there's an error, it might be due to extension disconnection
         // Try to show warning modal
         await checkConnectionAndShowWarning();
@@ -99,13 +100,13 @@ window.addEventListener('load', async () => {
     if (!isAutoLoginEnabled) return;
 
     if (location.pathname === '/') {
-        console.log('[content] Home page detected, showing countdown modal...');
+        consoleLog('[content] Home page detected, showing countdown modal...');
         showCountdownModal();
         return;
     }
 
     if (location.pathname === '/login') {
-        console.log('[content] Login page detected, trying auto-login...');
+        consoleLog('[content] Login page detected, trying auto-login...');
         setTimeout(() => {
             tryClickLoginButton();
         }, 1000);

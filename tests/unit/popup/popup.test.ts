@@ -51,6 +51,14 @@ describe('Popup', () => {
                 <button id="backToAppButton">Back to App</button>
                 <button id="autoLoginToggle">Auto Login</button>
                 <button id="notificationSettingsToggle">Notifications</button>
+                <div class="tabs-row">
+                    <button id="tabBooking">DCT</button>
+                    <button id="tabContainerChecker">Monitor kontenerów</button>
+                    <button id="tabGct">GCT</button>
+                </div>
+                <div id="bookingView"></div>
+                <div id="containerCheckerView"></div>
+                <div id="gctView"></div>
             </div>
             <div id="loginError" style="display: none;"></div>
             <div id="registerError" style="display: none;"></div>
@@ -77,12 +85,16 @@ describe('Popup', () => {
             const loginForm = document.getElementById('loginForm');
             const registerForm = document.getElementById('registerForm');
             const unbindForm = document.getElementById('unbindForm');
+            const tabGct = document.getElementById('tabGct');
+            const gctView = document.getElementById('gctView');
 
             expect(authContainer).toBeTruthy();
             expect(mainContent).toBeTruthy();
             expect(loginForm).toBeTruthy();
             expect(registerForm).toBeTruthy();
             expect(unbindForm).toBeTruthy();
+            expect(tabGct).toBeTruthy();
+            expect(gctView).toBeTruthy();
         });
 
         it('should have all required input fields', () => {

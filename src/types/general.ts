@@ -55,6 +55,7 @@ export interface NotificationSettings {
 
 export interface BrevoEmailData {
     emails: string[]; // Список email адресов для отправки
+    notificationSource?: 'GCT' | 'DCT';
     userName: string;
     tvAppId: string;
     bookingTime: string;
@@ -72,6 +73,9 @@ export interface LocalStorageData {
     deviceId: string;
     tableData: TableData;
     retryQueue: import('./baltichub').RetryObjectArray;
+    gctGroups?: import('../gct/types').GctWatchGroup[];
+    gctSettings?: import('../gct/types').GctWatcherSettings;
+    gctLastTickAt?: string | null;
     groupStates: import('./baltichub').GroupsStates;
     headerHidden: boolean;
     retryEnabled: boolean;

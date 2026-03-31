@@ -124,6 +124,34 @@ describe('Port Checkers', () => {
             expect(result.errors).toEqual([]);
         });
 
+        it('should keep DCT customs stop statuses instead of treating them as verbose noise', async () => {
+            const mockFetch = (global as any).fetch as jest.Mock;
+            mockFetch
+                .mockResolvedValueOnce({ text: () => Promise.resolve('') })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: () =>
+                        Promise.resolve(`
+                            <html><body>
+                            <tr><th>Unit Nbr:</th><td>FCIU6032936</td></tr>
+                            <tr><th>*Stops:</th><td>!CUSTOMS IMPORT PERMISSION,CUSTOMS IMPORT HOLD</td></tr>
+                            <tr><th>Time In:</th><td>2026-03-26 19:37</td></tr>
+                            </body></html>
+                            FCIU6032936
+                        `),
+                });
+
+            const result = await checkPort('FCIU6032936', 'DCT');
+
+            expect(result.errors).toEqual([]);
+            expect(result.match).not.toBeNull();
+            expect(result.match?.containerNumber).toBe('FCIU6032936');
+            expect(result.match?.statusText).toBe(
+                'Stops:!CUSTOMS IMPORT PERMISSION,CUSTOMS IMPORT HOLD',
+            );
+            expect(result.match?.milestone).toBe('CUSTOMS');
+        });
+
         it('should return errors on fetch failure', async () => {
             const mockFetch = (global as any).fetch as jest.Mock;
             mockFetch.mockRejectedValue(new Error('Network error'));

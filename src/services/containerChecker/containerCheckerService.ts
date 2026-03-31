@@ -82,6 +82,10 @@ export async function updateContainerCheckerAlarm(minutes: number): Promise<void
 
 async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
     const trackedPort = normalizePort(item.port) || ('DCT' as SupportedPort);
+    consoleLog('[Container Checker] Evaluating container', {
+        containerNumber: item.containerNumber,
+        port: trackedPort,
+    });
     const result = await checkPort(item.containerNumber, trackedPort);
     const best = result.match;
     const previous = item.snapshot || null;
@@ -95,6 +99,11 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
 
     if (!best) {
         if (result.errors?.length) {
+            consoleLog('[Container Checker] Check failed with errors', {
+                containerNumber: item.containerNumber,
+                port: trackedPort,
+                errors: result.errors,
+            });
             return {
                 ...item,
                 port: trackedPort,
@@ -105,6 +114,10 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
         }
 
         if (previous) {
+            consoleLog('[Container Checker] No fresh match, keeping previous snapshot', {
+                containerNumber: item.containerNumber,
+                port: trackedPort,
+            });
             return {
                 ...clearedErrorBase,
                 status: item.status || previous.statusText || '-',
@@ -125,6 +138,11 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
         const stateChanged = previousState !== '' && previousState !== '-';
         const hasNewChange = statusChanged || stateChanged;
 
+        consoleLog('[Container Checker] No match and no previous snapshot', {
+            containerNumber: item.containerNumber,
+            port: trackedPort,
+        });
+
         return {
             ...clearedErrorBase,
             status: '-',
@@ -138,6 +156,14 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
     }
 
     if (hasErrors && previous) {
+        consoleLog(
+            '[Container Checker] Match found but errors present, preserving previous snapshot',
+            {
+                containerNumber: item.containerNumber,
+                port: trackedPort,
+                errors: result.errors,
+            },
+        );
         return {
             ...item,
             errors: result.errors,
@@ -159,6 +185,14 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
     const persistedStateChanged = item.stateChanged || stateChanged;
     const currentSignature = statusSignature(best);
     const shouldNotify = changed && item.lastNotifiedSignature !== currentSignature;
+
+    consoleLog('[Container Checker] Match processed', {
+        containerNumber: item.containerNumber,
+        port: trackedPort,
+        milestone: best.milestone,
+        changed,
+        shouldNotify,
+    });
 
     const updated: WatchlistItem = {
         ...clearedErrorBase,
@@ -202,6 +236,9 @@ export async function runContainerCheckCycle(): Promise<void> {
     }
 
     const state = await getNormalizedContainerCheckerState();
+    consoleLog('[Container Checker] Starting cycle', {
+        watchlistSize: state.watchlist.length,
+    });
     const updated: WatchlistItem[] = [];
 
     for (const item of state.watchlist) {
@@ -220,6 +257,9 @@ export async function runContainerCheckCycle(): Promise<void> {
 
     await saveContainerCheckerWatchlist(updated);
     await touchContainerCheckerLastRunAt(nowIso());
+    consoleLog('[Container Checker] Cycle completed', {
+        processed: updated.length,
+    });
 }
 
 export async function acknowledgeContainerCheckerUiChanges() {

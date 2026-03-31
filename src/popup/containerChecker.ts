@@ -2,7 +2,7 @@
  * Container Checker popup UI logic
  */
 import type { ContainerCheckerState } from '../containerChecker/types';
-import { consoleError } from '../utils/index';
+import { consoleError, consoleLog } from '../utils/index';
 
 function byId(id: string): HTMLElement | null {
     return document.getElementById(id);
@@ -178,6 +178,10 @@ function renderWatchlist(state: ContainerCheckerState): void {
 async function refreshState(): Promise<void> {
     try {
         const state = await sendContainerCheckerMessage('GET_STATE');
+        consoleLog('[Container Checker][popup] Refreshed state', {
+            watchlistSize: state.watchlist.length,
+            lastRunAt: state.lastRunAt,
+        });
         renderWatchlist(state);
     } catch (error) {
         consoleError('Container checker refresh:', error);
@@ -202,6 +206,11 @@ async function handleAdd(): Promise<void> {
     if (!uniqueContainers.length) return;
 
     try {
+        consoleLog('[Container Checker][popup] Adding containers', {
+            port,
+            count: uniqueContainers.length,
+            containers: uniqueContainers,
+        });
         for (const containerNumber of uniqueContainers) {
             await sendContainerCheckerMessage('ADD_CONTAINER', { containerNumber, port });
         }
@@ -245,6 +254,7 @@ async function handleCheckNow(): Promise<void> {
     const checkNowBtn = byId('checkNowBtn') as HTMLButtonElement;
     if (checkNowBtn) checkNowBtn.disabled = true;
     try {
+        consoleLog('[Container Checker][popup] Manual check requested');
         await sendContainerCheckerMessage('CHECK_NOW');
         await refreshState();
     } catch (error) {
@@ -258,6 +268,9 @@ async function handleSaveSettings(): Promise<void> {
     const pollingMinutes = byId('pollingMinutes') as HTMLInputElement;
     const value = pollingMinutes?.value || '10';
     try {
+        consoleLog('[Container Checker][popup] Saving settings', {
+            pollingMinutes: Number(value),
+        });
         await sendContainerCheckerMessage('SAVE_SETTINGS', {
             settings: { pollingMinutes: Number(value) },
         });
