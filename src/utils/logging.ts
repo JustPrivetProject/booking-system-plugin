@@ -1,17 +1,38 @@
+/* eslint-disable no-console */
 import { LOGS_LENGTH } from '../data';
 import { errorLogService } from '../services/errorLogService';
 
-export function consoleLog(...args: any[]) {
+type LogType = 'log' | 'error';
+
+export interface SessionLogEntry {
+    type: LogType;
+    message: string;
+    timestamp: string;
+}
+
+function canUseSessionStorage(): boolean {
+    return Boolean(globalThis.chrome?.storage?.session);
+}
+
+function formatLogMessage(args: unknown[]): string {
+    return args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' ');
+}
+
+function getTimestampPrefix(): [string, string, string] {
+    const date = new Date().toLocaleString('pl-PL', {
+        timeZone: 'Europe/Warsaw',
+    });
+
+    return [
+        `%c[${date}] %c[JustPrivetProject]:`,
+        'color: #00bfff; font-weight: bold;',
+        'color: #ff8c00; font-weight: bold;',
+    ];
+}
+
+export function consoleLog(...args: unknown[]) {
     if (process.env.NODE_ENV === 'development') {
-        const date = new Date().toLocaleString('pl-PL', {
-            timeZone: 'Europe/Warsaw',
-        });
-        console.log(
-            `%c[${date}] %c[JustPrivetProject]:`,
-            'color: #00bfff; font-weight: bold;',
-            'color: #ff8c00; font-weight: bold;',
-            ...args,
-        );
+        console.log(...getTimestampPrefix(), ...args);
     }
     // Save log to chrome.storage.session
     saveLogToSession('log', args).catch(e => {
@@ -19,21 +40,13 @@ export function consoleLog(...args: any[]) {
     });
 }
 
-export function consoleLogWithoutSave(...args: any[]) {
+export function consoleLogWithoutSave(...args: unknown[]) {
     if (process.env.NODE_ENV === 'development') {
-        const date = new Date().toLocaleString('pl-PL', {
-            timeZone: 'Europe/Warsaw',
-        });
-        console.log(
-            `%c[${date}] %c[JustPrivetProject]:`,
-            'color: #00bfff; font-weight: bold;',
-            'color: #ff8c00; font-weight: bold;',
-            ...args,
-        );
+        console.log(...getTimestampPrefix(), ...args);
     }
 }
 
-export function consoleError(...args: any[]) {
+export function consoleError(...args: unknown[]) {
     const date = new Date().toLocaleString('pl-PL', {
         timeZone: 'Europe/Warsaw',
     });
@@ -58,35 +71,68 @@ export function consoleError(...args: any[]) {
 }
 
 // Async helpers for chrome.storage.session
-export async function saveLogToSession(type: 'log' | 'error', args: any[]) {
-    return new Promise<void>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
-            // Add new log entry
-            bramaLogs.push({
-                type,
-                message: args.map(String).join(' '),
-                timestamp: new Date().toISOString(),
-            });
-            // Keep only the last LOGS_LENGTH entries
-            if (bramaLogs.length > LOGS_LENGTH) {
-                bramaLogs = bramaLogs.slice(-LOGS_LENGTH);
-            }
+export async function saveLogToSession(type: LogType, args: unknown[]) {
+    if (!canUseSessionStorage()) {
+        return;
+    }
 
-            chrome.storage.session.set({ bramaLogs }, () => resolve());
-        });
+    return new Promise<void>(resolve => {
+        try {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+                if (chrome.runtime.lastError || !canUseSessionStorage()) {
+                    resolve();
+                    return;
+                }
+
+                const nextLogs = [...bramaLogs];
+                nextLogs.push({
+                    type,
+                    message: formatLogMessage(args),
+                    timestamp: new Date().toISOString(),
+                });
+
+                const trimmedLogs =
+                    nextLogs.length > LOGS_LENGTH ? nextLogs.slice(-LOGS_LENGTH) : nextLogs;
+
+                chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => resolve());
+            });
+        } catch {
+            resolve();
+        }
     });
 }
 
 export async function getLogsFromSession() {
-    return new Promise<any[]>(resolve => {
-        chrome.storage.session.get({ bramaLogs: [] }, ({ bramaLogs }) => {
-            resolve(bramaLogs);
-        });
+    if (!canUseSessionStorage()) {
+        return [];
+    }
+
+    return new Promise<SessionLogEntry[]>(resolve => {
+        try {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+                if (chrome.runtime.lastError || !canUseSessionStorage()) {
+                    resolve([]);
+                    return;
+                }
+
+                resolve(bramaLogs);
+            });
+        } catch {
+            resolve([]);
+        }
     });
 }
 
 export async function clearLogsInSession() {
+    if (!canUseSessionStorage()) {
+        return;
+    }
+
     return new Promise<void>(resolve => {
-        chrome.storage.session.set({ bramaLogs: [] }, () => resolve());
+        try {
+            chrome.storage.session.set({ bramaLogs: [] }, () => resolve());
+        } catch {
+            resolve();
+        }
     });
 }

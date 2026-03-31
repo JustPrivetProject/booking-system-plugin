@@ -1,6 +1,6 @@
 export function showInfoModal(message: string): Promise<void> {
     return new Promise(resolve => {
-        const initialBodyHeight = document.querySelector('body')!.style.height;
+        const initialBodyHeight = document.body.style.height;
         document.body.style.height = '100px';
         const overlay = document.createElement('div');
         overlay.style.position = 'fixed';

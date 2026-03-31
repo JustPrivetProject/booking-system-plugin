@@ -9,6 +9,7 @@ import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { getEbramaKeepAliveIntervalMs } from '../../../src/services/ebramaSessionService';
 import { sessionService } from '../../../src/services/sessionService';
+import { GCT_WATCHER_DEFAULTS } from '../../../src/gct/types';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -268,6 +269,9 @@ describe('BackgroundController', () => {
             expect(setStorage).toHaveBeenCalledWith({ groupStates: {} });
             expect(setStorage).toHaveBeenCalledWith({ requestCacheBody: {} });
             expect(setStorage).toHaveBeenCalledWith({ requestCacheHeaders: {} });
+            expect(setStorage).toHaveBeenCalledWith({
+                gctSettings: { ...GCT_WATCHER_DEFAULTS },
+            });
         });
 
         it('should initialize notification settings with defaults', async () => {

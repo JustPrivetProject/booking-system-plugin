@@ -1,17 +1,23 @@
 import { consoleLog, consoleError } from './logging';
 import type { LocalStorageData } from '../types/general';
 
+type StorageKey<T extends string | string[]> = T extends string ? T : T[number];
+type KnownStorageValue<K extends string> = K extends keyof LocalStorageData
+    ? LocalStorageData[K]
+    : unknown;
+type StorageResult<T extends string | string[]> = {
+    [K in StorageKey<T>]: KnownStorageValue<K>;
+};
+
 /**
  * Получает значение из chrome.storage.local
  * @param {string|string[]} keys — ключ или массив ключей
  * @returns {Promise<object>}
  */
-export function getStorage<T extends string | string[]>(
-    keys: T,
-): Promise<{ [K in T extends string ? T : T[number]]: any }> {
+export function getStorage<T extends string | string[]>(keys: T): Promise<StorageResult<T>> {
     return new Promise(resolve => {
         chrome.storage.local.get(keys, result => {
-            return resolve(result as { [K in T extends string ? T : T[number]]: any });
+            return resolve(result as StorageResult<T>);
         });
     });
 }
@@ -36,7 +42,7 @@ export function setStorage(data: object): Promise<void> {
  */
 export function onStorageChange(
     key: string,
-    callback: (newValue: any, oldValue: any) => void,
+    callback: (newValue: unknown, oldValue: unknown) => void,
 ): void {
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'local' && changes[key]) {
@@ -123,7 +129,7 @@ export async function getLocalStorageData(): Promise<LocalStorageData> {
 export async function getStorageValue<T>(key: string): Promise<T | null> {
     try {
         const result = await getStorage(key);
-        return result[key] || null;
+        return (result[key] as T | undefined) || null;
     } catch (error) {
         consoleError(`Error getting storage value for key "${key}":`, error);
         return null;
@@ -133,10 +139,10 @@ export async function getStorageValue<T>(key: string): Promise<T | null> {
 /**
  * Устанавливает значение по ключу в chrome.storage.local
  * @param {string} key — ключ
- * @param {any} value — значение
+ * @param {unknown} value — значение
  * @returns {Promise<boolean>} Успешность операции
  */
-export async function setStorageValue(key: string, value: any): Promise<boolean> {
+export async function setStorageValue(key: string, value: unknown): Promise<boolean> {
     try {
         await setStorage({ [key]: value });
         return true;

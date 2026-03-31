@@ -45,8 +45,12 @@ export class RequestHandler {
         details: chrome.webRequest.OnBeforeRequestDetails,
     ): Promise<void> {
         try {
+            if (!details.requestBody) {
+                return;
+            }
+
             const data = await getStorage('requestCacheBody');
-            const cacheBody: RequestCacheBodes = data.requestCacheBody || {};
+            const cacheBody: RequestCacheBodes = data.requestCacheBody ?? {};
 
             cacheBody[details.requestId] = {
                 url: details.url,
@@ -114,7 +118,7 @@ export class RequestHandler {
     private async removeCachedBody(requestId: string): Promise<void> {
         try {
             const data = await getStorage('requestCacheBody');
-            const cacheBody: RequestCacheBodes = data.requestCacheBody || {};
+            const cacheBody: RequestCacheBodes = data.requestCacheBody ?? {};
             if (cacheBody && cacheBody[requestId]) {
                 delete cacheBody[requestId];
                 await setStorage({ requestCacheBody: cacheBody });
@@ -177,7 +181,7 @@ export class RequestHandler {
     private async removeCachedHeaders(requestId: string): Promise<void> {
         try {
             const data = await getStorage('requestCacheHeaders');
-            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders || {};
+            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders ?? {};
             if (cacheHeaders && cacheHeaders[requestId]) {
                 delete cacheHeaders[requestId];
                 await setStorage({ requestCacheHeaders: cacheHeaders });
@@ -193,7 +197,7 @@ export class RequestHandler {
     ): Promise<void> {
         try {
             const data = await getStorage('requestCacheHeaders');
-            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders || {};
+            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders ?? {};
 
             cacheHeaders[details.requestId] = {
                 url: details.url,

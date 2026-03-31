@@ -5,6 +5,7 @@ import { authService } from '../../../src/services/authService';
 import { sessionService } from '../../../src/services/sessionService';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { errorLogService } from '../../../src/services/errorLogService';
+import { featureAccessService } from '../../../src/services/featureAccessService';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -12,6 +13,11 @@ jest.mock('../../../src/services/authService');
 jest.mock('../../../src/services/sessionService');
 jest.mock('../../../src/services/autoLoginService');
 jest.mock('../../../src/services/errorLogService');
+jest.mock('../../../src/services/featureAccessService', () => ({
+    featureAccessService: {
+        isFeatureEnabled: jest.fn(),
+    },
+}));
 jest.mock('../../../src/utils/storage', () => {
     const actual = jest.requireActual('../../../src/utils/storage');
     return {
@@ -116,6 +122,10 @@ describe('MessageHandler', () => {
         mockExtractFirstId = utils.extractFirstId = jest.fn();
         mockGetPropertyById = utils.getPropertyById = jest.fn();
         mockNormalizeFormData = utils.normalizeFormData = jest.fn();
+        utils.getFirstFormDataString = jest.fn(values => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        });
         mockGetLogsFromSession = utils.getLogsFromSession = jest.fn();
         mockClearLogsInSession = utils.clearLogsInSession = jest.fn();
         mockGetLocalStorageData = utils.getLocalStorageData = jest.fn();
@@ -316,6 +326,26 @@ describe('MessageHandler', () => {
                 const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
                 expect(result).toBe(true);
+            });
+
+            it('should handle GET_FEATURE_ACCESS action', async () => {
+                const message = {
+                    target: 'background',
+                    action: Actions.GET_FEATURE_ACCESS,
+                    data: { featureKey: 'gct_tab' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                (featureAccessService.isFeatureEnabled as jest.Mock).mockResolvedValue(true);
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+
+                await waitForAsyncOperations(mockSendResponse);
+
+                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct_tab');
+                expect(mockSendResponse).toHaveBeenCalledWith({ success: true, enabled: true });
             });
 
             it('should handle unknown action', () => {

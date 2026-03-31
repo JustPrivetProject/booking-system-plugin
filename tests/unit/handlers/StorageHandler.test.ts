@@ -10,6 +10,7 @@ jest.mock('../../../src/utils/storage');
 jest.mock('../../../src/utils');
 jest.mock('../../../src/utils/badge', () => ({
     syncAuthenticationBadge: jest.fn(),
+    syncStatusBadgeFromStorage: jest.fn(),
 }));
 jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {

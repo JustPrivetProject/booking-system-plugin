@@ -19,7 +19,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('BSIU3108038 / ANDRZEJ KOLAKOWSKI / 19:00');
+            expect(result).toBe('[DCT] BSIU3108038 / ANDRZEJ KOLAKOWSKI / 19:00');
         });
 
         it('should generate subject without driver name', () => {
@@ -29,7 +29,7 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('BSIU3108038 / 19:00');
+            expect(result).toBe('[DCT] BSIU3108038 / 19:00');
         });
 
         it('should fallback to tvAppId when container number is missing', () => {
@@ -39,7 +39,17 @@ describe('EmailTemplates', () => {
             };
 
             const result = EmailTemplates.generateSubject(emailData);
-            expect(result).toBe('91037204 / ANDRZEJ KOLAKOWSKI / 19:00');
+            expect(result).toBe('[DCT] 91037204 / ANDRZEJ KOLAKOWSKI / 19:00');
+        });
+
+        it('should generate subject with GCT prefix when source is GCT', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'GCT' as const,
+            };
+
+            const result = EmailTemplates.generateSubject(emailData);
+            expect(result).toBe('[GCT] BSIU3108038 / ANDRZEJ KOLAKOWSKI / 19:00');
         });
     });
 
@@ -75,6 +85,20 @@ describe('EmailTemplates', () => {
             expect(result).not.toContain('Kierowca');
             expect(result).toContain('BSIU3108038'); // Container should still be there
         });
+
+        it('should use GCT wording in HTML body for GCT notifications', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'GCT' as const,
+            };
+
+            const result = EmailTemplates.generateHTML(emailData);
+
+            expect(result).toContain('Twoja rezerwacja w GCT została pomyślnie zamieniona');
+            expect(result).not.toContain(
+                'Twoja rezerwacja w BalticHub została pomyślnie zmieniona',
+            );
+        });
     });
 
     describe('generateText', () => {
@@ -96,6 +120,20 @@ describe('EmailTemplates', () => {
             expect(result).toContain('BSIU3108038');
             expect(result).toContain('ANDRZEJ KOLAKOWSKI');
             expect(result).toContain('Twoja rezerwacja w BalticHub została pomyślnie zmieniona');
+        });
+
+        it('should use GCT wording in text body for GCT notifications', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'GCT' as const,
+            };
+
+            const result = EmailTemplates.generateText(emailData);
+
+            expect(result).toContain('Twoja rezerwacja w GCT została pomyślnie zamieniona');
+            expect(result).not.toContain(
+                'Twoja rezerwacja w BalticHub została pomyślnie zmieniona',
+            );
         });
     });
 });

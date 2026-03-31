@@ -8,6 +8,10 @@ const STORAGE_KEY = 'notificationSettings';
  * Service for managing notification preferences
  */
 export class NotificationSettingsService {
+    private isSettingsRecord(settings: unknown): settings is Record<string, unknown> {
+        return !!settings && typeof settings === 'object';
+    }
+
     /**
      * Get default notification settings
      */
@@ -75,10 +79,22 @@ export class NotificationSettingsService {
         try {
             const settings = await this.loadSettings();
 
-            if (type === 'email' && key in settings.email) {
-                (settings.email as any)[key] = value;
-            } else if (type === 'windows' && key in settings.windows) {
-                (settings.windows as any)[key] = value;
+            if (type !== 'email' && type !== 'windows') {
+                consoleError('Invalid setting type or key:', type, key);
+                return false;
+            }
+
+            if (type === 'email') {
+                if (key === 'enabled' && typeof value === 'boolean') {
+                    settings.email.enabled = value;
+                } else if (key === 'userEmail' && typeof value === 'string') {
+                    settings.email.userEmail = value;
+                } else {
+                    consoleError('Invalid email setting key or value:', key, value);
+                    return false;
+                }
+            } else if (key === 'enabled' && typeof value === 'boolean') {
+                settings.windows.enabled = value;
             } else {
                 consoleError('Invalid setting type or key:', type, key);
                 return false;
@@ -170,16 +186,23 @@ export class NotificationSettingsService {
     /**
      * Validate notification settings structure
      */
-    private isValidSettings(settings: any): settings is NotificationSettings {
+    private isValidSettings(settings: unknown): settings is NotificationSettings {
+        if (!this.isSettingsRecord(settings)) {
+            return false;
+        }
+
+        const email = settings.email;
+        const windows = settings.windows;
+
+        if (!this.isSettingsRecord(email) || !this.isSettingsRecord(windows)) {
+            return false;
+        }
+
         return (
-            settings &&
-            typeof settings === 'object' &&
-            typeof settings.email === 'object' &&
-            typeof settings.email.enabled === 'boolean' &&
-            typeof settings.email.userEmail === 'string' &&
-            Array.isArray(settings.email.additionalEmails) &&
-            typeof settings.windows === 'object' &&
-            typeof settings.windows.enabled === 'boolean' &&
+            typeof email.enabled === 'boolean' &&
+            typeof email.userEmail === 'string' &&
+            Array.isArray(email.additionalEmails) &&
+            typeof windows.enabled === 'boolean' &&
             typeof settings.createdAt === 'number'
         );
     }

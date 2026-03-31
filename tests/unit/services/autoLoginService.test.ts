@@ -9,6 +9,8 @@ jest.mock('../../../src/utils', () => ({
     getStorage: jest.fn(),
     setStorage: jest.fn(),
     removeStorage: jest.fn(),
+    consoleLog: jest.fn(),
+    consoleError: jest.fn(),
 }));
 
 // Mock authService
@@ -18,16 +20,6 @@ jest.mock('../../../src/services/authService', () => ({
         login: jest.fn(),
     },
 }));
-
-// Mock console.log to avoid noise in tests
-const originalConsoleLog = console.log;
-beforeAll(() => {
-    console.log = jest.fn();
-});
-
-afterAll(() => {
-    console.log = originalConsoleLog;
-});
 
 describe('AutoLoginService', () => {
     const mockStorage = require('../../../src/utils');
@@ -131,7 +123,7 @@ describe('AutoLoginService', () => {
             const result = await autoLoginService.loadCredentials();
 
             expect(result).toBeNull();
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to load auto-login credentials:',
                 expect.any(Error),
             );
@@ -174,7 +166,7 @@ describe('AutoLoginService', () => {
             const result = await autoLoginService.isEnabled();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to check auto-login status:',
                 expect.any(Error),
             );
@@ -226,7 +218,7 @@ describe('AutoLoginService', () => {
             const result = await autoLoginService.validateStoredCredentials();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to load auto-login credentials:',
                 expect.any(Error),
             );
@@ -288,7 +280,7 @@ describe('AutoLoginService', () => {
             const result = await autoLoginService.getAutoLoginData();
 
             expect(result).toBeNull();
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to get auto-login data:',
                 expect.any(Error),
             );
@@ -380,7 +372,10 @@ describe('AutoLoginService', () => {
             const result = await autoLoginService.performAutoLogin();
 
             expect(result).toBe(false);
-            expect(console.log).toHaveBeenCalledWith('Auto-login failed:', expect.any(Error));
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
+                'Auto-login failed:',
+                expect.any(Error),
+            );
         });
     });
 
@@ -405,7 +400,7 @@ describe('AutoLoginService', () => {
 
             await autoLoginService.disableAutoLogin();
 
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to get auto-login data:',
                 expect.any(Error),
             );
@@ -433,7 +428,7 @@ describe('AutoLoginService', () => {
 
             await autoLoginService.enableAutoLogin();
 
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to get auto-login data:',
                 expect.any(Error),
             );
@@ -451,7 +446,7 @@ describe('AutoLoginService', () => {
             await autoLoginService.migrateAndCleanData();
 
             expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleLog).toHaveBeenCalledWith(
                 'Clearing corrupted auto-login data during migration',
             );
         });
@@ -510,13 +505,12 @@ describe('AutoLoginService', () => {
 
             // When loadCredentials fails, it should clear the data
             expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
-            expect(console.log).toHaveBeenNthCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenNthCalledWith(
                 1,
                 'Failed to load auto-login credentials:',
                 expect.any(Error),
             );
-            expect(console.log).toHaveBeenNthCalledWith(
-                2,
+            expect(mockStorage.consoleLog).toHaveBeenCalledWith(
                 'Clearing corrupted auto-login data during migration',
             );
         });
@@ -547,7 +541,7 @@ describe('AutoLoginService', () => {
 
             // When saveCredentials fails, it should clear the data
             expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
-            expect(console.log).toHaveBeenCalledWith(
+            expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to migrate auto-login data:',
                 expect.any(Error),
             );

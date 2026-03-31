@@ -1,4 +1,5 @@
 jest.mock('../../../src/utils/index', () => ({
+    consoleLog: jest.fn(),
     consoleError: jest.fn(),
 }));
 

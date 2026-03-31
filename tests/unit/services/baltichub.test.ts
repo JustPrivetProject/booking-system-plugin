@@ -185,6 +185,10 @@ jest.mock('../../../src/utils', () => ({
     consoleError: jest.fn(),
     formatDateToDMY: jest.fn(),
     JSONstringify: jest.fn(obj => JSON.stringify(obj)),
+    getFirstFormDataString: jest.fn((values?: unknown[]) => {
+        const value = values?.[0];
+        return typeof value === 'string' ? value : null;
+    }),
     normalizeFormData: jest.fn(),
     createFormData: jest.fn(),
     parseDateTimeFromDMY: jest.fn(),

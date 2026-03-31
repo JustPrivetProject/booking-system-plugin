@@ -17,6 +17,9 @@ import {
     keepEbramaSessionAlive,
     getEbramaKeepAliveIntervalMs,
 } from '../services/ebramaSessionService';
+import { GCT_WATCHER_DEFAULTS } from '../gct/types';
+import { getGctState } from '../gct/storage';
+import { gctWatcherService } from '../services/gct/gctWatcherService';
 
 const CONTAINER_CHECK_ALARM_NAME = 'container-check';
 const EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS = 60000;
@@ -26,6 +29,9 @@ export class BackgroundController {
     private requestHandler: RequestHandler;
     private storageHandler: StorageHandler;
     private queueManager: QueueManagerAdapter;
+    private keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+    private ebramaKeepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+    private extensionAuthBadgeIntervalId: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
         this.queueManager = QueueManagerAdapter.getInstance();
@@ -127,6 +133,18 @@ export class BackgroundController {
                 containerCheckerSettings: { pollingMinutes: 10 },
             });
         }
+
+        const { gctGroups } = await getStorage('gctGroups');
+        if (gctGroups === undefined) {
+            await setStorage({ gctGroups: [] });
+        }
+
+        const { gctSettings } = await getStorage('gctSettings');
+        if (gctSettings === undefined) {
+            await setStorage({
+                gctSettings: { ...GCT_WATCHER_DEFAULTS },
+            });
+        }
     }
 
     private async startQueueProcessing(): Promise<void> {
@@ -171,6 +189,7 @@ export class BackgroundController {
 
         // Initialize Container Checker alarm
         this.initContainerChecker();
+        this.initGctWatcher();
     }
 
     private async initContainerChecker(): Promise<void> {
@@ -179,6 +198,15 @@ export class BackgroundController {
             await updateContainerCheckerAlarm(state.settings.pollingMinutes);
         } catch (error) {
             consoleError('[background] Failed to init Container Checker:', error);
+        }
+    }
+
+    private async initGctWatcher(): Promise<void> {
+        try {
+            await getGctState();
+            await gctWatcherService.ensureSchedules();
+        } catch (error) {
+            consoleError('[background] Failed to init GCT watcher:', error);
         }
     }
 
@@ -203,7 +231,7 @@ export class BackgroundController {
         }, 20000); // 20 seconds
 
         // Store interval ID for potential cleanup (though we want it to run forever)
-        (this as any).keepAliveIntervalId = keepAliveInterval;
+        this.keepAliveIntervalId = keepAliveInterval;
     }
 
     private setupEbramaSessionKeepAlive(): void {
@@ -213,7 +241,7 @@ export class BackgroundController {
             });
         }, getEbramaKeepAliveIntervalMs());
 
-        (this as any).ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
+        this.ebramaKeepAliveIntervalId = ebramaKeepAliveInterval;
     }
 
     private setupExtensionAuthBadgeSync(): void {
@@ -236,7 +264,7 @@ export class BackgroundController {
             });
         }, EXTENSION_AUTH_BADGE_SYNC_INTERVAL_MS);
 
-        (this as any).extensionAuthBadgeIntervalId = extensionAuthBadgeInterval;
+        this.extensionAuthBadgeIntervalId = extensionAuthBadgeInterval;
     }
 
     private handleInstallation(_details: chrome.runtime.InstalledDetails): void {
@@ -249,6 +277,9 @@ export class BackgroundController {
         // Initialize Container Checker alarm on install/update
         this.initContainerChecker().catch(error => {
             consoleError('[background] Failed to init Container Checker on install:', error);
+        });
+        this.initGctWatcher().catch(error => {
+            consoleError('[background] Failed to init GCT watcher on install:', error);
         });
 
         // Migrate auto-login data to fix encoding issues
