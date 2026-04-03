@@ -30,16 +30,6 @@ import {
 import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
 import { ContainerCheckerHandler, type ContainerCheckerMessage } from './ContainerCheckerHandler';
 import { GctHandler, type GctMessage } from './GctHandler';
-import type { DiagnosticsContextReport, DiagnosticsReport } from '../../types/tempDiagnostics';
-import {
-    TEMP_DIAGNOSTICS_CONTENT_MESSAGE_TYPE,
-    TEMP_DIAGNOSTICS_TAG,
-    buildDiagnosticsReport,
-    createContextReport,
-    runSetAccessLevelProbe,
-    runStorageGetProbe,
-    runStorageSetProbe,
-} from '../../diagnostics/tempDiagnostics';
 
 type SendResponse = (response?: unknown) => void;
 
@@ -50,9 +40,6 @@ interface BackgroundMessageData {
     status_message?: string;
     description?: string | null;
     featureKey?: string;
-    popupContext?: DiagnosticsContextReport;
-    source?: string;
-    tag?: string;
 }
 
 interface HandlerMessage {
@@ -421,15 +408,23 @@ export class MessageHandler {
         if (tableData) {
             let tableRow: TableData[number] | undefined;
             consoleLog('Getting table data...');
-            if (driverAndContainer.containerNumber) {
-                const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
-                tableRow = tableData.find((row: string[]) =>
-                    row[containerIndex].includes(driverAndContainer.containerNumber),
-                );
-            } else {
-                consoleLog('Container number not found, searching by TV App ID...');
-                const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
+            const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
+            if (idIndex >= 0) {
                 tableRow = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
+            }
+
+            if (!tableRow && driverAndContainer.containerNumber) {
+                consoleLog('TV App ID row not found, searching by container number...');
+                const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
+                if (containerIndex >= 0) {
+                    tableRow = tableData.find((row: string[]) =>
+                        row[containerIndex].includes(driverAndContainer.containerNumber),
+                    );
+                }
+            }
+
+            if (!tableRow) {
+                consoleLog('No matching table row found for tvAppId or container number:', tvAppId);
             }
             consoleLog('Row: ', tableRow);
 
@@ -705,21 +700,6 @@ export class MessageHandler {
                 this.handleSendLogs(message, sendResponse);
                 return true;
 
-            case Actions.TEMP_DIAGNOSTICS_EXPORT:
-                this.handleTempDiagnosticsExport(message, sendResponse);
-                return true;
-
-            case Actions.TEMP_DIAGNOSTICS_PING:
-                sendResponse({
-                    success: true,
-                    result: {
-                        pong: true,
-                        source: data.source || null,
-                        tag: data.tag || null,
-                    },
-                });
-                return true;
-
             case Actions.GET_FEATURE_ACCESS:
                 if (!data.featureKey) {
                     sendResponse({
@@ -822,142 +802,5 @@ export class MessageHandler {
                 error instanceof Error && error.message ? error.message : String(error);
             sendResponse({ success: false, error: errorMsg });
         }
-    }
-
-    // TEMP-DIAGNOSTICS: Remove this handler after the investigation is complete.
-    private async handleTempDiagnosticsExport(
-        message: HandlerMessage,
-        sendResponse: SendResponse,
-    ): Promise<void> {
-        try {
-            const popupContext = message.data?.popupContext;
-
-            if (!popupContext) {
-                sendResponse({ success: false, error: 'Popup diagnostics context is required' });
-                return;
-            }
-
-            const backgroundContext = await this.collectBackgroundDiagnostics();
-            const activeTab = await this.getActiveTab();
-            const contentContext = activeTab?.id
-                ? await this.collectContentDiagnostics(activeTab.id)
-                : null;
-
-            const report: DiagnosticsReport = buildDiagnosticsReport({
-                activeTabUrl: activeTab?.url || null,
-                popup: popupContext,
-                background: backgroundContext,
-                content: contentContext,
-            });
-
-            sendResponse({ success: true, result: report });
-        } catch (error) {
-            sendResponse({
-                success: false,
-                error: error instanceof Error ? error.message : String(error),
-            });
-        }
-    }
-
-    // TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-    private async collectBackgroundDiagnostics(): Promise<DiagnosticsContextReport> {
-        const probes = [
-            await runSetAccessLevelProbe(),
-            await runStorageGetProbe('session'),
-            await runStorageSetProbe('session'),
-            await runStorageGetProbe('local'),
-            await runStorageSetProbe('local'),
-        ];
-
-        return createContextReport('background', probes, null);
-    }
-
-    // TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-    private async getActiveTab(): Promise<chrome.tabs.Tab | null> {
-        return new Promise(resolve => {
-            chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-                const runtimeError = chrome.runtime.lastError;
-                if (runtimeError) {
-                    resolve(null);
-                    return;
-                }
-
-                resolve(tabs[0] || null);
-            });
-        });
-    }
-
-    // TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-    private async collectContentDiagnostics(
-        tabId: number,
-    ): Promise<DiagnosticsContextReport | null> {
-        return new Promise(resolve => {
-            chrome.tabs.sendMessage(
-                tabId,
-                {
-                    target: TEMP_DIAGNOSTICS_TAG,
-                    type: TEMP_DIAGNOSTICS_CONTENT_MESSAGE_TYPE,
-                },
-                response => {
-                    if (chrome.runtime.lastError) {
-                        resolve(
-                            createContextReport(
-                                'content',
-                                [
-                                    {
-                                        name: 'content-script-reachability',
-                                        api: 'chrome.tabs.sendMessage',
-                                        mode: 'callback',
-                                        success: false,
-                                        threw: false,
-                                        callbackCalled: false,
-                                        callbackResultDefined: false,
-                                        runtimeLastError:
-                                            chrome.runtime.lastError.message ||
-                                            'Unknown chrome.runtime.lastError',
-                                        errorMessage: null,
-                                        returnedKeys: [],
-                                        durationMs: 0,
-                                    },
-                                ],
-                                null,
-                            ),
-                        );
-                        return;
-                    }
-
-                    if (!response?.ok) {
-                        resolve(
-                            createContextReport(
-                                'content',
-                                [
-                                    {
-                                        name: 'content-script-reachability',
-                                        api: 'chrome.tabs.sendMessage',
-                                        mode: 'callback',
-                                        success: false,
-                                        threw: false,
-                                        callbackCalled: true,
-                                        callbackResultDefined: response !== undefined,
-                                        runtimeLastError: null,
-                                        errorMessage:
-                                            response?.error || 'Unknown content diagnostics error',
-                                        returnedKeys:
-                                            response && typeof response === 'object'
-                                                ? Object.keys(response)
-                                                : [],
-                                        durationMs: 0,
-                                    },
-                                ],
-                                null,
-                            ),
-                        );
-                        return;
-                    }
-
-                    resolve(response.result || null);
-                },
-            );
-        });
     }
 }

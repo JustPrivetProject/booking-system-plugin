@@ -6,7 +6,6 @@ import { sessionService } from '../../../src/services/sessionService';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { errorLogService } from '../../../src/services/errorLogService';
 import { featureAccessService } from '../../../src/services/featureAccessService';
-import type { DiagnosticsContextReport } from '../../../src/types/tempDiagnostics';
 const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock dependencies
@@ -101,7 +100,6 @@ describe('MessageHandler', () => {
         chromeMock.storage.session.get.mockReset();
         chromeMock.storage.session.set.mockReset();
         chromeMock.storage.session.remove.mockReset();
-        chromeMock.storage.session.setAccessLevel.mockReset();
         chromeMock.storage.local.get.mockReset();
         chromeMock.storage.local.set.mockReset();
         chromeMock.storage.local.remove.mockReset();
@@ -145,10 +143,8 @@ describe('MessageHandler', () => {
         // Setup mocks for baltichub
         const baltichub = require('../../../src/services/baltichub');
         mockGetDriverNameAndContainer = baltichub.getDriverNameAndContainer = jest.fn();
-
-        chromeMock.storage.session.setAccessLevel.mockResolvedValue(undefined);
         chromeMock.storage.session.get.mockImplementation((keys, callback) => {
-            callback({ __tempDiagnosticsProbe: null });
+            callback({});
         });
         chromeMock.storage.session.set.mockImplementation((data, callback) => {
             callback();
@@ -157,7 +153,7 @@ describe('MessageHandler', () => {
             callback?.();
         });
         chromeMock.storage.local.get.mockImplementation((keys, callback) => {
-            callback({ __tempDiagnosticsProbe: null });
+            callback({});
         });
         chromeMock.storage.local.set.mockImplementation((data, callback) => {
             callback();
@@ -442,102 +438,6 @@ describe('MessageHandler', () => {
                 success: false,
                 error: 'Failed to process booking action',
             });
-        });
-
-        it('should handle TEMP_DIAGNOSTICS_PING action', () => {
-            const message = {
-                target: 'background',
-                action: Actions.TEMP_DIAGNOSTICS_PING,
-                data: { source: 'popup', tag: 'TEMP-DIAGNOSTICS' },
-            };
-            const sender = {} as chrome.runtime.MessageSender;
-
-            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
-
-            expect(result).toBe(true);
-            expect(mockSendResponse).toHaveBeenCalledWith({
-                success: true,
-                result: {
-                    pong: true,
-                    source: 'popup',
-                    tag: 'TEMP-DIAGNOSTICS',
-                },
-            });
-        });
-
-        it('should build TEMP_DIAGNOSTICS_EXPORT report', async () => {
-            const popupContext: DiagnosticsContextReport = {
-                context: 'popup',
-                timestamp: '2025-01-01T00:00:00.000Z',
-                userAgent: 'popup-agent',
-                url: 'chrome-extension://popup.html',
-                probes: [],
-            };
-            const message = {
-                target: 'background',
-                action: Actions.TEMP_DIAGNOSTICS_EXPORT,
-                data: {
-                    popupContext,
-                },
-            };
-            const sender = {} as chrome.runtime.MessageSender;
-
-            chromeMock.tabs.query.mockImplementation((query, callback) => {
-                callback([
-                    {
-                        id: 123,
-                        url: 'https://elbaltichub.com/',
-                    },
-                ]);
-            });
-            chromeMock.tabs.sendMessage.mockImplementation((tabId, payload, callback) => {
-                callback({
-                    ok: true,
-                    result: {
-                        context: 'content',
-                        timestamp: '2025-01-01T00:00:01.000Z',
-                        userAgent: 'content-agent',
-                        url: 'https://elbaltichub.com/',
-                        probes: [],
-                    },
-                });
-            });
-
-            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
-
-            expect(result).toBe(true);
-            await waitForAsyncOperations(mockSendResponse);
-
-            expect(chromeMock.storage.session.setAccessLevel).toHaveBeenCalledWith({
-                accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS',
-            });
-            expect(chromeMock.tabs.query).toHaveBeenCalledWith(
-                { active: true, currentWindow: true },
-                expect.any(Function),
-            );
-            expect(chromeMock.tabs.sendMessage).toHaveBeenCalledWith(
-                123,
-                expect.objectContaining({
-                    target: 'TEMP-DIAGNOSTICS',
-                    type: 'RUN_TEMP_DIAGNOSTICS',
-                }),
-                expect.any(Function),
-            );
-            expect(mockSendResponse).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    success: true,
-                    result: expect.objectContaining({
-                        kind: 'TEMP_DIAGNOSTICS_REPORT',
-                        tag: 'TEMP-DIAGNOSTICS',
-                        activeTabUrl: 'https://elbaltichub.com/',
-                        contexts: expect.objectContaining({
-                            popup: expect.objectContaining({ context: 'popup' }),
-                            background: expect.objectContaining({ context: 'background' }),
-                            content: expect.objectContaining({ context: 'content' }),
-                        }),
-                    }),
-                }),
-            );
         });
 
         it('should call removeCachedRequest after adding to queue', async () => {
@@ -1701,6 +1601,88 @@ describe('MessageHandler', () => {
 
             expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
                 expect.objectContaining({ slotType: 4 }),
+            );
+        });
+
+        it('should prefer table row matched by tvAppId over same container number', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            const { TABLE_DATA_NAMES } = require('../../../src/data');
+
+            const mockStorageData = {
+                requestCacheHeaders: {
+                    'request-1': {
+                        url: 'test-url',
+                        headers: [{ name: 'test', value: 'test' }],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            const mockRequestCacheBody = {
+                'request-1': {
+                    url: 'test-url',
+                    body: {
+                        formData: {
+                            TvAppId: ['tv-app-19'],
+                            SlotStart: ['01.01.2025 19:00'],
+                            SlotEnd: ['01.01.2025 20:00'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+            };
+
+            const mockTableData = [
+                [
+                    TABLE_DATA_NAMES.CONTAINER_NUMBER,
+                    TABLE_DATA_NAMES.ID,
+                    TABLE_DATA_NAMES.SELECTED_DATE,
+                    TABLE_DATA_NAMES.START,
+                ],
+                ['TEST123', 'tv-app-17', '01.01.2025', '17:00'],
+                ['TEST123', 'tv-app-19', '01.01.2025', '19:00'],
+            ];
+
+            (authService.getCurrentUser as jest.Mock).mockResolvedValue({
+                id: 'user-1',
+                email: 'test@example.com',
+            });
+
+            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
+                requestCacheBody: mockRequestCacheBody,
+                retryQueue: [],
+                testEnv: false,
+                tableData: mockTableData,
+            });
+
+            mockRemoveCachedRequest.mockResolvedValue(true);
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: 'TEST123',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['tv-app-19'],
+                    SlotStart: ['01.01.2025 19:00'],
+                    SlotEnd: ['01.01.2025 20:00'],
+                },
+            });
+
+            mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
+            mockExtractFirstId.mockReturnValue('request-1');
+            mockGetPropertyById.mockReturnValue(mockRequestCacheBody['request-1']);
+
+            mockQueueManager.addToQueue.mockResolvedValue([]);
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+
+            expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
+                expect.objectContaining({ currentSlot: '01.01.2025 19:00' }),
             );
         });
 
