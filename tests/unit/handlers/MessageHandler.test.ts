@@ -6,6 +6,8 @@ import { sessionService } from '../../../src/services/sessionService';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { errorLogService } from '../../../src/services/errorLogService';
 import { featureAccessService } from '../../../src/services/featureAccessService';
+import type { DiagnosticsContextReport } from '../../../src/types/tempDiagnostics';
+const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -95,6 +97,16 @@ describe('MessageHandler', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        chromeMock.runtime.lastError = null;
+        chromeMock.storage.session.get.mockReset();
+        chromeMock.storage.session.set.mockReset();
+        chromeMock.storage.session.remove.mockReset();
+        chromeMock.storage.session.setAccessLevel.mockReset();
+        chromeMock.storage.local.get.mockReset();
+        chromeMock.storage.local.set.mockReset();
+        chromeMock.storage.local.remove.mockReset();
+        chromeMock.tabs.query.mockReset();
+        chromeMock.tabs.sendMessage.mockReset();
         // Reset mock functions to ensure clean state
         mockQueueManager.addToQueue.mockReset();
         mockQueueManager.addToQueue.mockResolvedValue([]);
@@ -133,6 +145,26 @@ describe('MessageHandler', () => {
         // Setup mocks for baltichub
         const baltichub = require('../../../src/services/baltichub');
         mockGetDriverNameAndContainer = baltichub.getDriverNameAndContainer = jest.fn();
+
+        chromeMock.storage.session.setAccessLevel.mockResolvedValue(undefined);
+        chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+            callback({ __tempDiagnosticsProbe: null });
+        });
+        chromeMock.storage.session.set.mockImplementation((data, callback) => {
+            callback();
+        });
+        chromeMock.storage.session.remove.mockImplementation((key, callback) => {
+            callback?.();
+        });
+        chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            callback({ __tempDiagnosticsProbe: null });
+        });
+        chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            callback();
+        });
+        chromeMock.storage.local.remove.mockImplementation((key, callback) => {
+            callback?.();
+        });
     });
 
     describe('handleMessage', () => {
@@ -410,6 +442,102 @@ describe('MessageHandler', () => {
                 success: false,
                 error: 'Failed to process booking action',
             });
+        });
+
+        it('should handle TEMP_DIAGNOSTICS_PING action', () => {
+            const message = {
+                target: 'background',
+                action: Actions.TEMP_DIAGNOSTICS_PING,
+                data: { source: 'popup', tag: 'TEMP-DIAGNOSTICS' },
+            };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            expect(mockSendResponse).toHaveBeenCalledWith({
+                success: true,
+                result: {
+                    pong: true,
+                    source: 'popup',
+                    tag: 'TEMP-DIAGNOSTICS',
+                },
+            });
+        });
+
+        it('should build TEMP_DIAGNOSTICS_EXPORT report', async () => {
+            const popupContext: DiagnosticsContextReport = {
+                context: 'popup',
+                timestamp: '2025-01-01T00:00:00.000Z',
+                userAgent: 'popup-agent',
+                url: 'chrome-extension://popup.html',
+                probes: [],
+            };
+            const message = {
+                target: 'background',
+                action: Actions.TEMP_DIAGNOSTICS_EXPORT,
+                data: {
+                    popupContext,
+                },
+            };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            chromeMock.tabs.query.mockImplementation((query, callback) => {
+                callback([
+                    {
+                        id: 123,
+                        url: 'https://elbaltichub.com/',
+                    },
+                ]);
+            });
+            chromeMock.tabs.sendMessage.mockImplementation((tabId, payload, callback) => {
+                callback({
+                    ok: true,
+                    result: {
+                        context: 'content',
+                        timestamp: '2025-01-01T00:00:01.000Z',
+                        userAgent: 'content-agent',
+                        url: 'https://elbaltichub.com/',
+                        probes: [],
+                    },
+                });
+            });
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+
+            expect(chromeMock.storage.session.setAccessLevel).toHaveBeenCalledWith({
+                accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS',
+            });
+            expect(chromeMock.tabs.query).toHaveBeenCalledWith(
+                { active: true, currentWindow: true },
+                expect.any(Function),
+            );
+            expect(chromeMock.tabs.sendMessage).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    target: 'TEMP-DIAGNOSTICS',
+                    type: 'RUN_TEMP_DIAGNOSTICS',
+                }),
+                expect.any(Function),
+            );
+            expect(mockSendResponse).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    result: expect.objectContaining({
+                        kind: 'TEMP_DIAGNOSTICS_REPORT',
+                        tag: 'TEMP-DIAGNOSTICS',
+                        activeTabUrl: 'https://elbaltichub.com/',
+                        contexts: expect.objectContaining({
+                            popup: expect.objectContaining({ context: 'popup' }),
+                            background: expect.objectContaining({ context: 'background' }),
+                            content: expect.objectContaining({ context: 'content' }),
+                        }),
+                    }),
+                }),
+            );
         });
 
         it('should call removeCachedRequest after adding to queue', async () => {

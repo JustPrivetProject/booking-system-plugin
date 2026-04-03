@@ -37,6 +37,7 @@ describe('Logging Functions', () => {
         jest.clearAllMocks();
         chromeMock.storage.session.get.mockClear();
         chromeMock.storage.session.set.mockClear();
+        chromeMock.runtime.lastError = null;
 
         // Reset environment
         delete process.env.NODE_ENV;
@@ -241,6 +242,30 @@ describe('Logging Functions', () => {
             const savedLogs = chromeMock.storage.session.set.mock.calls[0][0].bramaLogs;
             expect(savedLogs.length).toBeLessThanOrEqual(LOGS_LENGTH);
         });
+
+        it('should handle undefined session callback payload', async () => {
+            chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+                callback(undefined);
+            });
+
+            chromeMock.storage.session.set.mockImplementation((data, callback) => {
+                callback();
+            });
+
+            await saveLogToSession('log', ['test message']);
+
+            expect(chromeMock.storage.session.set).toHaveBeenCalledWith(
+                {
+                    bramaLogs: [
+                        expect.objectContaining({
+                            type: 'log',
+                            message: 'test message',
+                        }),
+                    ],
+                },
+                expect.any(Function),
+            );
+        });
     });
 
     describe('getLogsFromSession', () => {
@@ -264,6 +289,16 @@ describe('Logging Functions', () => {
                 { bramaLogs: [] },
                 expect.any(Function),
             );
+        });
+
+        it('should return empty array when callback payload is undefined', async () => {
+            chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+                callback(undefined);
+            });
+
+            const result = await getLogsFromSession();
+
+            expect(result).toEqual([]);
         });
     });
 
