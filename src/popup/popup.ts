@@ -24,14 +24,6 @@ import { updateContainerCheckerAlarm } from '../services/containerChecker/contai
 import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
 import { initGctUI } from './gct';
-import type { DiagnosticsContextReport, DiagnosticsReport } from '../types/tempDiagnostics';
-import {
-    TEMP_DIAGNOSTICS_TAG,
-    createContextReport,
-    runRuntimeSendMessageProbe,
-    runStorageGetProbe,
-    runStorageSetProbe,
-} from '../diagnostics/tempDiagnostics';
 
 type PopupTab = 'booking' | 'containerChecker' | 'gct';
 
@@ -162,65 +154,6 @@ function sendMessageToBackground(action, data, options = { updateQueue: true }) 
             }
         },
     );
-}
-
-// TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-function sendMessageToBackgroundWithResponse<T = unknown>(action, data): Promise<T> {
-    return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(
-            {
-                target: 'background',
-                action,
-                data,
-            },
-            response => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                    return;
-                }
-
-                if (!response?.success) {
-                    reject(new Error(response?.error || `Action ${action} failed`));
-                    return;
-                }
-
-                resolve(response.result as T);
-            },
-        );
-    });
-}
-
-// TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-async function collectPopupDiagnostics(): Promise<DiagnosticsContextReport> {
-    const probes = [
-        await runStorageGetProbe('session'),
-        await runStorageSetProbe('session'),
-        await runStorageGetProbe('local'),
-        await runStorageSetProbe('local'),
-        await runRuntimeSendMessageProbe({
-            target: 'background',
-            action: Actions.TEMP_DIAGNOSTICS_PING,
-            data: { source: 'popup', tag: TEMP_DIAGNOSTICS_TAG },
-        }),
-    ];
-
-    return createContextReport('popup', probes, window.location.href);
-}
-
-// TEMP-DIAGNOSTICS: Remove this helper after the investigation is complete.
-function downloadDiagnosticsReport(report: DiagnosticsReport): void {
-    const reportJson = JSON.stringify(report, null, 2);
-    const blob = new Blob([reportJson], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-    anchor.href = url;
-    anchor.download = `booking-system-${TEMP_DIAGNOSTICS_TAG.toLowerCase()}-${timestamp}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
 }
 
 async function removeRequestFromRetryQueue(id) {
@@ -1062,28 +995,6 @@ document.getElementById('send-logs-btn')?.addEventListener('click', async () => 
     await showInfoModal(
         'Dziękujemy za opisanie problemu. Postaramy się go rozwiązać najszybciej jak to możliwe.',
     );
-});
-
-document.getElementById('run-diagnostics-btn')?.addEventListener('click', async () => {
-    try {
-        const popupContext = await collectPopupDiagnostics();
-        const report = await sendMessageToBackgroundWithResponse<DiagnosticsReport>(
-            Actions.TEMP_DIAGNOSTICS_EXPORT,
-            {
-                popupContext,
-            },
-        );
-
-        downloadDiagnosticsReport(report);
-        await showInfoModal(
-            'TEMP-DIAGNOSTICS: Raport diagnostyczny został pobrany lokalnie jako plik JSON.',
-        );
-    } catch (error) {
-        consoleError('TEMP-DIAGNOSTICS export failed:', error);
-        await showInfoModal(
-            `TEMP-DIAGNOSTICS: Nie udało się wygenerować raportu. ${error instanceof Error ? error.message : String(error)}`,
-        );
-    }
 });
 
 document.getElementById('instruction-btn')?.addEventListener('click', () => {

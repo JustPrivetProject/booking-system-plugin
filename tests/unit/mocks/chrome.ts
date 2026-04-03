@@ -12,7 +12,6 @@ const chromeMock = {
             set: jest.fn(),
             remove: jest.fn(),
             clear: jest.fn(),
-            setAccessLevel: jest.fn(() => Promise.resolve()),
         },
         onChanged: {
             addListener: jest.fn(),
