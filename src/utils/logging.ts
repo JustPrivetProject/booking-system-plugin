@@ -14,6 +14,15 @@ function canUseSessionStorage(): boolean {
     return Boolean(globalThis.chrome?.storage?.session);
 }
 
+function getSessionLogsFromResult(result: unknown): SessionLogEntry[] {
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        return [];
+    }
+
+    const logs = (result as { bramaLogs?: SessionLogEntry[] }).bramaLogs;
+    return Array.isArray(logs) ? logs : [];
+}
+
 function formatLogMessage(args: unknown[]): string {
     return args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' ');
 }
@@ -78,12 +87,13 @@ export async function saveLogToSession(type: LogType, args: unknown[]) {
 
     return new Promise<void>(resolve => {
         try {
-            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, result => {
                 if (chrome.runtime.lastError || !canUseSessionStorage()) {
                     resolve();
                     return;
                 }
 
+                const bramaLogs = getSessionLogsFromResult(result);
                 const nextLogs = [...bramaLogs];
                 nextLogs.push({
                     type,
@@ -94,7 +104,9 @@ export async function saveLogToSession(type: LogType, args: unknown[]) {
                 const trimmedLogs =
                     nextLogs.length > LOGS_LENGTH ? nextLogs.slice(-LOGS_LENGTH) : nextLogs;
 
-                chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => resolve());
+                chrome.storage.session.set({ bramaLogs: trimmedLogs }, () => {
+                    resolve();
+                });
             });
         } catch {
             resolve();
@@ -109,13 +121,13 @@ export async function getLogsFromSession() {
 
     return new Promise<SessionLogEntry[]>(resolve => {
         try {
-            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, ({ bramaLogs }) => {
+            chrome.storage.session.get({ bramaLogs: [] as SessionLogEntry[] }, result => {
                 if (chrome.runtime.lastError || !canUseSessionStorage()) {
                     resolve([]);
                     return;
                 }
 
-                resolve(bramaLogs);
+                resolve(getSessionLogsFromResult(result));
             });
         } catch {
             resolve([]);
@@ -130,7 +142,9 @@ export async function clearLogsInSession() {
 
     return new Promise<void>(resolve => {
         try {
-            chrome.storage.session.set({ bramaLogs: [] }, () => resolve());
+            chrome.storage.session.set({ bramaLogs: [] }, () => {
+                resolve();
+            });
         } catch {
             resolve();
         }

@@ -12,6 +12,7 @@ const chromeMock = {
             set: jest.fn(),
             remove: jest.fn(),
             clear: jest.fn(),
+            setAccessLevel: jest.fn(() => Promise.resolve()),
         },
         onChanged: {
             addListener: jest.fn(),
@@ -52,6 +53,7 @@ const chromeMock = {
             removeListener: jest.fn(),
         },
         getURL: jest.fn(),
+        getManifest: jest.fn(() => ({ version: '3.0.2' })),
         lastError: null,
     },
     action: {

@@ -1,5 +1,13 @@
 import { Actions } from '../data';
 import { consoleError, consoleLog } from '../utils';
+import {
+    TEMP_DIAGNOSTICS_CONTENT_MESSAGE_TYPE,
+    TEMP_DIAGNOSTICS_TAG,
+    createContextReport,
+    runRuntimeSendMessageProbe,
+    runStorageGetProbe,
+    runStorageSetProbe,
+} from '../diagnostics/tempDiagnostics';
 
 import { showCountdownModal } from './modals/countdownModal';
 import { showSessionExpireModal } from './modals/sesssionExpireModal';
@@ -16,6 +24,44 @@ import {
 } from './utils/contentUtils';
 
 consoleLog('[content] Content script is loaded');
+
+// TEMP-DIAGNOSTICS: Remove this listener after the investigation is complete.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (
+        message?.target !== TEMP_DIAGNOSTICS_TAG ||
+        message?.type !== TEMP_DIAGNOSTICS_CONTENT_MESSAGE_TYPE
+    ) {
+        return false;
+    }
+
+    (async () => {
+        try {
+            const probes = [
+                await runStorageGetProbe('session'),
+                await runStorageSetProbe('session'),
+                await runStorageGetProbe('local'),
+                await runStorageSetProbe('local'),
+                await runRuntimeSendMessageProbe({
+                    target: 'background',
+                    action: Actions.TEMP_DIAGNOSTICS_PING,
+                    data: { source: 'content', tag: TEMP_DIAGNOSTICS_TAG },
+                }),
+            ];
+
+            sendResponse({
+                ok: true,
+                result: createContextReport('content', probes, window.location.href),
+            });
+        } catch (error) {
+            sendResponse({
+                ok: false,
+                error: error instanceof Error ? error.message : String(error),
+            });
+        }
+    })();
+
+    return true;
+});
 
 // Check extension connection on page load
 checkConnectionAndShowWarning()
