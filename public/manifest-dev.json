@@ -31,7 +31,7 @@
     },
     "content_scripts": [
         {
-            "matches": ["https://*.baltichub.com/*"],
+            "matches": ["https://*.baltichub.com/*", "https://ebrama.bct.ictsi.com/*"],
             "js": ["content.js"]
         }
     ],

@@ -23,7 +23,7 @@ describe('featureAccessService', () => {
     it('should return false when user is not authenticated', async () => {
         (authService.getCurrentUser as jest.Mock).mockResolvedValue(null);
 
-        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB);
+        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT);
 
         expect(result).toBe(false);
         expect(mockSupabase.from).not.toHaveBeenCalled();
@@ -32,59 +32,73 @@ describe('featureAccessService', () => {
     it('should return true when feature access is enabled', async () => {
         (authService.getCurrentUser as jest.Mock).mockResolvedValue({ id: 'user-1' });
 
-        const single = jest.fn().mockResolvedValue({
-            data: { enabled: true },
+        const maybeSingle = jest.fn().mockResolvedValue({
+            data: { gct: true },
             error: null,
         });
-        const secondEq = jest.fn().mockReturnValue({ single });
-        const firstEq = jest.fn().mockReturnValue({ eq: secondEq });
+        const firstEq = jest.fn().mockReturnValue({ maybeSingle });
         const select = jest.fn().mockReturnValue({ eq: firstEq });
 
         mockSupabase.from.mockReturnValue({ select });
 
-        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB);
+        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT);
 
         expect(result).toBe(true);
         expect(mockSupabase.from).toHaveBeenCalledWith('feature_access');
-        expect(select).toHaveBeenCalledWith('enabled');
+        expect(select).toHaveBeenCalledWith('gct');
         expect(firstEq).toHaveBeenCalledWith('user_id', 'user-1');
-        expect(secondEq).toHaveBeenCalledWith('feature_key', FEATURE_KEYS.GCT_TAB);
     });
 
     it('should return false when feature row does not exist', async () => {
         (authService.getCurrentUser as jest.Mock).mockResolvedValue({ id: 'user-1' });
 
-        const single = jest.fn().mockResolvedValue({
+        const maybeSingle = jest.fn().mockResolvedValue({
             data: null,
-            error: { code: 'PGRST116' },
+            error: null,
         });
-        const secondEq = jest.fn().mockReturnValue({ single });
-        const firstEq = jest.fn().mockReturnValue({ eq: secondEq });
+        const firstEq = jest.fn().mockReturnValue({ maybeSingle });
 
         mockSupabase.from.mockReturnValue({
             select: jest.fn().mockReturnValue({ eq: firstEq }),
         });
 
-        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB);
+        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT);
 
         expect(result).toBe(false);
+    });
+
+    it('should return true for enabled BCT access', async () => {
+        (authService.getCurrentUser as jest.Mock).mockResolvedValue({ id: 'user-1' });
+
+        const maybeSingle = jest.fn().mockResolvedValue({
+            data: { bct: true },
+            error: null,
+        });
+        const firstEq = jest.fn().mockReturnValue({ maybeSingle });
+
+        mockSupabase.from.mockReturnValue({
+            select: jest.fn().mockReturnValue({ eq: firstEq }),
+        });
+
+        const result = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.BCT);
+
+        expect(result).toBe(true);
     });
 
     it('should throw unexpected Supabase errors', async () => {
         (authService.getCurrentUser as jest.Mock).mockResolvedValue({ id: 'user-1' });
 
-        const single = jest.fn().mockResolvedValue({
+        const maybeSingle = jest.fn().mockResolvedValue({
             data: null,
             error: { code: 'XX000', message: 'db failure' },
         });
-        const secondEq = jest.fn().mockReturnValue({ single });
-        const firstEq = jest.fn().mockReturnValue({ eq: secondEq });
+        const firstEq = jest.fn().mockReturnValue({ maybeSingle });
 
         mockSupabase.from.mockReturnValue({
             select: jest.fn().mockReturnValue({ eq: firstEq }),
         });
 
-        await expect(featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB)).rejects.toEqual({
+        await expect(featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT)).rejects.toEqual({
             code: 'XX000',
             message: 'db failure',
         });

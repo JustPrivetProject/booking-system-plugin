@@ -6,20 +6,23 @@ export interface Database {
             feature_access: {
                 Row: {
                     user_id: string;
-                    feature_key: string;
-                    enabled: boolean;
+                    gct: boolean;
+                    bct: boolean;
+                    email: string | null;
                     updated_at: string | null;
                 };
                 Insert: {
                     user_id: string;
-                    feature_key: string;
-                    enabled?: boolean;
+                    gct?: boolean;
+                    bct?: boolean;
+                    email?: string | null;
                     updated_at?: string | null;
                 };
                 Update: {
                     user_id?: string;
-                    feature_key?: string;
-                    enabled?: boolean;
+                    gct?: boolean;
+                    bct?: boolean;
+                    email?: string | null;
                     updated_at?: string | null;
                 };
                 Relationships: [

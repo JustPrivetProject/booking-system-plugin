@@ -18,6 +18,7 @@ jest.mock('../../../src/services/featureAccessService', () => ({
     featureAccessService: {
         isFeatureEnabled: jest.fn(),
     },
+    isFeatureKey: jest.fn(value => value === 'gct' || value === 'bct'),
 }));
 jest.mock('../../../src/utils/storage', () => {
     const actual = jest.requireActual('../../../src/utils/storage');
@@ -360,7 +361,7 @@ describe('MessageHandler', () => {
                 const message = {
                     target: 'background',
                     action: Actions.GET_FEATURE_ACCESS,
-                    data: { featureKey: 'gct_tab' },
+                    data: { featureKey: 'gct' },
                 };
                 const sender = {} as chrome.runtime.MessageSender;
 
@@ -372,8 +373,26 @@ describe('MessageHandler', () => {
 
                 await waitForAsyncOperations(mockSendResponse);
 
-                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct_tab');
+                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct');
                 expect(mockSendResponse).toHaveBeenCalledWith({ success: true, enabled: true });
+            });
+
+            it('should reject invalid feature keys', () => {
+                const message = {
+                    target: 'background',
+                    action: Actions.GET_FEATURE_ACCESS,
+                    data: { featureKey: 'invalid-feature' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+                expect(mockSendResponse).toHaveBeenCalledWith({
+                    success: false,
+                    enabled: false,
+                    error: 'Invalid feature key',
+                });
             });
 
             it('should handle unknown action', () => {

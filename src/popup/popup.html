@@ -112,6 +112,16 @@
             <div class="tabs-row">
                 <button id="tabBooking" class="tab-label active" data-tab="booking">DCT</button>
                 <button
+                    id="tabBct"
+                    class="tab-label tab-label-disabled"
+                    data-tab="bct"
+                    title="Brak dostępu do modułu BCT"
+                    aria-disabled="true"
+                >
+                    BCT
+                    <span id="tabBctLockIcon" class="material-icons tab-lock-icon">lock</span>
+                </button>
+                <button
                     id="tabGct"
                     class="tab-label tab-label-disabled"
                     data-tab="gct"
@@ -130,6 +140,17 @@
                     <table id="queueTable">
                         <tbody id="queueTableBody"></tbody>
                     </table>
+                </div>
+            </div>
+            <div id="bctView" class="tab-content hidden">
+                <div class="feature-shell-view">
+                    <div class="feature-shell-card">
+                        <h3>Moduł BCT</h3>
+                        <p>
+                            Dostęp do zakładki BCT jest już obsługiwany. Właściwy workflow
+                            rezerwacji BCT jest w trakcie wdrażania na oddzielonej architekturze.
+                        </p>
+                    </div>
                 </div>
             </div>
             <div id="gctView" class="tab-content hidden"></div>

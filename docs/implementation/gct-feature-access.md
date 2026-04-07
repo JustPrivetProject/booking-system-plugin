@@ -1,4 +1,4 @@
-# GCT feature access setup
+# Feature access setup
 
 The extension now expects a Supabase table named `feature_access`.
 
@@ -13,11 +13,11 @@ The code already uses the active project from `SUPABASE_URL` and `SUPABASE_ANON_
 
 ```sql
 create table if not exists public.feature_access (
-    user_id uuid not null references auth.users (id) on delete cascade,
-    feature_key text not null,
-    enabled boolean not null default false,
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  email text,
+  gct boolean not null default false,
+  bct boolean not null default false,
     updated_at timestamptz not null default now(),
-    constraint feature_access_pkey primary key (user_id, feature_key)
 );
 
 alter table public.feature_access enable row level security;
@@ -53,20 +53,33 @@ for each row
 execute function public.set_feature_access_updated_at();
 ```
 
-## Grant access to a user
+The extension authorizes by `user_id`. The `email` column is optional and intended only as an admin-visible reference.
+
+## Grant or update access for a user
 
 ```sql
-insert into public.feature_access (user_id, feature_key, enabled)
-values ('USER_UUID_HERE', 'gct_tab', true)
-on conflict (user_id, feature_key)
-do update set enabled = excluded.enabled;
+insert into public.feature_access (user_id, email, gct, bct)
+values ('USER_UUID_HERE', 'user@example.com', true, false)
+on conflict (user_id)
+do update set
+    email = excluded.email,
+    gct = excluded.gct,
+    bct = excluded.bct;
 ```
 
-## Revoke access
+## Revoke BCT access
 
 ```sql
 update public.feature_access
-set enabled = false
-where user_id = 'USER_UUID_HERE'
-  and feature_key = 'gct_tab';
+set bct = false
+where user_id = 'USER_UUID_HERE';
+```
+
+## Grant dual access
+
+```sql
+update public.feature_access
+set gct = true,
+    bct = true
+where user_id = 'USER_UUID_HERE';
 ```

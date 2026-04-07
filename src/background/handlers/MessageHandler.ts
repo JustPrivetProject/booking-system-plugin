@@ -5,6 +5,7 @@ import { getDriverNameAndContainer } from '../../services/baltichub';
 import { errorLogService } from '../../services/errorLogService';
 import { featureAccessService } from '../../services/featureAccessService';
 import type { FeatureKey } from '../../services/featureAccessService';
+import { isFeatureKey } from '../../services/featureAccessService';
 import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { sessionService } from '../../services/sessionService';
 import type {
@@ -706,6 +707,15 @@ export class MessageHandler {
                         success: false,
                         enabled: false,
                         error: 'Feature key is required',
+                    });
+                    return true;
+                }
+
+                if (!isFeatureKey(data.featureKey)) {
+                    sendResponse({
+                        success: false,
+                        enabled: false,
+                        error: 'Invalid feature key',
                     });
                     return true;
                 }

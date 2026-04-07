@@ -25,7 +25,7 @@ import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessSer
 import { initContainerCheckerUI } from './containerChecker';
 import { initGctUI } from './gct';
 
-type PopupTab = 'booking' | 'containerChecker' | 'gct';
+type PopupTab = 'booking' | 'bct' | 'containerChecker' | 'gct';
 
 interface PopupWindow extends Window {
     _toggleHeaderReset?: () => Promise<void>;
@@ -34,6 +34,7 @@ interface PopupWindow extends Window {
 const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
 
 let activePopupTab: PopupTab = 'booking';
+let isBctTabEnabled = false;
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
 
@@ -60,22 +61,46 @@ function initGctUiOnce(): void {
     initGctUI();
 }
 
+function applyFeatureTabAccess(
+    tab: HTMLButtonElement | null,
+    isEnabled: boolean,
+    enabledTitle: string,
+    disabledTitle: string,
+): void {
+    tab?.classList.toggle('tab-label-disabled', !isEnabled);
+
+    if (!tab) {
+        return;
+    }
+
+    tab.disabled = false;
+    tab.setAttribute('aria-disabled', String(!isEnabled));
+    tab.title = isEnabled ? enabledTitle : disabledTitle;
+}
+
 function applyTabState(tab: PopupTab, persist = true): void {
-    const resolvedTab = tab === 'gct' && !isGctTabEnabled ? 'booking' : tab;
+    const resolvedTab =
+        (tab === 'gct' && !isGctTabEnabled) || (tab === 'bct' && !isBctTabEnabled)
+            ? 'booking'
+            : tab;
     const tabBooking = document.getElementById('tabBooking');
+    const tabBct = document.getElementById('tabBct') as HTMLButtonElement | null;
     const tabContainerChecker = document.getElementById('tabContainerChecker');
     const tabGct = document.getElementById('tabGct') as HTMLButtonElement | null;
     const bookingView = document.getElementById('bookingView');
+    const bctView = document.getElementById('bctView');
     const containerCheckerView = document.getElementById('containerCheckerView');
     const gctView = document.getElementById('gctView');
 
     activePopupTab = resolvedTab;
 
     tabBooking?.classList.toggle('active', resolvedTab === 'booking');
+    tabBct?.classList.toggle('active', resolvedTab === 'bct');
     tabContainerChecker?.classList.toggle('active', resolvedTab === 'containerChecker');
     tabGct?.classList.toggle('active', resolvedTab === 'gct');
 
     bookingView?.classList.toggle('hidden', resolvedTab !== 'booking');
+    bctView?.classList.toggle('hidden', resolvedTab !== 'bct' || !isBctTabEnabled);
     containerCheckerView?.classList.toggle('hidden', resolvedTab !== 'containerChecker');
     gctView?.classList.toggle('hidden', resolvedTab !== 'gct' || !isGctTabEnabled);
 
@@ -95,30 +120,38 @@ function applyTabState(tab: PopupTab, persist = true): void {
 }
 
 async function refreshFeatureAccessUI(): Promise<void> {
+    const tabBct = document.getElementById('tabBct') as HTMLButtonElement | null;
+    const bctView = document.getElementById('bctView');
     const tabGct = document.getElementById('tabGct') as HTMLButtonElement | null;
     const gctView = document.getElementById('gctView');
     const isAuthenticated = await authService.isAuthenticated();
 
     if (!isAuthenticated) {
+        isBctTabEnabled = false;
         isGctTabEnabled = false;
     } else {
         try {
-            isGctTabEnabled = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB);
+            [isBctTabEnabled, isGctTabEnabled] = await Promise.all([
+                featureAccessService.isFeatureEnabled(FEATURE_KEYS.BCT),
+                featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT),
+            ]);
         } catch (error) {
             consoleError('Failed to load feature access:', error);
+            isBctTabEnabled = false;
             isGctTabEnabled = false;
         }
     }
 
-    tabGct?.classList.toggle('tab-label-disabled', !isGctTabEnabled);
-    if (tabGct) {
-        tabGct.disabled = false;
-        tabGct.setAttribute('aria-disabled', String(!isGctTabEnabled));
-        tabGct.title = isGctTabEnabled ? 'Moduł GCT' : 'Brak dostępu do modułu GCT';
-    }
+    applyFeatureTabAccess(tabBct, isBctTabEnabled, 'Moduł BCT', 'Brak dostępu do modułu BCT');
+    applyFeatureTabAccess(tabGct, isGctTabEnabled, 'Moduł GCT', 'Brak dostępu do modułu GCT');
+
+    bctView?.classList.toggle('hidden', activePopupTab !== 'bct' || !isBctTabEnabled);
     gctView?.classList.toggle('hidden', activePopupTab !== 'gct' || !isGctTabEnabled);
 
-    if (!isGctTabEnabled && activePopupTab === 'gct') {
+    if (
+        (!isBctTabEnabled && activePopupTab === 'bct') ||
+        (!isGctTabEnabled && activePopupTab === 'gct')
+    ) {
         applyTabState('booking');
     } else if (isGctTabEnabled && activePopupTab === 'gct') {
         initGctUiOnce();
@@ -729,10 +762,12 @@ async function updateNotificationButtonState() {
 
 async function initTabs(): Promise<void> {
     const tabBooking = document.getElementById('tabBooking');
+    const tabBct = document.getElementById('tabBct');
     const tabContainerChecker = document.getElementById('tabContainerChecker');
     const tabGct = document.getElementById('tabGct');
 
     tabBooking?.addEventListener('click', () => applyTabState('booking'));
+    tabBct?.addEventListener('click', () => applyTabState('bct'));
     tabContainerChecker?.addEventListener('click', () => applyTabState('containerChecker'));
     tabGct?.addEventListener('click', () => applyTabState('gct'));
 
@@ -741,7 +776,12 @@ async function initTabs(): Promise<void> {
     try {
         const { [POPUP_ACTIVE_TAB_KEY]: storedTab } =
             await chrome.storage.local.get(POPUP_ACTIVE_TAB_KEY);
-        if (storedTab === 'containerChecker' || storedTab === 'booking' || storedTab === 'gct') {
+        if (
+            storedTab === 'containerChecker' ||
+            storedTab === 'booking' ||
+            storedTab === 'bct' ||
+            storedTab === 'gct'
+        ) {
             applyTabState(storedTab, false);
             return;
         }
