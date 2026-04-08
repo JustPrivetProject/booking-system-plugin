@@ -50,11 +50,11 @@ describe('QueueManagerAdapter', () => {
         jest.clearAllMocks();
         mockQueueManagerFactory.create.mockReturnValue(mockQueueManager);
 
-        // Reset singleton instance
-        (QueueManagerAdapter as any).instance = null;
+        // Reset multiton instances
+        (QueueManagerAdapter as any).instances = new Map();
     });
 
-    describe('Constructor and Singleton Pattern', () => {
+    describe('Constructor and keyed instance behavior', () => {
         it('should create a new instance with default storage key', () => {
             const adapter = new QueueManagerAdapter();
 
@@ -74,7 +74,7 @@ describe('QueueManagerAdapter', () => {
             });
         });
 
-        it('should return the same instance when called multiple times (singleton)', () => {
+        it('should return the same instance when called multiple times for the same storage key', () => {
             const adapter1 = new QueueManagerAdapter();
             const adapter2 = new QueueManagerAdapter();
 
@@ -82,21 +82,24 @@ describe('QueueManagerAdapter', () => {
             expect(mockQueueManagerFactory.create).toHaveBeenCalledTimes(1);
         });
 
-        it('should maintain singleton behavior across different storage keys', () => {
+        it('should create different instances for different storage keys', () => {
             const adapter1 = new QueueManagerAdapter('key1');
             const adapter2 = new QueueManagerAdapter('key2');
 
-            expect(adapter1).toBe(adapter2);
-            // Should use the first storage key
-            expect(mockQueueManagerFactory.create).toHaveBeenCalledWith({
+            expect(adapter1).not.toBe(adapter2);
+            expect(mockQueueManagerFactory.create).toHaveBeenNthCalledWith(1, {
                 storageKey: 'key1',
+                enableLogging: true,
+            });
+            expect(mockQueueManagerFactory.create).toHaveBeenNthCalledWith(2, {
+                storageKey: 'key2',
                 enableLogging: true,
             });
         });
     });
 
     describe('getInstance Static Method', () => {
-        it('should return existing instance when available', () => {
+        it('should return existing instance when available for the same storage key', () => {
             const adapter1 = QueueManagerAdapter.getInstance();
             const adapter2 = QueueManagerAdapter.getInstance();
 
@@ -121,6 +124,14 @@ describe('QueueManagerAdapter', () => {
                 storageKey: 'customKey',
                 enableLogging: true,
             });
+        });
+
+        it('should create separate instances for separate storage keys', () => {
+            const adapter1 = QueueManagerAdapter.getInstance('retryQueue');
+            const adapter2 = QueueManagerAdapter.getInstance('retryQueue:bct');
+
+            expect(adapter1).not.toBe(adapter2);
+            expect(mockQueueManagerFactory.create).toHaveBeenCalledTimes(2);
         });
     });
 

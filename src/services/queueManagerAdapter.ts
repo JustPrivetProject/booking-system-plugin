@@ -9,12 +9,14 @@ import { QueueManagerFactory } from './queueManagerFactory';
  * This allows gradual migration from the old implementation to the new one
  */
 export class QueueManagerAdapter {
-    private static instance: QueueManagerAdapter | null = null;
+    private static instances = new Map<string, QueueManagerAdapter>();
     private queueManager!: QueueManager;
 
     constructor(storageKey = 'retryQueue') {
-        if (QueueManagerAdapter.instance) {
-            return QueueManagerAdapter.instance;
+        const existingInstance = QueueManagerAdapter.instances.get(storageKey);
+
+        if (existingInstance) {
+            return existingInstance;
         }
 
         this.queueManager = QueueManagerFactory.create({
@@ -22,14 +24,17 @@ export class QueueManagerAdapter {
             enableLogging: true,
         });
 
-        QueueManagerAdapter.instance = this;
+        QueueManagerAdapter.instances.set(storageKey, this);
     }
 
     static getInstance(storageKey = 'retryQueue'): QueueManagerAdapter {
-        if (!QueueManagerAdapter.instance) {
-            QueueManagerAdapter.instance = new QueueManagerAdapter(storageKey);
+        const existingInstance = QueueManagerAdapter.instances.get(storageKey);
+
+        if (existingInstance) {
+            return existingInstance;
         }
-        return QueueManagerAdapter.instance;
+
+        return new QueueManagerAdapter(storageKey);
     }
 
     // Forward all methods to the new QueueManager implementation

@@ -1,6 +1,11 @@
 import type { RequestCacheHeaders, RequestCacheBodes } from '../../types/baltichub';
+import { getBookingTerminalFromUrl } from '../../types/terminal';
 import { consoleLog, JSONstringify } from '../../utils';
-import { getStorage, setStorage } from '../../utils/storage';
+import {
+    getTerminalStorageValue,
+    setTerminalStorageValue,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../../utils/storage';
 
 export class RequestHandler {
     private readonly maskForCache = '*://*/TVApp/EditTvAppSubmit/*';
@@ -49,8 +54,18 @@ export class RequestHandler {
                 return;
             }
 
-            const data = await getStorage('requestCacheBody');
-            const cacheBody: RequestCacheBodes = data.requestCacheBody ?? {};
+            const terminal = getBookingTerminalFromUrl(details.url);
+
+            if (!terminal) {
+                consoleLog('Skipping request body cache for unsupported booking URL:', details.url);
+                return;
+            }
+
+            const cacheBody = await getTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                terminal,
+                {} as RequestCacheBodes,
+            );
 
             cacheBody[details.requestId] = {
                 url: details.url,
@@ -58,9 +73,14 @@ export class RequestHandler {
                 timestamp: Date.now(),
             };
 
-            await setStorage({ requestCacheBody: cacheBody });
+            await setTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                terminal,
+                cacheBody,
+            );
             const cacheData = {
                 requestId: details.requestId,
+                terminal,
                 url: details.url,
                 timestamp: Date.now(),
                 totalCached: Object.keys(cacheBody).length,
@@ -115,15 +135,30 @@ export class RequestHandler {
         });
     }
 
-    private async removeCachedBody(requestId: string): Promise<void> {
+    private async removeCachedBody(requestId: string, url?: string): Promise<void> {
         try {
-            const data = await getStorage('requestCacheBody');
-            const cacheBody: RequestCacheBodes = data.requestCacheBody ?? {};
+            const terminal = getBookingTerminalFromUrl(url);
+
+            if (!terminal) {
+                return;
+            }
+
+            const cacheBody = await getTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                terminal,
+                {} as RequestCacheBodes,
+            );
+
             if (cacheBody && cacheBody[requestId]) {
                 delete cacheBody[requestId];
-                await setStorage({ requestCacheBody: cacheBody });
+                await setTerminalStorageValue(
+                    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                    terminal,
+                    cacheBody,
+                );
                 const removeData = {
                     requestId,
+                    terminal,
                     reason: 'X-Extension-Request header found (our request)',
                     totalCached: Object.keys(cacheBody).length,
                 };
@@ -148,10 +183,10 @@ export class RequestHandler {
                         '🧹 Cleaning up cache for our completed request:',
                         details.requestId,
                     );
-                    this.removeCachedBody(details.requestId).catch(error => {
+                    this.removeCachedBody(details.requestId, details.url).catch(error => {
                         consoleLog('Error removing cached body in onCompleted:', error);
                     });
-                    this.removeCachedHeaders(details.requestId).catch(error => {
+                    this.removeCachedHeaders(details.requestId, details.url).catch(error => {
                         consoleLog('Error removing cached headers in onCompleted:', error);
                     });
                     this.ourRequestIds.delete(details.requestId);
@@ -165,10 +200,10 @@ export class RequestHandler {
             details => {
                 if (this.ourRequestIds.has(details.requestId)) {
                     consoleLog('🧹 Cleaning up cache for our failed request:', details.requestId);
-                    this.removeCachedBody(details.requestId).catch(error => {
+                    this.removeCachedBody(details.requestId, details.url).catch(error => {
                         consoleLog('Error removing cached body in onErrorOccurred:', error);
                     });
-                    this.removeCachedHeaders(details.requestId).catch(error => {
+                    this.removeCachedHeaders(details.requestId, details.url).catch(error => {
                         consoleLog('Error removing cached headers in onErrorOccurred:', error);
                     });
                     this.ourRequestIds.delete(details.requestId);
@@ -178,13 +213,27 @@ export class RequestHandler {
         );
     }
 
-    private async removeCachedHeaders(requestId: string): Promise<void> {
+    private async removeCachedHeaders(requestId: string, url?: string): Promise<void> {
         try {
-            const data = await getStorage('requestCacheHeaders');
-            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders ?? {};
+            const terminal = getBookingTerminalFromUrl(url);
+
+            if (!terminal) {
+                return;
+            }
+
+            const cacheHeaders = await getTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                terminal,
+                {} as RequestCacheHeaders,
+            );
+
             if (cacheHeaders && cacheHeaders[requestId]) {
                 delete cacheHeaders[requestId];
-                await setStorage({ requestCacheHeaders: cacheHeaders });
+                await setTerminalStorageValue(
+                    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                    terminal,
+                    cacheHeaders,
+                );
                 consoleLog('🗑️ Removed cached headers for requestId:', requestId);
             }
         } catch (error) {
@@ -196,8 +245,21 @@ export class RequestHandler {
         details: chrome.webRequest.OnBeforeSendHeadersDetails,
     ): Promise<void> {
         try {
-            const data = await getStorage('requestCacheHeaders');
-            const cacheHeaders: RequestCacheHeaders = data.requestCacheHeaders ?? {};
+            const terminal = getBookingTerminalFromUrl(details.url);
+
+            if (!terminal) {
+                consoleLog(
+                    'Skipping request headers cache for unsupported booking URL:',
+                    details.url,
+                );
+                return;
+            }
+
+            const cacheHeaders = await getTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                terminal,
+                {} as RequestCacheHeaders,
+            );
 
             cacheHeaders[details.requestId] = {
                 url: details.url,
@@ -205,7 +267,11 @@ export class RequestHandler {
                 timestamp: Date.now(),
             };
 
-            await setStorage({ requestCacheHeaders: cacheHeaders });
+            await setTerminalStorageValue(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                terminal,
+                cacheHeaders,
+            );
             consoleLog(
                 '✅ Cached Request Headers:',
                 details.requestId,

@@ -1,5 +1,6 @@
 import { StorageHandler } from '../../../src/background/handlers/StorageHandler';
 import { Statuses } from '../../../src/data';
+import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import { syncAuthenticationBadge } from '../../../src/utils/badge';
 import { onStorageChange } from '../../../src/utils/storage';
 import { consoleLog } from '../../../src/utils';
@@ -34,11 +35,17 @@ const mockQueueManager = {
     updateQueueItem: jest.fn(),
 };
 
+const mockBctQueueManager = {
+    getQueue: jest.fn(),
+    updateQueueItem: jest.fn(),
+};
+
 describe('StorageHandler', () => {
     let storageHandler: StorageHandler;
 
     beforeEach(() => {
         jest.clearAllMocks();
+        (QueueManagerAdapter.getInstance as jest.Mock).mockReturnValue(mockBctQueueManager);
         storageHandler = new StorageHandler(mockQueueManager as any);
     });
 
@@ -47,6 +54,7 @@ describe('StorageHandler', () => {
             storageHandler.setupStorageListener();
 
             expect(onStorageChange).toHaveBeenCalledWith('unauthorized', expect.any(Function));
+            expect(onStorageChange).toHaveBeenCalledWith('unauthorized:bct', expect.any(Function));
             expect(onStorageChange).toHaveBeenCalledWith('user_session', expect.any(Function));
         });
     });
@@ -208,6 +216,24 @@ describe('StorageHandler', () => {
             ).rejects.toThrow('Update error');
 
             expect(mockQueueManager.updateQueueItem).toHaveBeenCalled();
+        });
+
+        it('should restore the BCT queue with the BCT queue manager', async () => {
+            mockBctQueueManager.getQueue.mockResolvedValue([
+                {
+                    id: 'bct-item-1',
+                    status: Statuses.AUTHORIZATION_ERROR,
+                    status_message: 'Auth error',
+                },
+            ]);
+            mockBctQueueManager.updateQueueItem.mockResolvedValue(undefined);
+
+            await storageHandler['handleUnauthorizedChange'](false, true, 'bct');
+
+            expect(QueueManagerAdapter.getInstance).toHaveBeenCalledWith('retryQueue:bct');
+            expect(mockBctQueueManager.updateQueueItem).toHaveBeenCalledWith('bct-item-1', {
+                status: Statuses.IN_PROGRESS,
+            });
         });
     });
 

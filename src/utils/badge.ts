@@ -1,7 +1,8 @@
 import { StatusIconMap } from '../data';
+import { BOOKING_TERMINALS } from '../types/terminal';
 
 import { consoleLog, sortStatusesByPriority } from './index';
-import { getStorage } from './storage';
+import { getStorage, getTerminalStorageKey, TERMINAL_STORAGE_NAMESPACES } from './storage';
 
 function isKnownBaseStatus(status: unknown): status is string {
     return (
@@ -176,13 +177,24 @@ export function clearBadge(): Promise<void> {
 }
 
 export async function syncStatusBadgeFromStorage(): Promise<void> {
-    const state = (await getStorage(['retryQueue', 'gctGroups'])) as {
+    const bctRetryQueueKey = getTerminalStorageKey(
+        TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+        BOOKING_TERMINALS.BCT,
+    );
+    const state = (await getStorage(['retryQueue', bctRetryQueueKey, 'gctGroups'])) as {
         retryQueue?: Array<{ status?: unknown }>;
+        [bctRetryQueueKey]?: Array<{ status?: unknown }>;
         gctGroups?: Array<{ rows?: Array<{ status?: unknown }> }>;
     };
 
     const retryStatuses = Array.isArray(state.retryQueue)
         ? state.retryQueue
+              .map(item => item?.status)
+              .filter((status): status is string => isKnownBaseStatus(status))
+        : [];
+
+    const bctRetryStatuses = Array.isArray(state[bctRetryQueueKey])
+        ? state[bctRetryQueueKey]
               .map(item => item?.status)
               .filter((status): status is string => isKnownBaseStatus(status))
         : [];
@@ -197,7 +209,7 @@ export async function syncStatusBadgeFromStorage(): Promise<void> {
           )
         : [];
 
-    const statuses = [...retryStatuses, ...gctStatuses];
+    const statuses = [...retryStatuses, ...bctRetryStatuses, ...gctStatuses];
 
     if (!statuses.length) {
         await clearBadge();

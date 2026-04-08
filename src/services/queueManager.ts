@@ -24,6 +24,12 @@ import {
 } from '../utils/index';
 import { Statuses, ErrorType, Messages } from '../data';
 import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    type BookingTerminal,
+} from '../types/terminal';
+import { setTerminalStorageValue, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
+import {
     getSlots,
     checkSlotAvailability,
     executeRequest,
@@ -352,7 +358,11 @@ export class QueueManager implements IQueueManager {
 
         // Step 2: Fetch slots SEQUENTIALLY per (date, slotType) (avoids rate limit from parallel bursts)
         for (const key of subscriptionKeys) {
-            const [date, slotTypeStr] = key.split('|');
+            const [terminalKey, date, slotTypeStr] = key.split('|');
+            const terminal =
+                terminalKey === BOOKING_TERMINALS.BCT
+                    ? BOOKING_TERMINALS.BCT
+                    : BOOKING_TERMINALS.DCT;
             const slotType = slotTypeStr ? parseInt(slotTypeStr, 10) : 1;
             const requests = subscriptions.get(key);
             if (!requests) {
@@ -364,7 +374,7 @@ export class QueueManager implements IQueueManager {
             let error: ErrorResponse | null = null;
 
             try {
-                slots = await getSlots(date, slotType);
+                slots = await getSlots(date, slotType, terminal);
             } catch (err) {
                 error = {
                     ok: false,
@@ -477,9 +487,10 @@ export class QueueManager implements IQueueManager {
                     continue;
                 }
 
-                // Group by date + slotType (1 = default, 4 = PUSTE)
+                // Group by terminal + date + slotType so DCT and BCT never share a slot fetch cycle.
                 const slotType = req.slotType ?? 1;
-                const key = `${date}|${slotType}`;
+                const terminal = this.resolveRequestTerminal(req);
+                const key = `${terminal}|${date}|${slotType}`;
 
                 if (!subscriptions.has(key)) {
                     subscriptions.set(key, []);
@@ -491,6 +502,7 @@ export class QueueManager implements IQueueManager {
                         '📅 Added request to date/slotType group:',
                         `req.id=${req.id}`,
                         `tvAppId=${req.tvAppId}`,
+                        `terminal=${terminal}`,
                         `Date=${date}`,
                         `slotType=${slotType}`,
                         `req.startSlot=${req.startSlot || 'not set'}`,
@@ -661,7 +673,7 @@ export class QueueManager implements IQueueManager {
                     }
 
                     if (errorData.type === ErrorType.CLIENT_ERROR && errorData.status === 401) {
-                        setStorage({ unauthorized: true });
+                        await this.markRequestUnauthorized(req);
                         await this.updateQueueItem(req.id, {
                             status: Statuses.AUTHORIZATION_ERROR,
                             status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
@@ -671,7 +683,7 @@ export class QueueManager implements IQueueManager {
 
                     if (errorData.type === ErrorType.SERVER_ERROR) {
                         if (this.shouldTreatServer500AsUnauthorized()) {
-                            await setStorage({ unauthorized: true });
+                            await this.markRequestUnauthorized(req);
                             await this.updateQueueItem(req.id, {
                                 status: Statuses.AUTHORIZATION_ERROR,
                                 status_message:
@@ -702,7 +714,7 @@ export class QueueManager implements IQueueManager {
                     'status' in error &&
                     error.status === 401
                 ) {
-                    setStorage({ unauthorized: true });
+                    await this.markRequestUnauthorized(req);
                     await this.updateQueueItem(req.id, {
                         status: Statuses.AUTHORIZATION_ERROR,
                         status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
@@ -748,5 +760,17 @@ export class QueueManager implements IQueueManager {
 
     private clearRecentServer500Errors(): void {
         this.recentServer500Timestamps = [];
+    }
+
+    private resolveRequestTerminal(req: RetryObject): BookingTerminal {
+        return req.terminal || getBookingTerminalFromUrl(req.url) || BOOKING_TERMINALS.DCT;
+    }
+
+    private async markRequestUnauthorized(req: RetryObject): Promise<void> {
+        await setTerminalStorageValue(
+            TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+            this.resolveRequestTerminal(req),
+            true,
+        );
     }
 }

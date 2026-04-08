@@ -4,6 +4,7 @@ import { sessionService } from '../services/sessionService';
 import { consoleLog, consoleError } from '../utils';
 import { getStorage, setStorage } from '../utils/storage';
 import { clearBadge, syncAuthenticationBadge } from '../utils/badge';
+import { BOOKING_TERMINALS } from '../types/terminal';
 
 import { MessageHandler } from './handlers/MessageHandler';
 import { RequestHandler } from './handlers/RequestHandler';
@@ -71,6 +72,7 @@ export class BackgroundController {
         await setStorage({ retryEnabled: true });
         await setStorage({ testEnv: false });
         await setStorage({ unauthorized: false });
+        await setStorage({ 'unauthorized:bct': false });
         await setStorage({ headerHidden: false });
 
         // Initialize notification settings if not exist
@@ -97,6 +99,11 @@ export class BackgroundController {
         const { tableData } = await getStorage('tableData');
         if (!tableData) {
             await setStorage({ tableData: [] });
+        }
+
+        const bctTableData = await getStorage('tableData:bct');
+        if (!bctTableData['tableData:bct']) {
+            await setStorage({ 'tableData:bct': [] });
         }
 
         // Initialize retry queue if not exist
@@ -236,8 +243,12 @@ export class BackgroundController {
 
     private setupEbramaSessionKeepAlive(): void {
         const ebramaKeepAliveInterval = setInterval(() => {
-            keepEbramaSessionAlive().catch(error => {
-                consoleError('[background] eBrama keepalive interval error:', error);
+            keepEbramaSessionAlive(BOOKING_TERMINALS.DCT).catch(error => {
+                consoleError('[background] eBrama keepalive interval error for dct:', error);
+            });
+
+            keepEbramaSessionAlive(BOOKING_TERMINALS.BCT).catch(error => {
+                consoleError('[background] eBrama keepalive interval error for bct:', error);
             });
         }, getEbramaKeepAliveIntervalMs());
 
@@ -283,8 +294,11 @@ export class BackgroundController {
         });
 
         // Migrate auto-login data to fix encoding issues
-        autoLoginService.migrateAndCleanData().catch(error => {
-            consoleError('[background] Failed to migrate auto-login data:', error);
+        autoLoginService.migrateAndCleanData(BOOKING_TERMINALS.DCT).catch(error => {
+            consoleError('[background] Failed to migrate DCT auto-login data:', error);
+        });
+        autoLoginService.migrateAndCleanData(BOOKING_TERMINALS.BCT).catch(error => {
+            consoleError('[background] Failed to migrate BCT auto-login data:', error);
         });
     }
 

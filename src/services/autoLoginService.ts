@@ -1,4 +1,5 @@
 import { consoleError, consoleLog, getStorage, removeStorage, setStorage } from '../utils';
+import { BOOKING_TERMINALS, type BookingTerminal } from '../types/terminal';
 
 import { authService } from './authService';
 
@@ -15,6 +16,69 @@ export interface AutoLoginData {
 }
 
 const AUTO_LOGIN_STORAGE_KEY = 'autoLoginData';
+
+export function getAutoLoginStorageKey(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): string {
+    return terminal === BOOKING_TERMINALS.DCT
+        ? `${AUTO_LOGIN_STORAGE_KEY}:${BOOKING_TERMINALS.DCT}`
+        : `${AUTO_LOGIN_STORAGE_KEY}:${terminal}`;
+}
+
+function getAutoLoginStorageKeys(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): string[] {
+    const terminalKey = getAutoLoginStorageKey(terminal);
+
+    return terminal === BOOKING_TERMINALS.DCT
+        ? [terminalKey, AUTO_LOGIN_STORAGE_KEY]
+        : [terminalKey];
+}
+
+async function loadStoredAutoLoginData(
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<AutoLoginData | null> {
+    const [terminalKey, legacyKey] = getAutoLoginStorageKeys(terminal);
+    const result = await getStorage(getAutoLoginStorageKeys(terminal));
+    const terminalData = result[terminalKey] as AutoLoginData | undefined;
+
+    if (terminalData) {
+        return terminalData;
+    }
+
+    if (legacyKey && legacyKey !== terminalKey) {
+        const legacyData = result[legacyKey] as AutoLoginData | undefined;
+
+        if (legacyData) {
+            await setStorage({
+                [terminalKey]: legacyData,
+                [AUTO_LOGIN_STORAGE_KEY]: legacyData,
+            });
+            return legacyData;
+        }
+    }
+
+    return null;
+}
+
+async function saveStoredAutoLoginData(
+    autoLoginData: AutoLoginData,
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<void> {
+    const terminalKey = getAutoLoginStorageKey(terminal);
+
+    if (terminal === BOOKING_TERMINALS.DCT) {
+        await setStorage({
+            [terminalKey]: autoLoginData,
+            [AUTO_LOGIN_STORAGE_KEY]: autoLoginData,
+        });
+        return;
+    }
+
+    await setStorage({ [terminalKey]: autoLoginData });
+}
+
+async function clearStoredAutoLoginData(
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<void> {
+    await removeStorage(getAutoLoginStorageKeys(terminal));
+}
 
 // Simple encryption/decryption using a secret key
 // In production, you should use a more secure encryption method
@@ -83,7 +147,10 @@ export const autoLoginService = {
     /**
      * Save auto-login credentials with encryption
      */
-    async saveCredentials(credentials: AutoLoginCredentials): Promise<void> {
+    async saveCredentials(
+        credentials: AutoLoginCredentials,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
         const autoLoginData: AutoLoginData = {
             login: encrypt(credentials.login),
             password: encrypt(credentials.password),
@@ -91,16 +158,17 @@ export const autoLoginService = {
             createdAt: Date.now(),
         };
 
-        await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData });
+        await saveStoredAutoLoginData(autoLoginData, terminal);
     },
 
     /**
      * Load auto-login credentials with decryption
      */
-    async loadCredentials(): Promise<AutoLoginCredentials | null> {
+    async loadCredentials(
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<AutoLoginCredentials | null> {
         try {
-            const result = await getStorage([AUTO_LOGIN_STORAGE_KEY]);
-            const autoLoginData = result[AUTO_LOGIN_STORAGE_KEY] as AutoLoginData | undefined;
+            const autoLoginData = await loadStoredAutoLoginData(terminal);
 
             if (!autoLoginData || !autoLoginData.enabled) {
                 return null;
@@ -119,10 +187,9 @@ export const autoLoginService = {
     /**
      * Check if auto-login is enabled
      */
-    async isEnabled(): Promise<boolean> {
+    async isEnabled(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<boolean> {
         try {
-            const result = await getStorage([AUTO_LOGIN_STORAGE_KEY]);
-            const autoLoginData = result[AUTO_LOGIN_STORAGE_KEY] as AutoLoginData | undefined;
+            const autoLoginData = await loadStoredAutoLoginData(terminal);
             return !!(autoLoginData && autoLoginData.enabled);
         } catch (error) {
             consoleError('Failed to check auto-login status:', error);
@@ -133,16 +200,18 @@ export const autoLoginService = {
     /**
      * Clear auto-login credentials
      */
-    async clearCredentials(): Promise<void> {
-        await removeStorage(AUTO_LOGIN_STORAGE_KEY);
+    async clearCredentials(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<void> {
+        await clearStoredAutoLoginData(terminal);
     },
 
     /**
      * Validate if stored credentials are readable
      */
-    async validateStoredCredentials(): Promise<boolean> {
+    async validateStoredCredentials(
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<boolean> {
         try {
-            const credentials = await this.loadCredentials();
+            const credentials = await this.loadCredentials(terminal);
             if (!credentials) {
                 return false;
             }
@@ -163,27 +232,30 @@ export const autoLoginService = {
     /**
      * Clear credentials if they are corrupted
      */
-    async clearCorruptedCredentials(): Promise<void> {
+    async clearCorruptedCredentials(
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
         try {
-            const isValid = await this.validateStoredCredentials();
+            const isValid = await this.validateStoredCredentials(terminal);
             if (!isValid) {
                 consoleLog('Detected corrupted auto-login credentials, clearing...');
-                await this.clearCredentials();
+                await this.clearCredentials(terminal);
             }
         } catch (error) {
             consoleError('Failed to check for corrupted credentials:', error);
             // If we can't even check, clear anyway to be safe
-            await this.clearCredentials();
+            await this.clearCredentials(terminal);
         }
     },
 
     /**
      * Get auto-login data for UI state
      */
-    async getAutoLoginData(): Promise<AutoLoginData | null> {
+    async getAutoLoginData(
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<AutoLoginData | null> {
         try {
-            const result = await getStorage([AUTO_LOGIN_STORAGE_KEY]);
-            return (result[AUTO_LOGIN_STORAGE_KEY] as AutoLoginData | undefined) || null;
+            return await loadStoredAutoLoginData(terminal);
         } catch (error) {
             consoleError('Failed to get auto-login data:', error);
             return null;
@@ -193,7 +265,7 @@ export const autoLoginService = {
     /**
      * Perform automatic login using saved credentials
      */
-    async performAutoLogin(): Promise<boolean> {
+    async performAutoLogin(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<boolean> {
         try {
             // Check if user is already authenticated
             const isAuthenticated = await authService.isAuthenticated();
@@ -202,13 +274,13 @@ export const autoLoginService = {
             }
 
             // Check if auto-login is enabled
-            const isEnabled = await this.isEnabled();
+            const isEnabled = await this.isEnabled(terminal);
             if (!isEnabled) {
                 return false;
             }
 
             // Load saved credentials
-            const credentials = await this.loadCredentials();
+            const credentials = await this.loadCredentials(terminal);
             if (!credentials) {
                 return false;
             }
@@ -222,15 +294,28 @@ export const autoLoginService = {
         }
     },
 
+    async performAutoLoginWithFallback(
+        terminals: BookingTerminal[] = [BOOKING_TERMINALS.DCT, BOOKING_TERMINALS.BCT],
+    ): Promise<boolean> {
+        for (const terminal of terminals) {
+            const success = await this.performAutoLogin(terminal);
+            if (success) {
+                return true;
+            }
+        }
+
+        return false;
+    },
+
     /**
      * Disable auto-login (but keep credentials)
      */
-    async disableAutoLogin(): Promise<void> {
+    async disableAutoLogin(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<void> {
         try {
-            const autoLoginData = await this.getAutoLoginData();
+            const autoLoginData = await this.getAutoLoginData(terminal);
             if (autoLoginData) {
                 autoLoginData.enabled = false;
-                await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData });
+                await saveStoredAutoLoginData(autoLoginData, terminal);
             }
         } catch (error) {
             consoleError('Failed to disable auto-login:', error);
@@ -240,12 +325,12 @@ export const autoLoginService = {
     /**
      * Enable auto-login (if credentials exist)
      */
-    async enableAutoLogin(): Promise<void> {
+    async enableAutoLogin(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<void> {
         try {
-            const autoLoginData = await this.getAutoLoginData();
+            const autoLoginData = await this.getAutoLoginData(terminal);
             if (autoLoginData) {
                 autoLoginData.enabled = true;
-                await setStorage({ [AUTO_LOGIN_STORAGE_KEY]: autoLoginData });
+                await saveStoredAutoLoginData(autoLoginData, terminal);
             }
         } catch (error) {
             consoleError('Failed to enable auto-login:', error);
@@ -255,40 +340,40 @@ export const autoLoginService = {
     /**
      * Migrate and clean old corrupted data
      */
-    async migrateAndCleanData(): Promise<void> {
+    async migrateAndCleanData(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<void> {
         try {
-            const autoLoginData = await this.getAutoLoginData();
+            const autoLoginData = await this.getAutoLoginData(terminal);
             if (!autoLoginData) {
                 return;
             }
 
             // Try to load credentials to check if they're valid
-            const credentials = await this.loadCredentials();
+            const credentials = await this.loadCredentials(terminal);
             if (!credentials) {
                 consoleLog('Clearing corrupted auto-login data during migration');
-                await this.clearCredentials();
+                await this.clearCredentials(terminal);
                 return;
             }
 
             // Check if credentials are valid (not empty)
             if (credentials.login.length === 0 || credentials.password.length === 0) {
                 consoleLog('Clearing corrupted auto-login data during migration');
-                await this.clearCredentials();
+                await this.clearCredentials(terminal);
                 return;
             }
 
             // Re-encrypt with current encryption method
-            await this.saveCredentials(credentials);
+            await this.saveCredentials(credentials, terminal);
         } catch (error) {
             consoleError('Failed to migrate auto-login data:', error);
-            await this.clearCredentials();
+            await this.clearCredentials(terminal);
         }
     },
 
     /**
      * Test encryption/decryption (development only)
      */
-    async testEncryption(): Promise<boolean> {
+    async testEncryption(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<boolean> {
         if (process.env.NODE_ENV !== 'development') {
             return false;
         }
@@ -300,13 +385,13 @@ export const autoLoginService = {
             };
 
             // Test encryption
-            await this.saveCredentials(testCredentials);
+            await this.saveCredentials(testCredentials, terminal);
 
             // Test decryption
-            const decrypted = await this.loadCredentials();
+            const decrypted = await this.loadCredentials(terminal);
 
             // Clean up
-            await this.clearCredentials();
+            await this.clearCredentials(terminal);
 
             const isValid =
                 decrypted &&

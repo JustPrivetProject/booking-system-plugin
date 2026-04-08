@@ -6,7 +6,7 @@ import { errorLogService } from '../../services/errorLogService';
 import { featureAccessService } from '../../services/featureAccessService';
 import type { FeatureKey } from '../../services/featureAccessService';
 import { isFeatureKey } from '../../services/featureAccessService';
-import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
+import { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { sessionService } from '../../services/sessionService';
 import type {
     RequestCacheHeaderBody,
@@ -16,6 +16,12 @@ import type {
     TableData,
 } from '../../types/index';
 import type { RequestCacheBodes, RequestCacheHeaders } from '../../types/baltichub';
+import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    isBookingTerminal,
+    type BookingTerminal,
+} from '../../types/terminal';
 import {
     consoleLog,
     consoleError,
@@ -41,6 +47,7 @@ interface BackgroundMessageData {
     status_message?: string;
     description?: string | null;
     featureKey?: string;
+    terminal?: string;
 }
 
 interface HandlerMessage {
@@ -77,6 +84,43 @@ function getTablePayload(message: HandlerMessage): TableData | null {
     return Array.isArray(message.message) ? (message.message as TableData) : null;
 }
 
+function resolveBookingTerminal(value?: string): BookingTerminal {
+    return isBookingTerminal(value) ? value : BOOKING_TERMINALS.DCT;
+}
+
+function resolveMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal {
+    if (isBookingTerminal(message.data?.terminal)) {
+        return message.data.terminal;
+    }
+
+    return getBookingTerminalFromUrl(sender?.url) || BOOKING_TERMINALS.DCT;
+}
+
+function getRetryQueueStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT ? 'retryQueue' : `retryQueue:${terminal}`;
+}
+
+function getUnauthorizedStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT ? 'unauthorized' : `unauthorized:${terminal}`;
+}
+
+function getTableDataStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT ? 'tableData' : `tableData:${terminal}`;
+}
+
+function getRequestCacheBodyStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT ? 'requestCacheBody' : `requestCacheBody:${terminal}`;
+}
+
+function getRequestCacheHeadersStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT
+        ? 'requestCacheHeaders'
+        : `requestCacheHeaders:${terminal}`;
+}
+
 export class MessageHandler {
     private containerCheckerHandler: ContainerCheckerHandler;
     private gctHandler: GctHandler;
@@ -88,18 +132,18 @@ export class MessageHandler {
 
     handleMessage(
         message: HandlerMessage,
-        _sender: chrome.runtime.MessageSender,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): boolean {
         // Handle error and success booking actions
         if (message.action === Actions.SHOW_ERROR || message.action === Actions.SUCCEED_BOOKING) {
-            this.handleBookingAction(message, sendResponse);
+            this.handleBookingAction(message, sender, sendResponse);
             return true;
         }
 
         // Handle table parsing
         if (message.action === Actions.PARSED_TABLE) {
-            this.handleTableParsing(message, sendResponse);
+            this.handleTableParsing(message, sender, sendResponse);
             return true;
         }
 
@@ -110,28 +154,28 @@ export class MessageHandler {
         }
 
         if (message.action === Actions.GET_AUTH_STATUS) {
-            this.handleAuthStatusCheck(sendResponse);
+            this.handleAuthStatusCheck(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.LOGIN_SUCCESS) {
-            this.handleLoginSuccess(message, sendResponse);
+            this.handleLoginSuccess(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.AUTO_LOGIN_ATTEMPT) {
-            this.handleAutoLoginAttempt(message, sendResponse);
+            this.handleAutoLoginAttempt(message, sender, sendResponse);
             return true;
         }
 
         // Handle auto-login related actions
         if (message.action === Actions.LOAD_AUTO_LOGIN_CREDENTIALS) {
-            this.handleLoadAutoLoginCredentials(sendResponse);
+            this.handleLoadAutoLoginCredentials(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.IS_AUTO_LOGIN_ENABLED) {
-            this.handleAutoLoginEnabledCheck(sendResponse);
+            this.handleAutoLoginEnabledCheck(message, sender, sendResponse);
             return true;
         }
 
@@ -154,12 +198,15 @@ export class MessageHandler {
 
     private async handleBookingAction(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         consoleLog('Getting request from Cache...');
 
         try {
-            const data = await getStorage('requestCacheHeaders');
+            const terminal = resolveMessageTerminal(message, sender);
+            const requestCacheHeadersKey = getRequestCacheHeadersStorageKey(terminal);
+            const data = (await getStorage(requestCacheHeadersKey)) as Record<string, unknown>;
             const user = await authService.getCurrentUser();
 
             if (!user) {
@@ -168,11 +215,16 @@ export class MessageHandler {
                 return;
             }
 
-            if (data.requestCacheHeaders) {
+            const requestCacheHeaders = data[requestCacheHeadersKey] as
+                | RequestCacheHeaders
+                | undefined;
+
+            if (requestCacheHeaders) {
                 await this.processCachedRequest(
-                    { requestCacheHeaders: data.requestCacheHeaders },
+                    { requestCacheHeaders },
                     message,
                     sendResponse,
+                    terminal,
                 );
             }
         } catch (error) {
@@ -188,6 +240,7 @@ export class MessageHandler {
         data: CachedHeadersPayload,
         message: HandlerMessage,
         sendResponse: SendResponse,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
     ): Promise<void> {
         // Use the same requestId for both headers and body to avoid mismatch
         // Get the last requestId (most recent) to match with getLastProperty
@@ -243,14 +296,23 @@ export class MessageHandler {
                 throw new Error('No cached request headers found');
             }
 
+            const requestCacheBodyKey = getRequestCacheBodyStorageKey(terminal);
+            const retryQueueKey = getRetryQueueStorageKey(terminal);
+            const tableDataKey = getTableDataStorageKey(terminal);
             const storageData = (await getStorage([
-                'requestCacheBody',
-                'retryQueue',
+                requestCacheBodyKey,
+                retryQueueKey,
                 'testEnv',
-                'tableData',
-            ])) as RetryObjectContext & { requestCacheBody?: RequestCacheBodes };
+                tableDataKey,
+            ])) as Record<string, unknown> & RetryObjectContext;
 
-            const cachedBodyKeys = Object.keys(storageData.requestCacheBody || {});
+            const retryQueue = (storageData[retryQueueKey] as RetryObject[] | undefined) || [];
+            const tableData = (storageData[tableDataKey] as TableData | undefined) || undefined;
+            const requestCacheBodyMap =
+                (storageData[requestCacheBodyKey] as RequestCacheBodes | undefined) ||
+                ({} as RequestCacheBodes);
+
+            const cachedBodyKeys = Object.keys(requestCacheBodyMap);
             consoleLog(
                 '📦 Cache state:',
                 `requestId=${requestId}`,
@@ -258,10 +320,8 @@ export class MessageHandler {
                 `Total cached bodies=${cachedBodyKeys.length}`,
             );
 
-            const cachedBodies: RequestCacheBodes =
-                storageData.requestCacheBody ?? ({} as RequestCacheBodes);
             const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
-                cachedBodies,
+                requestCacheBodyMap,
                 requestId,
             );
 
@@ -269,14 +329,20 @@ export class MessageHandler {
                 const retryObject = await this.createRetryObject(
                     requestCacheBody,
                     requestCacheHeaders,
-                    storageData as RetryObjectContext,
+                    {
+                        ...storageData,
+                        tableData,
+                        requestCacheBody: requestCacheBodyMap,
+                        retryQueue,
+                    } as RetryObjectContext,
                     message.action,
+                    terminal,
                 );
 
-                await this.queueManager.addToQueue(retryObject);
+                await this.getQueueManagerForTerminal(terminal).addToQueue(retryObject);
 
                 // Remove only the processed request from cache, not all
-                await this.removeCachedRequest(requestId);
+                await this.removeCachedRequest(requestId, terminal);
 
                 consoleLog(
                     '✅ Successfully processed and removed from cache:',
@@ -289,7 +355,7 @@ export class MessageHandler {
                     `Available body keys=${cachedBodyKeys.join(', ')}`,
                 );
                 // Remove the requestId from headers cache even if body is missing
-                await this.removeCachedRequest(requestId);
+                await this.removeCachedRequest(requestId, terminal);
             }
 
             sendResponse({ success: true });
@@ -297,7 +363,7 @@ export class MessageHandler {
             consoleError('❌ Error in processCachedRequest:', error);
             // Try to clean up the failed request from cache
             try {
-                await this.removeCachedRequest(requestId);
+                await this.removeCachedRequest(requestId, terminal);
                 consoleLog('🧹 Cleaned up failed request from cache:', requestId);
             } catch (cleanupError) {
                 consoleError('❌ Error cleaning up failed request:', cleanupError);
@@ -313,15 +379,25 @@ export class MessageHandler {
      * Removes a specific request from cache by requestId
      * Instead of clearing all cache, removes only the processed request
      */
-    private async removeCachedRequest(requestId: string): Promise<void> {
+    private async removeCachedRequest(
+        requestId: string,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
         try {
+            const requestCacheBodyKey = getRequestCacheBodyStorageKey(terminal);
+            const requestCacheHeadersKey = getRequestCacheHeadersStorageKey(terminal);
             const [bodyData, headersData] = await Promise.all([
-                getStorage('requestCacheBody'),
-                getStorage('requestCacheHeaders'),
+                getStorage(requestCacheBodyKey),
+                getStorage(requestCacheHeadersKey),
             ]);
 
-            const cacheBody: RequestCacheBodes = bodyData.requestCacheBody ?? {};
-            const cacheHeaders: RequestCacheHeaders = headersData.requestCacheHeaders ?? {};
+            const cacheBody: RequestCacheBodes =
+                ((bodyData as Record<string, unknown>)[requestCacheBodyKey] as RequestCacheBodes) ||
+                {};
+            const cacheHeaders: RequestCacheHeaders =
+                ((headersData as Record<string, unknown>)[
+                    requestCacheHeadersKey
+                ] as RequestCacheHeaders) || {};
 
             let removed = false;
 
@@ -341,8 +417,8 @@ export class MessageHandler {
 
             if (removed) {
                 await Promise.all([
-                    setStorage({ requestCacheBody: cacheBody }),
-                    setStorage({ requestCacheHeaders: cacheHeaders }),
+                    setStorage({ [requestCacheBodyKey]: cacheBody }),
+                    setStorage({ [requestCacheHeadersKey]: cacheHeaders }),
                 ]);
                 consoleLog(
                     '✅ Cache cleanup completed:',
@@ -363,6 +439,7 @@ export class MessageHandler {
         requestCacheHeaders: RequestCacheHeaderBody,
         data: RetryObjectContext,
         action?: string,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
     ): Promise<RetryObject> {
         const tableData = data.tableData;
         const retryObject: RetryObject = {
@@ -374,6 +451,7 @@ export class MessageHandler {
             endSlot: '',
             status: '',
             status_message: '',
+            terminal,
             tvAppId: '',
         };
 
@@ -383,6 +461,7 @@ export class MessageHandler {
         const driverAndContainer = (await getDriverNameAndContainer(
             tvAppId,
             data.retryQueue || [],
+            terminal,
         )) || {
             driverName: '',
             containerNumber: '',
@@ -482,17 +561,19 @@ export class MessageHandler {
 
     private async handleTableParsing(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         try {
             const tableData = getTablePayload(message);
+            const terminal = resolveMessageTerminal(message, sender);
 
             if (!tableData) {
                 sendResponse({ success: false, error: 'Invalid table data payload' });
                 return;
             }
 
-            await setStorage({ tableData });
+            await setStorage({ [getTableDataStorageKey(terminal)]: tableData });
             consoleLog('Table saved in the storage', tableData);
             sendResponse({ success: true });
         } catch (error) {
@@ -514,10 +595,17 @@ export class MessageHandler {
             });
     }
 
-    private handleAuthStatusCheck(sendResponse: SendResponse): void {
-        getStorage('unauthorized')
-            .then(({ unauthorized }) => {
-                const isUnauthorized = !!unauthorized;
+    private handleAuthStatusCheck(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
+
+        getStorage(unauthorizedKey)
+            .then(data => {
+                const isUnauthorized = !!(data as Record<string, unknown>)[unauthorizedKey];
                 sendResponse({ unauthorized: isUnauthorized });
             })
             .catch(error => {
@@ -528,14 +616,17 @@ export class MessageHandler {
 
     private async handleLoginSuccess(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         const { success } = getAuthAttemptPayload(message);
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
         consoleLog('[background] LOGIN_SUCCESS:', success);
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false });
+                await setStorage({ [unauthorizedKey]: false });
                 consoleLog('[background] Manual login successful - Auth restored');
                 sendResponse({ success: true });
             } catch (error) {
@@ -553,13 +644,16 @@ export class MessageHandler {
 
     private async handleAutoLoginAttempt(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         const { success } = getAuthAttemptPayload(message);
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false });
+                await setStorage({ [unauthorizedKey]: false });
                 consoleLog('[background] Auto-login successful - Auth restored');
                 sendResponse({ success: true, autoLogin: true });
             } catch (error) {
@@ -576,9 +670,15 @@ export class MessageHandler {
         }
     }
 
-    private handleLoadAutoLoginCredentials(sendResponse: SendResponse): void {
+    private handleLoadAutoLoginCredentials(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+
         autoLoginService
-            .loadCredentials()
+            .loadCredentials(terminal)
             .then(credentials => {
                 if (credentials) {
                     const isLoginValid =
@@ -603,7 +703,7 @@ export class MessageHandler {
                         consoleLog(
                             '[background] Detected corrupted auto-login credentials, clearing...',
                         );
-                        autoLoginService.clearCredentials();
+                        autoLoginService.clearCredentials(terminal);
                         sendResponse({ success: false, credentials: null });
                     }
                 } else {
@@ -613,19 +713,26 @@ export class MessageHandler {
             })
             .catch(error => {
                 consoleLog('[background] Error loading auto-login credentials:', error);
-                autoLoginService.clearCredentials();
+                autoLoginService.clearCredentials(terminal);
                 sendResponse({ success: false, error: error.message });
             });
     }
 
-    private handleAutoLoginEnabledCheck(sendResponse: SendResponse): void {
-        autoLoginService.isEnabled().then(isEnabled => {
+    private handleAutoLoginEnabledCheck(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+
+        autoLoginService.isEnabled(terminal).then(isEnabled => {
             sendResponse({ success: true, isEnabled });
         });
     }
 
     private handleBackgroundActions(message: HandlerMessage, sendResponse: SendResponse): boolean {
         const data = message.data || {};
+        const queueManager = this.getQueueManagerForTerminal(resolveBookingTerminal(data.terminal));
 
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
@@ -634,7 +741,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .removeFromQueue(data.id)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -649,7 +756,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .removeMultipleFromQueue(data.ids)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -664,7 +771,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .updateQueueItem(data.id, {
                         status: data.status,
                         status_message: data.status_message,
@@ -685,7 +792,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .updateMultipleQueueItems(data.ids, {
                         status: data.status,
                         status_message: data.status_message,
@@ -738,6 +845,14 @@ export class MessageHandler {
                 sendResponse({ success: false });
                 return true;
         }
+    }
+
+    private getQueueManagerForTerminal(terminal: BookingTerminal): QueueManagerAdapter {
+        if (terminal === BOOKING_TERMINALS.DCT) {
+            return this.queueManager;
+        }
+
+        return QueueManagerAdapter.getInstance(getRetryQueueStorageKey(terminal));
     }
 
     private handleContainerCheckerActions(

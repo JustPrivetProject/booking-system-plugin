@@ -44,7 +44,12 @@ jest.mock('../../../src/services/baltichub', () => ({
     executeRequest: jest.fn(),
 }));
 
-// Storage functions are now included in the main utils mock above
+jest.mock('../../../src/utils/storage', () => ({
+    setTerminalStorageValue: jest.fn(),
+    TERMINAL_STORAGE_NAMESPACES: {
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
 
 jest.mock('../../../src/utils/badge', () => ({
     updateBadge: jest.fn(),
@@ -56,6 +61,7 @@ jest.mock('../../../src/utils/badge', () => ({
 import { QueueManager } from '../../../src/services/queueManager';
 import { RetryObject } from '../../../src/types/baltichub';
 import { QueueEvents } from '../../../src/types/queue';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 describe('QueueManager', () => {
     let queueManager: QueueManager;
@@ -67,6 +73,7 @@ describe('QueueManager', () => {
     let mockConsoleLogWithoutSave: jest.Mock;
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
+    let mockSetTerminalStorageValue: jest.Mock;
 
     const mockRetryObject: RetryObject = {
         id: 'test-id-1',
@@ -97,6 +104,7 @@ describe('QueueManager', () => {
         const { getStorage, setStorage, normalizeFormData } = require('../../../src/utils');
         const { consoleLog, consoleLogWithoutSave, consoleError } = require('../../../src/utils');
         const { clearBadge } = require('../../../src/utils/badge');
+        const { setTerminalStorageValue } = require('../../../src/utils/storage');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
@@ -104,6 +112,7 @@ describe('QueueManager', () => {
         mockConsoleLogWithoutSave = consoleLogWithoutSave;
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
+        mockSetTerminalStorageValue = setTerminalStorageValue;
 
         // Restore normalizeFormData implementation after clearAllMocks
         normalizeFormData.mockImplementation((body: any) => {
@@ -497,7 +506,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // Verify that getSlots was called with the date
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             // Verify that validateRequestBeforeSlotCheck was called
             expect(mockValidateRequest).toHaveBeenCalled();
             // Verify that checkSlotAvailability was called
@@ -637,7 +646,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date extracted from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             // text() throws in main loop -> handleDateGroupError (not processDateGroup)
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error processing date group'),
@@ -664,7 +673,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -692,7 +701,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -747,11 +756,10 @@ describe('QueueManager', () => {
             // Wait longer to ensure processing completes
             await new Promise(resolve => setTimeout(resolve, 200));
 
-            // Check that unauthorized was set (setStorage is called with {unauthorized: true})
-            expect(mockSetStorage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
             );
             // Check that queue item was updated
             expect(mockSetStorage).toHaveBeenCalledWith({
@@ -788,7 +796,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -830,10 +838,10 @@ describe('QueueManager', () => {
             );
             dateNowSpy.mockRestore();
 
-            expect(mockSetStorage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
             );
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
@@ -879,11 +887,7 @@ describe('QueueManager', () => {
             );
             dateNowSpy.mockRestore();
 
-            expect(mockSetStorage).not.toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
-            );
+            expect(mockSetTerminalStorageValue).not.toHaveBeenCalled();
         });
 
         it('should handle HTML error', async () => {
@@ -910,7 +914,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -945,12 +949,34 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
-            expect(mockSetStorage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
             );
+        });
+
+        it('should separate DCT and BCT subscription groups for the same date', () => {
+            const bctRequest: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            const subscriptions = (queueManager as any).createDateSlotTypeSubscriptions([
+                mockRetryObject,
+                bctRequest,
+            ]);
+
+            expect(Array.from(subscriptions.keys())).toEqual(
+                expect.arrayContaining([
+                    `${BOOKING_TERMINALS.DCT}|01.01.2025|1`,
+                    `${BOOKING_TERMINALS.BCT}|01.01.2025|1`,
+                ]),
+            );
+            expect(subscriptions).toHaveProperty('size', 2);
         });
 
         it('should handle default network error', async () => {
@@ -971,7 +997,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -1005,7 +1031,7 @@ describe('QueueManager', () => {
 
             // Should have error updating request (when setStorage rejects in updateQueueItem)
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error updating request'),
                 expect.any(Error),
@@ -1106,7 +1132,7 @@ describe('QueueManager', () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 // getSlots should be called for active request date
-                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             });
 
             it('should log remaining pause time when skipping paused request', async () => {

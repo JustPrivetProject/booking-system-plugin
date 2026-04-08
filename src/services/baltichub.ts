@@ -1,6 +1,11 @@
 import { Statuses, Messages, urls } from '../data';
 import type { RetryObject } from '../types/baltichub';
 import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    type BookingTerminal,
+} from '../types/terminal';
+import {
     parseSlotsIntoButtons,
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
@@ -18,25 +23,43 @@ import {
     parseDateTimeFromDMY,
     JSONstringify,
     formatDateToDMY,
-    setStorage,
 } from '../utils/index';
+import { setTerminalStorageValue, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
 import { BrevoEmailData } from '../types';
+
+const EBRAMA_TERMINAL_URLS: Record<BookingTerminal, typeof urls> = {
+    [BOOKING_TERMINALS.DCT]: urls,
+    [BOOKING_TERMINALS.BCT]: {
+        ...urls,
+        tvApps: 'https://ebrama.bct.ictsi.com/tv-apps',
+        getSlots: 'https://ebrama.bct.ictsi.com/Home/GetSlots',
+        getSlotsForPreview: 'https://ebrama.bct.ictsi.com/Home/GetSlotsForPreview',
+        editTvAppSubmit: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+        editTvAppModal: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppModal',
+    },
+};
+
+function resolveRetryTerminal(req?: Pick<RetryObject, 'terminal' | 'url'>): BookingTerminal {
+    return req?.terminal || getBookingTerminalFromUrl(req?.url) || BOOKING_TERMINALS.DCT;
+}
 
 export async function getSlots(
     date: string,
     slotType: number = 1,
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number);
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const dateAfterTransfer = formatDateToDMY(newDate);
+    const terminalUrls = EBRAMA_TERMINAL_URLS[terminal];
     // Use GetSlotsForPreview - public endpoint, anonymous, no rate limit
     // slotType: 1 = default, 4 = PUSTE (empty container)
-    return fetchRequest(urls.getSlotsForPreview, {
+    return fetchRequest(terminalUrls.getSlotsForPreview, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
             'X-Requested-With': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/tv-apps',
+            Referer: terminalUrls.tvApps,
             Accept: '*/*',
         },
         body: JSON.stringify({ date: dateAfterTransfer, type: slotType }),
@@ -44,13 +67,18 @@ export async function getSlots(
     });
 }
 
-export async function getEditForm(tvAppId: string): Promise<Response | ErrorResponse> {
-    return fetchRequest(`${urls.editTvAppModal}?tvAppId=${tvAppId}`, {
+export async function getEditForm(
+    tvAppId: string,
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<Response | ErrorResponse> {
+    const terminalUrls = EBRAMA_TERMINAL_URLS[terminal];
+
+    return fetchRequest(`${terminalUrls.editTvAppModal}?tvAppId=${tvAppId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
             'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/tv-apps',
+            Referer: terminalUrls.tvApps,
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
@@ -106,6 +134,7 @@ export async function checkSlotAvailability(htmlText: string, time: string[]): P
 export async function getDriverNameAndContainer(
     tvAppId: string,
     retryQueue: RetryObject[],
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<{ driverName: string; containerNumber: string }> {
     consoleLog('Getting driver name and container for TV App ID:', tvAppId);
     const regex =
@@ -125,7 +154,7 @@ export async function getDriverNameAndContainer(
         }
     }
 
-    const response = await getEditForm(tvAppId);
+    const response = await getEditForm(tvAppId, terminal);
     if (!response.ok) {
         consoleLog('Error getting driver name: Response not OK', JSONstringify(response));
         return { driverName: '', containerNumber: '' };
@@ -174,6 +203,8 @@ export async function executeRequest(
     tvAppId: string,
     time: string[],
 ): Promise<RetryObject> {
+    const terminal = resolveRetryTerminal(req);
+
     if (!req.body || !req.body.formData) {
         throw new Error('Request body or formData is missing');
     }
@@ -294,7 +325,7 @@ export async function executeRequest(
     consoleLog('📥 Received response:', JSON.stringify(responseData, null, 2));
 
     if (response.ok && isEbramaLoginPageResponse(parsedResponse, responseUrl)) {
-        await setStorage({ unauthorized: true });
+        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal, true);
         return {
             ...req,
             status: Statuses.AUTHORIZATION_ERROR,
@@ -316,7 +347,7 @@ export async function executeRequest(
             consoleLog('🎉 Booking success! Preparing to send notifications...');
 
             const notificationData: Partial<BrevoEmailData> = {
-                notificationSource: 'DCT',
+                notificationSource: terminal === BOOKING_TERMINALS.BCT ? 'BCT' : 'DCT',
                 tvAppId,
                 bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
                 driverName: req.driverName,
@@ -342,7 +373,7 @@ export async function executeRequest(
     const handledResponse = handleErrorResponse(req, parsedResponse, tvAppId, time);
 
     if (handledResponse.status === Statuses.AUTHORIZATION_ERROR) {
-        await setStorage({ unauthorized: true });
+        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal, true);
     }
 
     return handledResponse;
