@@ -27,7 +27,10 @@ import {
     setStorageValue,
     hasStorageKey,
     getStorageSize,
+    getTerminalStorageKey,
+    TERMINAL_STORAGE_NAMESPACES,
 } from '../../../src/utils/storage';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Mock chrome storage
 const chromeMock = require('../mocks/chrome').chromeMock;
@@ -250,6 +253,22 @@ describe('Storage Functions', () => {
                 {
                     requestCacheBody: {},
                     requestCacheHeaders: {},
+                    [getTerminalStorageKey(
+                        TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                        BOOKING_TERMINALS.DCT,
+                    )]: {},
+                    [getTerminalStorageKey(
+                        TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                        BOOKING_TERMINALS.DCT,
+                    )]: {},
+                    [getTerminalStorageKey(
+                        TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                        BOOKING_TERMINALS.BCT,
+                    )]: {},
+                    [getTerminalStorageKey(
+                        TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                        BOOKING_TERMINALS.BCT,
+                    )]: {},
                 },
                 expect.any(Function),
             );
