@@ -26,4 +26,14 @@ describe('Popup booking markup parity', () => {
         expect(popupCss).not.toContain('#queueTableBody:empty::after');
         expect(popupCss).not.toContain('#queueTable td:first-child');
     });
+
+    it('should not force a taller empty BCT or GCT tab than DCT', () => {
+        const popupCss = fs.readFileSync(popupCssPath, 'utf8');
+
+        expect(popupCss).toContain('#bctView,');
+        expect(popupCss).toContain('#gctView {');
+        expect(popupCss).not.toContain(
+            '#bctView,\n#gctView {\n    width: 100%;\n    min-width: var(--app-width);\n    min-height: 240px;',
+        );
+    });
 });

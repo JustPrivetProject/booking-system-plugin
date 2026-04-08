@@ -1110,7 +1110,6 @@ tr[data-is-open='false'] .status-icon {
 #gctView {
     width: 100%;
     min-width: var(--app-width);
-    min-height: 240px;
     padding-top: 4px;
 }
 
