@@ -104,7 +104,7 @@ tr:last-child td {
 }
 
 /* Empty table */
-#queueTableBody:empty::after {
+.booking-queue-body:empty::after {
     content: 'Proszę dodać zadania do realizacji';
     display: block;
     font-size: var(--font-size-table);
@@ -114,7 +114,7 @@ tr:last-child td {
     width: var(--app-width);
 }
 
-#queueTableBody:empty + tr {
+.booking-queue-body:empty + tr {
     display: none;
 }
 
@@ -344,7 +344,7 @@ tr:hover td {
     background-color: transparent; /* Убираем фон у ячеек при наведении */
 }
 
-#queueTable td:first-child {
+.booking-queue-table td:first-child {
     width: 22px;
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
