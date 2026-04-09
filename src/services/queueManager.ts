@@ -51,6 +51,7 @@ export class QueueManager implements IQueueManager {
     private events: QueueEvents;
     private processingState: QueueProcessingState;
     private processingTimeoutId: NodeJS.Timeout | null = null;
+    private mutationLock: Promise<void> = Promise.resolve();
     private recentServer500Timestamps: number[] = [];
     private readonly server500WindowMs = 2 * 60 * 1000;
     private readonly server500Threshold = 2;
@@ -321,8 +322,14 @@ export class QueueManager implements IQueueManager {
 
     // Private helper methods
     private async withMutex<T>(operation: () => Promise<T>): Promise<T> {
-        // Simple mutex implementation - can be enhanced with proper locking
-        return operation();
+        const runOperation = this.mutationLock.then(operation, operation);
+
+        this.mutationLock = runOperation.then(
+            () => undefined,
+            () => undefined,
+        );
+
+        return runOperation;
     }
 
     private isValidItem(item: RetryObject): boolean {

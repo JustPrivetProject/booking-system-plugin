@@ -140,7 +140,7 @@ describe('RequestHandler', () => {
             expect(getTerminalStorageValue).not.toHaveBeenCalled();
         });
 
-        it('should call handleRequestHeaders in beforeSendHeaders listener', () => {
+        it('should call handleRequestHeaders in beforeSendHeaders listener', async () => {
             requestHandler.setupRequestListeners();
 
             const listener = (chrome.webRequest.onBeforeSendHeaders.addListener as jest.Mock).mock
@@ -162,8 +162,11 @@ describe('RequestHandler', () => {
 
             listener(details);
 
+            await new Promise(resolve => setTimeout(resolve, 0));
+
             expect(consoleLog).toHaveBeenCalledWith(
-                '🔍 Checking for our header:',
+                '✅ Cached Request Headers:',
+                'test-request-1',
                 expect.any(String),
             );
         });
@@ -188,9 +191,8 @@ describe('RequestHandler', () => {
             requestHandler['handleRequestHeaders'](details);
 
             await new Promise(resolve => setTimeout(resolve, 50));
-            // With new approach, we just mark requestId, no immediate removal
             expect(consoleLog).toHaveBeenCalledWith(
-                '✅ Found X-Extension-Request header, marking request as ours:',
+                '✅ Marked request as extension-owned:',
                 'test-request-1',
             );
         });
@@ -362,7 +364,8 @@ describe('RequestHandler', () => {
             await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(consoleLog).toHaveBeenCalledWith(
-                '🔍 Checking for our header:',
+                '✅ Cached Request Headers:',
+                'test-request-1',
                 expect.any(String),
             );
             expect(setTerminalStorageValue).toHaveBeenCalledWith(
@@ -401,9 +404,8 @@ describe('RequestHandler', () => {
             // Wait for async operations
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            // Should mark request as ours (will be cleaned up in onCompleted)
             expect(consoleLog).toHaveBeenCalledWith(
-                '✅ Found X-Extension-Request header, marking request as ours:',
+                '✅ Marked request as extension-owned:',
                 'test-request-1',
             );
             // RequestId should be added to ourRequestIds Set

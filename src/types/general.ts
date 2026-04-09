@@ -69,20 +69,33 @@ export type TableData = TableRowData[];
 
 // Local storage structure
 export interface LocalStorageData {
-    testEnv: boolean;
-    deviceId: string;
-    tableData: TableData;
-    retryQueue: import('./baltichub').RetryObjectArray;
+    testEnv?: boolean;
+    deviceId?: string;
+    tableData?: TableData;
+    'tableData:bct'?: TableData;
+    retryQueue?: import('./baltichub').RetryObjectArray;
+    'retryQueue:dct'?: import('./baltichub').RetryObjectArray;
+    'retryQueue:bct'?: import('./baltichub').RetryObjectArray;
     gctGroups?: import('../gct/types').GctWatchGroup[];
     gctSettings?: import('../gct/types').GctWatcherSettings;
     gctLastTickAt?: string | null;
-    groupStates: import('./baltichub').GroupsStates;
-    headerHidden: boolean;
-    retryEnabled: boolean;
-    unauthorized: boolean;
-    user_session: UserSession;
-    autoLoginData: AutoLoginData;
-    notificationSettings: NotificationSettings;
-    requestCacheBody: import('./baltichub').RequestCacheBodes;
-    requestCacheHeaders: import('./baltichub').RequestCacheHeaders;
+    groupStates?: import('./baltichub').GroupsStates;
+    'groupStates:dct'?: import('./baltichub').GroupsStates;
+    'groupStates:bct'?: import('./baltichub').GroupsStates;
+    headerHidden?: boolean;
+    retryEnabled?: boolean;
+    unauthorized?: boolean;
+    'unauthorized:dct'?: boolean;
+    'unauthorized:bct'?: boolean;
+    user_session?: UserSession;
+    autoLoginData?: AutoLoginData;
+    'autoLoginData:dct'?: AutoLoginData;
+    'autoLoginData:bct'?: AutoLoginData;
+    notificationSettings?: NotificationSettings;
+    requestCacheBody?: import('./baltichub').RequestCacheBodes;
+    'requestCacheBody:dct'?: import('./baltichub').RequestCacheBodes;
+    'requestCacheBody:bct'?: import('./baltichub').RequestCacheBodes;
+    requestCacheHeaders?: import('./baltichub').RequestCacheHeaders;
+    'requestCacheHeaders:dct'?: import('./baltichub').RequestCacheHeaders;
+    'requestCacheHeaders:bct'?: import('./baltichub').RequestCacheHeaders;
 }

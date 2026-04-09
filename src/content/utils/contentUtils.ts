@@ -279,8 +279,7 @@ export async function tryClickLoginButton() {
 
     button.click();
 
-    consoleLog('[content] Manual login successful');
-    contentUtils.sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
+    consoleLog('[content] Login button clicked, waiting for authenticated page reload');
 }
 
 export function clickLoginButton() {

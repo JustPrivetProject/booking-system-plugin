@@ -88,24 +88,32 @@ waitElementAndSendChromeMessage('#vbsBgModal[style="display: block;"]', Actions.
     parseTable(),
 );
 
+function isAuthenticatedEbramaPage(): boolean {
+    return (
+        location.pathname !== '/' &&
+        location.pathname !== '/login' &&
+        !document.querySelector('.loginscreen')
+    );
+}
+
 // Auto-login on login page
 window.addEventListener('load', async () => {
     const isAuth = await isUserAuthenticated();
     if (!isAuth) return;
 
-    const autoLoginEnabled = await isAutoLoginEnabled();
-    if (!autoLoginEnabled) return;
+    if (location.pathname === '/' || location.pathname === '/login') {
+        const autoLoginEnabled = await isAutoLoginEnabled();
+        if (!autoLoginEnabled) return;
 
-    const isUnauthorized = await isAppUnauthorized();
-    if (!isUnauthorized) return;
+        const isUnauthorized = await isAppUnauthorized();
+        if (!isUnauthorized) return;
 
-    if (location.pathname === '/') {
-        consoleLog('[content] Home page detected, showing countdown modal...');
-        showCountdownModal();
-        return;
-    }
+        if (location.pathname === '/') {
+            consoleLog('[content] Home page detected, showing countdown modal...');
+            showCountdownModal();
+            return;
+        }
 
-    if (location.pathname === '/login') {
         consoleLog('[content] Login page detected, trying auto-login...');
         setTimeout(() => {
             tryClickLoginButton();
@@ -113,5 +121,14 @@ window.addEventListener('load', async () => {
         return;
     }
 
+    const isUnauthorized = await isAppUnauthorized();
+    if (!isUnauthorized) return;
+
+    if (!isAuthenticatedEbramaPage()) {
+        consoleLog('[content] Auth recovery skipped because login form is still visible');
+        return;
+    }
+
+    consoleLog('[content] Authenticated eBrama page detected, restoring auth state');
     sendActionToBackground(Actions.LOGIN_SUCCESS, { success: true }, null);
 });

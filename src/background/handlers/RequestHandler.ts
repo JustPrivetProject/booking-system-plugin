@@ -9,6 +9,7 @@ import {
 
 export class RequestHandler {
     private readonly maskForCache = '*://*/TVApp/EditTvAppSubmit/*';
+    private readonly requestCacheMaxAgeMs = 5 * 60 * 1000;
     // Track requestIds of our requests (with X-Extension-Request header)
     // to prevent caching them
     private ourRequestIds = new Set<string>();
@@ -67,6 +68,8 @@ export class RequestHandler {
                 {} as RequestCacheBodes,
             );
 
+            this.pruneExpiredEntries(cacheBody);
+
             cacheBody[details.requestId] = {
                 url: details.url,
                 body: details.requestBody,
@@ -92,44 +95,24 @@ export class RequestHandler {
     }
 
     private handleRequestHeaders(details: chrome.webRequest.OnBeforeSendHeadersDetails): void {
-        const headerCheck = {
-            requestId: details.requestId,
-            url: details.url,
-            headers: details.requestHeaders,
-            headerNames: details.requestHeaders?.map(h => h.name) || [],
-        };
-        consoleLog('🔍 Checking for our header:', JSON.stringify(headerCheck, null, 2));
-
         const hasOurHeader = details.requestHeaders?.some(
             header =>
                 header.name.toLowerCase() === 'x-extension-request' &&
                 header.value === 'JustPrivetProject',
         );
 
-        // Debug: Check each header individually
-        const foundHeaders =
-            details.requestHeaders?.filter(
-                header => header.name.toLowerCase() === 'x-extension-request',
-            ) || [];
-
-        if (foundHeaders.length > 0) {
-            consoleLog(
-                '🔍 Found X-Extension-Request headers:',
-                JSON.stringify(foundHeaders, null, 2),
-            );
-        }
-
         if (hasOurHeader) {
-            // Mark this requestId as ours - will be cleaned up in onCompleted
             this.ourRequestIds.add(details.requestId);
-            consoleLog(
-                '✅ Found X-Extension-Request header, marking request as ours:',
-                details.requestId,
-            );
+            this.removeCachedBody(details.requestId, details.url).catch(error => {
+                consoleLog('Error removing cached body for extension request:', error);
+            });
+            this.removeCachedHeaders(details.requestId, details.url).catch(error => {
+                consoleLog('Error removing cached headers for extension request:', error);
+            });
+            consoleLog('✅ Marked request as extension-owned:', details.requestId);
             return;
         }
 
-        consoleLog('⚠️ X-Extension-Request header NOT found, caching headers:', details.requestId);
         this.cacheRequestHeaders(details).catch(error => {
             consoleLog('Error in cacheRequestHeaders:', error);
         });
@@ -148,6 +131,8 @@ export class RequestHandler {
                 terminal,
                 {} as RequestCacheBodes,
             );
+
+            this.pruneExpiredEntries(cacheBody);
 
             if (cacheBody && cacheBody[requestId]) {
                 delete cacheBody[requestId];
@@ -227,6 +212,8 @@ export class RequestHandler {
                 {} as RequestCacheHeaders,
             );
 
+            this.pruneExpiredEntries(cacheHeaders);
+
             if (cacheHeaders && cacheHeaders[requestId]) {
                 delete cacheHeaders[requestId];
                 await setTerminalStorageValue(
@@ -261,6 +248,8 @@ export class RequestHandler {
                 {} as RequestCacheHeaders,
             );
 
+            this.pruneExpiredEntries(cacheHeaders);
+
             cacheHeaders[details.requestId] = {
                 url: details.url,
                 headers: details.requestHeaders,
@@ -280,5 +269,15 @@ export class RequestHandler {
         } catch (error) {
             consoleLog('Error caching request headers:', error);
         }
+    }
+
+    private pruneExpiredEntries<T extends { timestamp: number }>(cache: Record<string, T>): void {
+        const now = Date.now();
+
+        Object.entries(cache).forEach(([requestId, value]) => {
+            if (now - value.timestamp > this.requestCacheMaxAgeMs) {
+                delete cache[requestId];
+            }
+        });
     }
 }

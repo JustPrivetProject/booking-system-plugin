@@ -46,10 +46,8 @@ async function loadStoredAutoLoginData(
         const legacyData = result[legacyKey] as AutoLoginData | undefined;
 
         if (legacyData) {
-            await setStorage({
-                [terminalKey]: legacyData,
-                [AUTO_LOGIN_STORAGE_KEY]: legacyData,
-            });
+            await setStorage({ [terminalKey]: legacyData });
+            await removeStorage(AUTO_LOGIN_STORAGE_KEY);
             return legacyData;
         }
     }
@@ -62,14 +60,6 @@ async function saveStoredAutoLoginData(
     terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<void> {
     const terminalKey = getAutoLoginStorageKey(terminal);
-
-    if (terminal === BOOKING_TERMINALS.DCT) {
-        await setStorage({
-            [terminalKey]: autoLoginData,
-            [AUTO_LOGIN_STORAGE_KEY]: autoLoginData,
-        });
-        return;
-    }
 
     await setStorage({ [terminalKey]: autoLoginData });
 }

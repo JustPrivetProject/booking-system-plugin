@@ -60,16 +60,10 @@ describe('AutoLoginService', () => {
                     enabled: true,
                     createdAt: expect.any(Number),
                 }),
-                autoLoginData: expect.objectContaining({
-                    login: expect.any(String),
-                    password: expect.any(String),
-                    enabled: true,
-                    createdAt: expect.any(Number),
-                }),
             });
 
             // Verify the saved data is encrypted (not plain text)
-            const savedData = mockStorage.setStorage.mock.calls[0][0].autoLoginData;
+            const savedData = mockStorage.setStorage.mock.calls[0][0][dctAutoLoginKey];
             expect(savedData.login).not.toBe(testCredentials.login);
             expect(savedData.password).not.toBe(testCredentials.password);
         });
@@ -467,9 +461,6 @@ describe('AutoLoginService', () => {
                 [dctAutoLoginKey]: expect.objectContaining({
                     enabled: false,
                 }),
-                autoLoginData: expect.objectContaining({
-                    enabled: false,
-                }),
             });
         });
 
@@ -496,9 +487,6 @@ describe('AutoLoginService', () => {
 
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
                 [dctAutoLoginKey]: expect.objectContaining({
-                    enabled: true,
-                }),
-                autoLoginData: expect.objectContaining({
                     enabled: true,
                 }),
             });
@@ -560,12 +548,6 @@ describe('AutoLoginService', () => {
             // Should re-encrypt the data
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
                 [dctAutoLoginKey]: expect.objectContaining({
-                    login: expect.any(String),
-                    password: expect.any(String),
-                    enabled: true,
-                    createdAt: expect.any(Number),
-                }),
-                autoLoginData: expect.objectContaining({
                     login: expect.any(String),
                     password: expect.any(String),
                     enabled: true,

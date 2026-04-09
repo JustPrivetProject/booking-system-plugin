@@ -27,10 +27,8 @@ import {
     consoleError,
     consoleLogWithContext,
     consoleErrorWithContext,
-    getLastProperty,
     normalizeFormData,
     getFirstFormDataString,
-    getPropertyById,
     getLogsFromSession,
     clearLogsInSession,
     getLocalStorageData,
@@ -79,6 +77,8 @@ interface RetryObjectContext {
 interface AuthAttemptPayload {
     success?: boolean;
 }
+
+const REQUEST_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 
 function getAuthAttemptPayload(message: HandlerMessage): AuthAttemptPayload {
     if (!message.message || typeof message.message !== 'object') {
@@ -264,66 +264,7 @@ export class MessageHandler {
         sendResponse: SendResponse,
         terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
     ): Promise<void> {
-        // Use the same requestId for both headers and body to avoid mismatch
-        // Get the last requestId (most recent) to match with getLastProperty
-        const requestIds = Object.keys(data.requestCacheHeaders || {});
-
-        if (requestIds.length === 0) {
-            consoleLogWithContext(
-                getMessageHandlerLogContext(terminal),
-                'No requestId found in cache headers',
-            );
-            sendResponse({ success: false, error: 'No cached request found' });
-            return;
-        }
-
-        // Get the most recent requestId (last in object, which should be the most recent)
-        const requestId = requestIds[requestIds.length - 1];
-
-        // Get headers for the selected requestId
-        const requestCacheHeaders: RequestCacheHeaderBody | null = getLastProperty(
-            data.requestCacheHeaders || {},
-        );
-
-        // Validate that the cached request is not too old (more than 5 minutes)
-        if (requestCacheHeaders) {
-            const cacheAge = Date.now() - requestCacheHeaders.timestamp;
-            const maxCacheAge = 5 * 60 * 1000; // 5 minutes
-
-            if (cacheAge > maxCacheAge) {
-                consoleLogWithContext(
-                    getMessageHandlerLogContext(terminal),
-                    '⚠️ Cached request is too old:',
-                    `requestId=${requestId}`,
-                    `Age=${Math.round(cacheAge / 1000)}s`,
-                    `Max age=${maxCacheAge / 1000}s`,
-                    `Will process anyway, but this might be stale`,
-                );
-            } else {
-                consoleLogWithContext(
-                    getMessageHandlerLogContext(terminal),
-                    '✅ Cached request age is acceptable:',
-                    `requestId=${requestId}`,
-                    `Age=${Math.round(cacheAge / 1000)}s`,
-                );
-            }
-        }
-
-        consoleLogWithContext(
-            getMessageHandlerLogContext(terminal),
-            '📦 Processing cached request:',
-            `requestId=${requestId}`,
-            `Total cached requests=${requestIds.length}`,
-            `Cache headers keys=${requestIds.join(', ')}`,
-            `Selected requestId=${requestId} (last in cache)`,
-            `⚠️ IMPORTANT: Verifying this is the correct request`,
-        );
-
         try {
-            if (!requestCacheHeaders) {
-                throw new Error('No cached request headers found');
-            }
-
             const requestCacheBodyKey = getRequestCacheBodyStorageKey(terminal);
             const retryQueueKey = getRetryQueueStorageKey(terminal);
             const tableDataKey = getTableDataStorageKey(terminal);
@@ -339,20 +280,32 @@ export class MessageHandler {
             const requestCacheBodyMap =
                 (storageData[requestCacheBodyKey] as RequestCacheBodes | undefined) ||
                 ({} as RequestCacheBodes);
+            const requestCacheHeadersMap = data.requestCacheHeaders || {};
 
-            const cachedBodyKeys = Object.keys(requestCacheBodyMap);
-            consoleLogWithContext(
-                getMessageHandlerLogContext(terminal),
-                '📦 Cache state:',
-                `requestId=${requestId}`,
-                `Cached body keys=${cachedBodyKeys.join(', ')}`,
-                `Total cached bodies=${cachedBodyKeys.length}`,
-            );
-
-            const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
+            const staleRequestIds = this.getExpiredCachedRequestIds(
+                requestCacheHeadersMap,
                 requestCacheBodyMap,
-                requestId,
             );
+
+            if (staleRequestIds.length > 0) {
+                await this.removeCachedRequests(staleRequestIds, terminal);
+            }
+
+            const latestRequest = this.selectLatestCachedRequest(
+                requestCacheHeadersMap,
+                requestCacheBodyMap,
+            );
+
+            if (!latestRequest) {
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    'No matching cached request found after cache cleanup',
+                );
+                sendResponse({ success: false, error: 'No cached request found' });
+                return;
+            }
+
+            const { requestId, requestCacheBody, requestCacheHeaders } = latestRequest;
 
             if (requestCacheBody) {
                 const retryObject = await this.createRetryObject(
@@ -379,6 +332,7 @@ export class MessageHandler {
                     `requestId=${requestId}`,
                 );
             } else {
+                const cachedBodyKeys = Object.keys(requestCacheBodyMap);
                 consoleLogWithContext(
                     getMessageHandlerLogContext(terminal),
                     '⚠️ No data in cache object for requestId:',
@@ -398,12 +352,15 @@ export class MessageHandler {
             );
             // Try to clean up the failed request from cache
             try {
-                await this.removeCachedRequest(requestId, terminal);
-                consoleLogWithContext(
-                    getMessageHandlerLogContext(terminal),
-                    '🧹 Cleaned up failed request from cache:',
-                    requestId,
-                );
+                const requestIds = Object.keys(data.requestCacheHeaders || {});
+                if (requestIds.length > 0) {
+                    await this.removeCachedRequest(requestIds[requestIds.length - 1], terminal);
+                    consoleLogWithContext(
+                        getMessageHandlerLogContext(terminal),
+                        '🧹 Cleaned up failed request from cache:',
+                        requestIds[requestIds.length - 1],
+                    );
+                }
             } catch (cleanupError) {
                 consoleErrorWithContext(
                     getMessageHandlerLogContext(terminal),
@@ -416,6 +373,77 @@ export class MessageHandler {
                 error: 'Failed to process cached request',
             });
         }
+    }
+
+    private getExpiredCachedRequestIds(
+        requestCacheHeaders: RequestCacheHeaders,
+        requestCacheBodyMap: RequestCacheBodes,
+    ): string[] {
+        const now = Date.now();
+        const requestIds = new Set([
+            ...Object.keys(requestCacheHeaders),
+            ...Object.keys(requestCacheBodyMap),
+        ]);
+
+        return Array.from(requestIds).filter(requestId => {
+            const headerTimestamp = requestCacheHeaders[requestId]?.timestamp ?? 0;
+            const bodyTimestamp = requestCacheBodyMap[requestId]?.timestamp ?? 0;
+            const latestTimestamp = Math.max(headerTimestamp, bodyTimestamp);
+
+            return latestTimestamp > 0 && now - latestTimestamp > REQUEST_CACHE_MAX_AGE_MS;
+        });
+    }
+
+    private selectLatestCachedRequest(
+        requestCacheHeaders: RequestCacheHeaders,
+        requestCacheBodyMap: RequestCacheBodes,
+    ): {
+        requestId: string;
+        requestCacheHeaders: RequestCacheHeaderBody;
+        requestCacheBody: RequestCacheBodyObject;
+    } | null {
+        const requestIds = Object.keys(requestCacheHeaders)
+            .filter(requestId => Boolean(requestCacheBodyMap[requestId]))
+            .sort((left, right) => {
+                const leftTimestamp = Math.max(
+                    requestCacheHeaders[left]?.timestamp ?? 0,
+                    requestCacheBodyMap[left]?.timestamp ?? 0,
+                );
+                const rightTimestamp = Math.max(
+                    requestCacheHeaders[right]?.timestamp ?? 0,
+                    requestCacheBodyMap[right]?.timestamp ?? 0,
+                );
+
+                return rightTimestamp - leftTimestamp;
+            });
+
+        const requestId = requestIds[0];
+
+        if (!requestId) {
+            return null;
+        }
+
+        const requestCacheHeadersEntry = requestCacheHeaders[requestId];
+        const requestCacheBodyEntry = requestCacheBodyMap[requestId];
+
+        if (!requestCacheHeadersEntry || !requestCacheBodyEntry) {
+            return null;
+        }
+
+        return {
+            requestId,
+            requestCacheHeaders: requestCacheHeadersEntry,
+            requestCacheBody: requestCacheBodyEntry,
+        };
+    }
+
+    private async removeCachedRequests(
+        requestIds: string[],
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
+        await Promise.all(
+            requestIds.map(requestId => this.removeCachedRequest(requestId, terminal)),
+        );
     }
 
     /**
