@@ -98,6 +98,25 @@ describe('contentUtils', () => {
             );
         });
 
+        it('should treat thrown extension context invalidated as an expected disconnect', () => {
+            const mockCallback = jest.fn();
+
+            chrome.runtime.sendMessage.mockImplementation(() => {
+                throw new Error('Extension context invalidated');
+            });
+
+            contentUtils.sendActionToBackground('TEST_ACTION', { data: 'test' }, mockCallback);
+
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                'Error sending TEST_ACTION message: Extension context invalidated (page refresh required)',
+            );
+            expect(mockUtils.consoleError).not.toHaveBeenCalledWith(
+                'Error sending TEST_ACTION message:',
+                expect.anything(),
+            );
+            expect(mockCallback).toHaveBeenCalledWith(undefined);
+        });
+
         it('should call callback when provided', () => {
             const mockCallback = jest.fn();
             const messageData = { data: 'test' };
@@ -889,6 +908,23 @@ describe('contentUtils', () => {
             expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
                 { action: Actions.IS_AUTHENTICATED },
                 expect.any(Function),
+            );
+        });
+
+        it('should treat thrown extension context invalidated as an expected disconnect', async () => {
+            chrome.runtime.sendMessage.mockImplementation(() => {
+                throw new Error('Extension context invalidated');
+            });
+
+            const result = await contentUtils.checkExtensionConnection();
+
+            expect(result).toBe(false);
+            expect(mockUtils.consoleLog).toHaveBeenCalledWith(
+                '[content] Error checking extension connection: Extension context invalidated (page refresh required)',
+            );
+            expect(mockUtils.consoleError).not.toHaveBeenCalledWith(
+                '[content] Error checking extension connection:',
+                expect.anything(),
             );
         });
     });

@@ -9,9 +9,30 @@ function isExpectedExtensionReloadError(error: chrome.runtime.LastError | null):
     return message.includes('Extension context invalidated');
 }
 
+function isExpectedExtensionReloadException(error: unknown): boolean {
+    if (error instanceof Error) {
+        return error.message.includes('Extension context invalidated');
+    }
+
+    if (typeof error === 'string') {
+        return error.includes('Extension context invalidated');
+    }
+
+    return false;
+}
+
 function logRuntimeIssue(context: string, error: chrome.runtime.LastError | null): void {
     if (isExpectedExtensionReloadError(error)) {
-        consoleLog(`${context} Extension context invalidated (expected on reload)`);
+        consoleLog(`${context} Extension context invalidated (page refresh required)`);
+        return;
+    }
+
+    consoleError(context, error);
+}
+
+function logRuntimeException(context: string, error: unknown): void {
+    if (isExpectedExtensionReloadException(error)) {
+        consoleLog(`${context} Extension context invalidated (page refresh required)`);
         return;
     }
 
@@ -45,16 +66,27 @@ export function sendActionAfterElementDisappears(selector, action, messageOrFn, 
 export function sendActionToBackground(action, message, callback) {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         consoleLog('Chrome runtime API is not available');
+        if (typeof callback === 'function') {
+            callback(undefined);
+        }
         return;
     }
-    chrome.runtime.sendMessage({ action, message }, response => {
-        if (chrome.runtime.lastError) {
-            logRuntimeIssue(`Error sending ${action} message:`, chrome.runtime.lastError);
-        }
+
+    try {
+        chrome.runtime.sendMessage({ action, message }, response => {
+            if (chrome.runtime.lastError) {
+                logRuntimeIssue(`Error sending ${action} message:`, chrome.runtime.lastError);
+            }
+            if (typeof callback === 'function') {
+                callback(response);
+            }
+        });
+    } catch (error) {
+        logRuntimeException(`Error sending ${action} message:`, error);
         if (typeof callback === 'function') {
-            callback(response);
+            callback(undefined);
         }
-    });
+    }
 }
 
 export function waitForElement(selector, callback) {
@@ -166,7 +198,7 @@ export function isUserAuthenticated(): Promise<boolean> {
                 resolve(response.isAuthenticated === true);
             });
         } catch (error) {
-            consoleError('[content] Error in isUserAuthenticated:', error);
+            logRuntimeException('[content] Error in isUserAuthenticated:', error);
             resolve(false);
         }
     });
@@ -202,7 +234,7 @@ export function isAppUnauthorized(): Promise<boolean> {
                 resolve(response.unauthorized);
             });
         } catch (error) {
-            consoleError('[content] Error in isAppUnauthorized:', error);
+            logRuntimeException('[content] Error in isAppUnauthorized:', error);
             resolve(false);
         }
     });
@@ -309,7 +341,7 @@ export function checkExtensionConnection(): Promise<boolean> {
                 resolve(true);
             });
         } catch (error) {
-            consoleError('[content] Error checking extension connection:', error);
+            logRuntimeException('[content] Error checking extension connection:', error);
             resolve(false);
         }
     });
