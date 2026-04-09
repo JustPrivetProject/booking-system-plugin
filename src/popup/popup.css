@@ -344,7 +344,7 @@ tr:hover td {
     background-color: transparent; /* Убираем фон у ячеек при наведении */
 }
 
-.booking-queue-table td:first-child {
+.booking-queue-table tbody tr:not(.group-row) td:first-child {
     width: 22px;
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
@@ -421,9 +421,6 @@ td.group-header.toggle-cell,
 td.group-header.toggle-cell.open {
     padding-top: 3px;
     padding-bottom: 3px;
-    width: 22px !important;
-    min-width: 22px;
-    max-width: 22px;
 }
 
 td.group-header.status {

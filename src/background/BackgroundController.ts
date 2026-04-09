@@ -2,7 +2,13 @@ import { autoLoginService } from '../services/autoLoginService';
 import { QueueManagerAdapter } from '../services/queueManagerAdapter';
 import { sessionService } from '../services/sessionService';
 import { consoleLog, consoleError } from '../utils';
-import { getStorage, setStorage } from '../utils/storage';
+import {
+    clearLegacyDctStorage,
+    getStorage,
+    getTerminalStorageKey,
+    setStorage,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../utils/storage';
 import { clearBadge, syncAuthenticationBadge } from '../utils/badge';
 import { BOOKING_TERMINALS } from '../types/terminal';
 
@@ -68,11 +74,21 @@ export class BackgroundController {
     }
 
     private async initializeDefaultStorageValues(): Promise<void> {
+        await clearLegacyDctStorage();
+
         // Basic settings
         await setStorage({ retryEnabled: true });
         await setStorage({ testEnv: false });
-        await setStorage({ unauthorized: false });
-        await setStorage({ 'unauthorized:bct': false });
+        await setStorage({
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+                BOOKING_TERMINALS.DCT,
+            )]: false,
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+                BOOKING_TERMINALS.BCT,
+            )]: false,
+        });
         await setStorage({ headerHidden: false });
 
         // Initialize notification settings if not exist
@@ -106,27 +122,68 @@ export class BackgroundController {
             await setStorage({ 'tableData:bct': [] });
         }
 
-        // Initialize retry queue if not exist
-        const { retryQueue } = await getStorage('retryQueue');
-        if (!retryQueue) {
-            await setStorage({ retryQueue: [] });
-        }
+        const dctRetryQueueKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+            BOOKING_TERMINALS.DCT,
+        );
+        const bctRetryQueueKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+            BOOKING_TERMINALS.BCT,
+        );
+        const dctGroupStatesKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+            BOOKING_TERMINALS.DCT,
+        );
+        const bctGroupStatesKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+            BOOKING_TERMINALS.BCT,
+        );
+        const dctRequestCacheBodyKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+            BOOKING_TERMINALS.DCT,
+        );
+        const bctRequestCacheBodyKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+            BOOKING_TERMINALS.BCT,
+        );
+        const dctRequestCacheHeadersKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+            BOOKING_TERMINALS.DCT,
+        );
+        const bctRequestCacheHeadersKey = getTerminalStorageKey(
+            TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+            BOOKING_TERMINALS.BCT,
+        );
 
-        // Initialize group states if not exist
-        const { groupStates } = await getStorage('groupStates');
-        if (!groupStates) {
-            await setStorage({ groupStates: {} });
-        }
+        const terminalState = await getStorage([
+            dctRetryQueueKey,
+            bctRetryQueueKey,
+            dctGroupStatesKey,
+            bctGroupStatesKey,
+            dctRequestCacheBodyKey,
+            bctRequestCacheBodyKey,
+            dctRequestCacheHeadersKey,
+            bctRequestCacheHeadersKey,
+        ]);
+        const terminalDefaults: Record<string, unknown> = {};
 
-        // Initialize request cache if not exist
-        const { requestCacheBody } = await getStorage('requestCacheBody');
-        if (!requestCacheBody) {
-            await setStorage({ requestCacheBody: {} });
-        }
+        if (terminalState[dctRetryQueueKey] === undefined) terminalDefaults[dctRetryQueueKey] = [];
+        if (terminalState[bctRetryQueueKey] === undefined) terminalDefaults[bctRetryQueueKey] = [];
+        if (terminalState[dctGroupStatesKey] === undefined)
+            terminalDefaults[dctGroupStatesKey] = {};
+        if (terminalState[bctGroupStatesKey] === undefined)
+            terminalDefaults[bctGroupStatesKey] = {};
+        if (terminalState[dctRequestCacheBodyKey] === undefined)
+            terminalDefaults[dctRequestCacheBodyKey] = {};
+        if (terminalState[bctRequestCacheBodyKey] === undefined)
+            terminalDefaults[bctRequestCacheBodyKey] = {};
+        if (terminalState[dctRequestCacheHeadersKey] === undefined)
+            terminalDefaults[dctRequestCacheHeadersKey] = {};
+        if (terminalState[bctRequestCacheHeadersKey] === undefined)
+            terminalDefaults[bctRequestCacheHeadersKey] = {};
 
-        const { requestCacheHeaders } = await getStorage('requestCacheHeaders');
-        if (!requestCacheHeaders) {
-            await setStorage({ requestCacheHeaders: {} });
+        if (Object.keys(terminalDefaults).length > 0) {
+            await setStorage(terminalDefaults);
         }
 
         // Initialize Container Checker if not exist

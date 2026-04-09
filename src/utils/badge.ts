@@ -177,18 +177,22 @@ export function clearBadge(): Promise<void> {
 }
 
 export async function syncStatusBadgeFromStorage(): Promise<void> {
+    const dctRetryQueueKey = getTerminalStorageKey(
+        TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+        BOOKING_TERMINALS.DCT,
+    );
     const bctRetryQueueKey = getTerminalStorageKey(
         TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
         BOOKING_TERMINALS.BCT,
     );
-    const state = (await getStorage(['retryQueue', bctRetryQueueKey, 'gctGroups'])) as {
-        retryQueue?: Array<{ status?: unknown }>;
+    const state = (await getStorage([dctRetryQueueKey, bctRetryQueueKey, 'gctGroups'])) as {
+        [dctRetryQueueKey]?: Array<{ status?: unknown }>;
         [bctRetryQueueKey]?: Array<{ status?: unknown }>;
         gctGroups?: Array<{ rows?: Array<{ status?: unknown }> }>;
     };
 
-    const retryStatuses = Array.isArray(state.retryQueue)
-        ? state.retryQueue
+    const retryStatuses = Array.isArray(state[dctRetryQueueKey])
+        ? state[dctRetryQueueKey]
               .map(item => item?.status)
               .filter((status): status is string => isKnownBaseStatus(status))
         : [];

@@ -7,7 +7,23 @@ import { consoleLog } from '../../../src/utils';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
-jest.mock('../../../src/utils/storage');
+jest.mock('../../../src/services/gct/gctWatcherService', () => ({
+    gctWatcherService: {
+        handleExtensionAuthRestored: jest.fn(() => Promise.resolve()),
+        stopAllForExtensionLogout: jest.fn(() => Promise.resolve()),
+    },
+}));
+jest.mock('../../../src/utils/storage', () => ({
+    onStorageChange: jest.fn(),
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
+    getStorage: jest.fn(),
+    TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
 jest.mock('../../../src/utils');
 jest.mock('../../../src/utils/badge', () => ({
     syncAuthenticationBadge: jest.fn(),
@@ -53,7 +69,7 @@ describe('StorageHandler', () => {
         it('should setup storage change listener', () => {
             storageHandler.setupStorageListener();
 
-            expect(onStorageChange).toHaveBeenCalledWith('unauthorized', expect.any(Function));
+            expect(onStorageChange).toHaveBeenCalledWith('unauthorized:dct', expect.any(Function));
             expect(onStorageChange).toHaveBeenCalledWith('unauthorized:bct', expect.any(Function));
             expect(onStorageChange).toHaveBeenCalledWith('user_session', expect.any(Function));
         });

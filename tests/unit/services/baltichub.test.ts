@@ -179,30 +179,39 @@ const TEST_HTML_RESPONSES = {
 } as const;
 
 // Mock utils functions
-jest.mock('../../../src/utils', () => ({
-    fetchRequest: jest.fn(),
-    consoleLog: jest.fn(),
-    consoleLogWithoutSave: jest.fn(),
-    consoleError: jest.fn(),
-    formatDateToDMY: jest.fn(),
-    JSONstringify: jest.fn(obj => JSON.stringify(obj)),
-    getFirstFormDataString: jest.fn((values?: unknown[]) => {
-        const value = values?.[0];
-        return typeof value === 'string' ? value : null;
-    }),
-    normalizeFormData: jest.fn(),
-    createFormData: jest.fn(),
-    parseDateTimeFromDMY: jest.fn(),
-    setStorage: jest.fn(),
-    ErrorType: {
-        NETWORK: 'NETWORK',
-        SERVER_ERROR: 'SERVER_ERROR',
-        CLIENT_ERROR: 'CLIENT_ERROR',
-        HTML_ERROR: 'HTML_ERROR',
-        TIMEOUT: 'TIMEOUT',
-        UNKNOWN: 'UNKNOWN',
-    },
-}));
+jest.mock('../../../src/utils', () => {
+    const consoleLog = jest.fn();
+    const consoleLogWithoutSave = jest.fn();
+    const consoleError = jest.fn();
+
+    return {
+        fetchRequest: jest.fn(),
+        consoleLog,
+        consoleLogWithContext: consoleLog,
+        consoleLogWithoutSave,
+        consoleLogWithoutSaveWithContext: consoleLogWithoutSave,
+        consoleError,
+        consoleErrorWithContext: consoleError,
+        formatDateToDMY: jest.fn(),
+        JSONstringify: jest.fn(obj => JSON.stringify(obj)),
+        getFirstFormDataString: jest.fn((values?: unknown[]) => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        }),
+        normalizeFormData: jest.fn(),
+        createFormData: jest.fn(),
+        parseDateTimeFromDMY: jest.fn(),
+        setStorage: jest.fn(),
+        ErrorType: {
+            NETWORK: 'NETWORK',
+            SERVER_ERROR: 'SERVER_ERROR',
+            CLIENT_ERROR: 'CLIENT_ERROR',
+            HTML_ERROR: 'HTML_ERROR',
+            TIMEOUT: 'TIMEOUT',
+            UNKNOWN: 'UNKNOWN',
+        },
+    };
+});
 
 // Mock helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({

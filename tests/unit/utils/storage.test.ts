@@ -16,6 +16,7 @@ jest.mock('../../../src/services/errorLogService', () => ({
 }));
 
 import {
+    clearLegacyDctStorage,
     getStorage,
     setStorage,
     onStorageChange,
@@ -251,8 +252,6 @@ describe('Storage Functions', () => {
             expect(result).toBe(true);
             expect(chromeMock.storage.local.set).toHaveBeenCalledWith(
                 {
-                    requestCacheBody: {},
-                    requestCacheHeaders: {},
                     [getTerminalStorageKey(
                         TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
                         BOOKING_TERMINALS.DCT,
@@ -282,6 +281,27 @@ describe('Storage Functions', () => {
             const result = await cleanupCache();
 
             expect(result).toBe(false);
+        });
+    });
+
+    describe('clearLegacyDctStorage', () => {
+        it('should remove legacy DCT storage keys', async () => {
+            chromeMock.storage.local.remove.mockImplementation((_keys, callback) => {
+                callback();
+            });
+
+            await clearLegacyDctStorage();
+
+            expect(chromeMock.storage.local.remove).toHaveBeenCalledWith(
+                [
+                    'retryQueue',
+                    'groupStates',
+                    'requestCacheBody',
+                    'requestCacheHeaders',
+                    'unauthorized',
+                ],
+                expect.any(Function),
+            );
         });
     });
 

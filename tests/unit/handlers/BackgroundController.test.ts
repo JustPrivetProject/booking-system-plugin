@@ -3,7 +3,7 @@ import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import { MessageHandler } from '../../../src/background/handlers/MessageHandler';
 import { RequestHandler } from '../../../src/background/handlers/RequestHandler';
 import { StorageHandler } from '../../../src/background/handlers/StorageHandler';
-import { setStorage, getStorage } from '../../../src/utils/storage';
+import { clearLegacyDctStorage, setStorage, getStorage } from '../../../src/utils/storage';
 import { consoleLog, consoleError } from '../../../src/utils';
 import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
@@ -17,7 +17,21 @@ jest.mock('../../../src/services/queueManagerAdapter');
 jest.mock('../../../src/background/handlers/MessageHandler');
 jest.mock('../../../src/background/handlers/RequestHandler');
 jest.mock('../../../src/background/handlers/StorageHandler');
-jest.mock('../../../src/utils/storage');
+jest.mock('../../../src/utils/storage', () => ({
+    clearLegacyDctStorage: jest.fn(() => Promise.resolve()),
+    getStorage: jest.fn(),
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
+    setStorage: jest.fn(() => Promise.resolve()),
+    TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
+        GROUP_STATES: 'groupStates',
+        REQUEST_CACHE_BODY: 'requestCacheBody',
+        REQUEST_CACHE_HEADERS: 'requestCacheHeaders',
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
 jest.mock('../../../src/utils');
 jest.mock('../../../src/utils/badge', () => ({
     clearBadge: jest.fn(),
@@ -108,6 +122,7 @@ describe('BackgroundController', () => {
             await backgroundController.initialize();
 
             expect(consoleLog).toHaveBeenCalledWith('Initializing Background Controller...');
+            expect(clearLegacyDctStorage).toHaveBeenCalled();
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
             expect(mockQueueManager.startProcessing).toHaveBeenCalled();
@@ -268,17 +283,26 @@ describe('BackgroundController', () => {
             await backgroundController['initializeDefaultStorageValues']();
 
             // Check that all default values are set
+            expect(clearLegacyDctStorage).toHaveBeenCalled();
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: false });
-            expect(setStorage).toHaveBeenCalledWith({ 'unauthorized:bct': false });
+            expect(setStorage).toHaveBeenCalledWith({
+                'unauthorized:dct': false,
+                'unauthorized:bct': false,
+            });
             expect(setStorage).toHaveBeenCalledWith({ headerHidden: false });
             expect(setStorage).toHaveBeenCalledWith({ tableData: [] });
             expect(setStorage).toHaveBeenCalledWith({ 'tableData:bct': [] });
-            expect(setStorage).toHaveBeenCalledWith({ retryQueue: [] });
-            expect(setStorage).toHaveBeenCalledWith({ groupStates: {} });
-            expect(setStorage).toHaveBeenCalledWith({ requestCacheBody: {} });
-            expect(setStorage).toHaveBeenCalledWith({ requestCacheHeaders: {} });
+            expect(setStorage).toHaveBeenCalledWith({
+                'retryQueue:dct': [],
+                'retryQueue:bct': [],
+                'groupStates:dct': {},
+                'groupStates:bct': {},
+                'requestCacheBody:dct': {},
+                'requestCacheBody:bct': {},
+                'requestCacheHeaders:dct': {},
+                'requestCacheHeaders:bct': {},
+            });
             expect(setStorage).toHaveBeenCalledWith({
                 gctSettings: { ...GCT_WATCHER_DEFAULTS },
             });

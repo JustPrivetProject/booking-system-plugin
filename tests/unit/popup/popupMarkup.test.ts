@@ -23,7 +23,7 @@ describe('Popup booking markup parity', () => {
         const popupCss = fs.readFileSync(popupCssPath, 'utf8');
 
         expect(popupCss).toContain('.booking-queue-body:empty::after');
-        expect(popupCss).toContain('.booking-queue-table td:first-child');
+        expect(popupCss).toContain('.booking-queue-table tbody tr:not(.group-row) td:first-child');
         expect(popupCss).not.toContain('#queueTableBody:empty::after');
         expect(popupCss).not.toContain('#queueTable td:first-child');
     });
@@ -38,14 +38,22 @@ describe('Popup booking markup parity', () => {
         );
     });
 
-    it('should keep booking group toggles row-based and clickable beyond the tiny icon cell', () => {
+    it('should keep booking group state terminal-scoped without a DCT-only popup branch', () => {
         const popupTs = fs.readFileSync(popupTsPath, 'utf8');
         const popupCss = fs.readFileSync(popupCssPath, 'utf8');
 
-        expect(popupTs).toContain('.group-row .group-header:not(.actions)');
+        expect(popupTs).not.toContain('function isLegacyDctGroupBehavior');
+        expect(popupTs).toContain('const groupStateCache');
+        expect(popupTs).toContain('await getCachedGroupStates(terminal);');
         expect(popupTs).toContain("!nextRow.classList.contains('group-row')");
+        expect(popupTs).toContain('.group-row .group-header:not(.actions)');
         expect(popupTs).toContain('setGroupExpandedState(groupRow, isOpen);');
         expect(popupCss).toContain('td.group-header.actions {');
-        expect(popupCss).toContain('cursor: default;');
+        expect(popupCss).toContain('td.group-header {');
+        expect(popupCss).toContain('cursor: pointer;');
+        expect(popupCss).toContain(
+            '.booking-queue-table tbody tr:not(.group-row) td:first-child {',
+        );
+        expect(popupCss).not.toContain('width: 22px !important;');
     });
 });

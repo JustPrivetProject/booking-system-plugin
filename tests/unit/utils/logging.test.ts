@@ -18,7 +18,10 @@ jest.mock('../../../src/services/errorLogService', () => ({
 import {
     consoleLog,
     consoleLogWithoutSave,
+    consoleLogWithContext,
+    consoleLogWithoutSaveWithContext,
     consoleError,
+    consoleErrorWithContext,
     saveLogToSession,
     getLogsFromSession,
     clearLogsInSession,
@@ -87,6 +90,41 @@ describe('Logging Functions', () => {
                 expect.any(Function),
             );
         });
+
+        it('should include explicit terminal context in console and session logs', async () => {
+            process.env.NODE_ENV = 'development';
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+                callback({ bramaLogs: [] });
+            });
+
+            chromeMock.storage.session.set.mockImplementation((data, callback) => {
+                callback();
+            });
+
+            await consoleLogWithContext({ scope: 'popup', terminal: 'bct' }, 'test message');
+
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining('[JustPrivetProject]:'),
+                expect.any(String),
+                expect.any(String),
+                '[popup][BCT]',
+                'test message',
+            );
+            expect(chromeMock.storage.session.set).toHaveBeenCalledWith(
+                {
+                    bramaLogs: expect.arrayContaining([
+                        expect.objectContaining({
+                            message: '[popup][BCT] test message',
+                        }),
+                    ]),
+                },
+                expect.any(Function),
+            );
+
+            consoleSpy.mockRestore();
+        });
     });
 
     describe('consoleLogWithoutSave', () => {
@@ -97,6 +135,24 @@ describe('Logging Functions', () => {
             consoleLogWithoutSave('test message');
 
             expect(consoleSpy).toHaveBeenCalled();
+            expect(chromeMock.storage.session.get).not.toHaveBeenCalled();
+
+            consoleSpy.mockRestore();
+        });
+
+        it('should include terminal context without saving to storage', () => {
+            process.env.NODE_ENV = 'development';
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+            consoleLogWithoutSaveWithContext({ scope: 'queue', terminal: 'dct' }, 'tick');
+
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining('[JustPrivetProject]:'),
+                expect.any(String),
+                expect.any(String),
+                '[queue][DCT]',
+                'tick',
+            );
             expect(chromeMock.storage.session.get).not.toHaveBeenCalled();
 
             consoleSpy.mockRestore();
@@ -171,6 +227,31 @@ describe('Logging Functions', () => {
             await consoleError('error message');
 
             expect(errorLogService.logError).not.toHaveBeenCalled();
+        });
+
+        it('should include explicit terminal context in error logs', async () => {
+            const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+            chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+                callback({ bramaLogs: [] });
+            });
+
+            chromeMock.storage.session.set.mockImplementation((data, callback) => {
+                callback();
+            });
+
+            await consoleErrorWithContext({ scope: 'background', terminal: 'bct' }, 'boom');
+
+            expect(consoleSpy).toHaveBeenCalledWith(
+                expect.stringContaining('[JustPrivetProject]'),
+                expect.any(String),
+                expect.any(String),
+                expect.any(String),
+                '[background][BCT]',
+                'boom',
+            );
+
+            consoleSpy.mockRestore();
         });
     });
 

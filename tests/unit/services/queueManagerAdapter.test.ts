@@ -2,6 +2,8 @@ import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import type { RetryObject } from '../../../src/types/baltichub';
 import type { ProcessingOptions } from '../../../src/types/queue';
 
+const DEFAULT_DCT_STORAGE_KEY = 'retryQueue:dct';
+
 // Mock QueueManagerFactory
 jest.mock('../../../src/services/queueManagerFactory', () => ({
     QueueManagerFactory: {
@@ -59,7 +61,7 @@ describe('QueueManagerAdapter', () => {
             const adapter = new QueueManagerAdapter();
 
             expect(mockQueueManagerFactory.create).toHaveBeenCalledWith({
-                storageKey: 'retryQueue',
+                storageKey: DEFAULT_DCT_STORAGE_KEY,
                 enableLogging: true,
             });
             expect(adapter).toBeInstanceOf(QueueManagerAdapter);
@@ -112,7 +114,7 @@ describe('QueueManagerAdapter', () => {
 
             expect(adapter).toBeInstanceOf(QueueManagerAdapter);
             expect(mockQueueManagerFactory.create).toHaveBeenCalledWith({
-                storageKey: 'retryQueue',
+                storageKey: DEFAULT_DCT_STORAGE_KEY,
                 enableLogging: true,
             });
         });
@@ -127,7 +129,7 @@ describe('QueueManagerAdapter', () => {
         });
 
         it('should create separate instances for separate storage keys', () => {
-            const adapter1 = QueueManagerAdapter.getInstance('retryQueue');
+            const adapter1 = QueueManagerAdapter.getInstance(DEFAULT_DCT_STORAGE_KEY);
             const adapter2 = QueueManagerAdapter.getInstance('retryQueue:bct');
 
             expect(adapter1).not.toBe(adapter2);

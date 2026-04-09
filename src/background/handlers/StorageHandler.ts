@@ -2,7 +2,11 @@ import { Statuses } from '../../data';
 import { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { syncAuthenticationBadge } from '../../utils/badge';
 import { consoleLog } from '../../utils';
-import { onStorageChange } from '../../utils/storage';
+import {
+    getTerminalStorageKey,
+    onStorageChange,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../../utils/storage';
 import { gctWatcherService } from '../../services/gct/gctWatcherService';
 import { BOOKING_TERMINALS, type BookingTerminal } from '../../types/terminal';
 
@@ -10,21 +14,27 @@ export class StorageHandler {
     constructor(private queueManager: QueueManagerAdapter) {}
 
     setupStorageListener(): void {
-        onStorageChange('unauthorized', async (newValue, oldValue) => {
-            await this.handleUnauthorizedChange(
-                Boolean(newValue),
-                Boolean(oldValue),
-                BOOKING_TERMINALS.DCT,
-            );
-        });
+        onStorageChange(
+            getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, BOOKING_TERMINALS.DCT),
+            async (newValue, oldValue) => {
+                await this.handleUnauthorizedChange(
+                    Boolean(newValue),
+                    Boolean(oldValue),
+                    BOOKING_TERMINALS.DCT,
+                );
+            },
+        );
 
-        onStorageChange('unauthorized:bct', async (newValue, oldValue) => {
-            await this.handleUnauthorizedChange(
-                Boolean(newValue),
-                Boolean(oldValue),
-                BOOKING_TERMINALS.BCT,
-            );
-        });
+        onStorageChange(
+            getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, BOOKING_TERMINALS.BCT),
+            async (newValue, oldValue) => {
+                await this.handleUnauthorizedChange(
+                    Boolean(newValue),
+                    Boolean(oldValue),
+                    BOOKING_TERMINALS.BCT,
+                );
+            },
+        );
 
         onStorageChange('user_session', async newValue => {
             await this.handleUserSessionChange(newValue);
@@ -83,10 +93,10 @@ export class StorageHandler {
     }
 
     private getQueueManagerForTerminal(terminal: BookingTerminal): QueueManagerAdapter {
-        if (terminal === BOOKING_TERMINALS.DCT) {
-            return this.queueManager;
-        }
-
-        return QueueManagerAdapter.getInstance(`retryQueue:${terminal}`);
+        return terminal === BOOKING_TERMINALS.DCT
+            ? this.queueManager
+            : QueueManagerAdapter.getInstance(
+                  getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, terminal),
+              );
     }
 }

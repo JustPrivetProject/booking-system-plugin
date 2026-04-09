@@ -25,6 +25,8 @@ import {
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     getLastProperty,
     normalizeFormData,
     getFirstFormDataString,
@@ -34,7 +36,13 @@ import {
     getLocalStorageData,
     consoleLogWithoutSave,
 } from '../../utils';
-import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
+import {
+    getOrCreateDeviceId,
+    getStorage,
+    getTerminalStorageKey,
+    setStorage,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../../utils/storage';
 import { ContainerCheckerHandler, type ContainerCheckerMessage } from './ContainerCheckerHandler';
 import { GctHandler, type GctMessage } from './GctHandler';
 
@@ -100,11 +108,11 @@ function resolveMessageTerminal(
 }
 
 function getRetryQueueStorageKey(terminal: BookingTerminal): string {
-    return terminal === BOOKING_TERMINALS.DCT ? 'retryQueue' : `retryQueue:${terminal}`;
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, terminal);
 }
 
 function getUnauthorizedStorageKey(terminal: BookingTerminal): string {
-    return terminal === BOOKING_TERMINALS.DCT ? 'unauthorized' : `unauthorized:${terminal}`;
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal);
 }
 
 function getTableDataStorageKey(terminal: BookingTerminal): string {
@@ -112,13 +120,18 @@ function getTableDataStorageKey(terminal: BookingTerminal): string {
 }
 
 function getRequestCacheBodyStorageKey(terminal: BookingTerminal): string {
-    return terminal === BOOKING_TERMINALS.DCT ? 'requestCacheBody' : `requestCacheBody:${terminal}`;
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY, terminal);
 }
 
 function getRequestCacheHeadersStorageKey(terminal: BookingTerminal): string {
-    return terminal === BOOKING_TERMINALS.DCT
-        ? 'requestCacheHeaders'
-        : `requestCacheHeaders:${terminal}`;
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS, terminal);
+}
+
+function getMessageHandlerLogContext(terminal?: BookingTerminal) {
+    return {
+        scope: 'background',
+        terminal,
+    };
 }
 
 export class MessageHandler {
@@ -201,16 +214,21 @@ export class MessageHandler {
         sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
-        consoleLog('Getting request from Cache...');
-
         try {
             const terminal = resolveMessageTerminal(message, sender);
+            consoleLogWithContext(
+                getMessageHandlerLogContext(terminal),
+                'Getting request from cache...',
+            );
             const requestCacheHeadersKey = getRequestCacheHeadersStorageKey(terminal);
             const data = (await getStorage(requestCacheHeadersKey)) as Record<string, unknown>;
             const user = await authService.getCurrentUser();
 
             if (!user) {
-                consoleLog('User is not authenticated, cant add Container!');
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    'User is not authenticated, cannot add container',
+                );
                 sendResponse({ success: true, error: 'Not authorized' });
                 return;
             }
@@ -228,7 +246,11 @@ export class MessageHandler {
                 );
             }
         } catch (error) {
-            consoleError('Error in handleBookingAction:', error);
+            consoleErrorWithContext(
+                getMessageHandlerLogContext(resolveMessageTerminal(message, sender)),
+                'Error in handleBookingAction:',
+                error,
+            );
             sendResponse({
                 success: false,
                 error: 'Failed to process booking action',
@@ -247,7 +269,10 @@ export class MessageHandler {
         const requestIds = Object.keys(data.requestCacheHeaders || {});
 
         if (requestIds.length === 0) {
-            consoleLog('No requestId found in cache headers');
+            consoleLogWithContext(
+                getMessageHandlerLogContext(terminal),
+                'No requestId found in cache headers',
+            );
             sendResponse({ success: false, error: 'No cached request found' });
             return;
         }
@@ -266,7 +291,8 @@ export class MessageHandler {
             const maxCacheAge = 5 * 60 * 1000; // 5 minutes
 
             if (cacheAge > maxCacheAge) {
-                consoleLog(
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '⚠️ Cached request is too old:',
                     `requestId=${requestId}`,
                     `Age=${Math.round(cacheAge / 1000)}s`,
@@ -274,7 +300,8 @@ export class MessageHandler {
                     `Will process anyway, but this might be stale`,
                 );
             } else {
-                consoleLog(
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '✅ Cached request age is acceptable:',
                     `requestId=${requestId}`,
                     `Age=${Math.round(cacheAge / 1000)}s`,
@@ -282,7 +309,8 @@ export class MessageHandler {
             }
         }
 
-        consoleLog(
+        consoleLogWithContext(
+            getMessageHandlerLogContext(terminal),
             '📦 Processing cached request:',
             `requestId=${requestId}`,
             `Total cached requests=${requestIds.length}`,
@@ -313,7 +341,8 @@ export class MessageHandler {
                 ({} as RequestCacheBodes);
 
             const cachedBodyKeys = Object.keys(requestCacheBodyMap);
-            consoleLog(
+            consoleLogWithContext(
+                getMessageHandlerLogContext(terminal),
                 '📦 Cache state:',
                 `requestId=${requestId}`,
                 `Cached body keys=${cachedBodyKeys.join(', ')}`,
@@ -344,12 +373,14 @@ export class MessageHandler {
                 // Remove only the processed request from cache, not all
                 await this.removeCachedRequest(requestId, terminal);
 
-                consoleLog(
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '✅ Successfully processed and removed from cache:',
                     `requestId=${requestId}`,
                 );
             } else {
-                consoleLog(
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '⚠️ No data in cache object for requestId:',
                     requestId,
                     `Available body keys=${cachedBodyKeys.join(', ')}`,
@@ -360,13 +391,25 @@ export class MessageHandler {
 
             sendResponse({ success: true });
         } catch (error) {
-            consoleError('❌ Error in processCachedRequest:', error);
+            consoleErrorWithContext(
+                getMessageHandlerLogContext(terminal),
+                '❌ Error in processCachedRequest:',
+                error,
+            );
             // Try to clean up the failed request from cache
             try {
                 await this.removeCachedRequest(requestId, terminal);
-                consoleLog('🧹 Cleaned up failed request from cache:', requestId);
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    '🧹 Cleaned up failed request from cache:',
+                    requestId,
+                );
             } catch (cleanupError) {
-                consoleError('❌ Error cleaning up failed request:', cleanupError);
+                consoleErrorWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    '❌ Error cleaning up failed request:',
+                    cleanupError,
+                );
             }
             sendResponse({
                 success: false,

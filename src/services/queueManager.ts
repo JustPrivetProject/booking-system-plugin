@@ -15,10 +15,13 @@ import { clearBadge, syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     setStorage,
     generateUniqueId,
     getStorage,
     consoleLogWithoutSave,
+    consoleLogWithoutSaveWithContext,
     normalizeFormData,
     getFirstFormDataString,
 } from '../utils/index';
@@ -28,7 +31,11 @@ import {
     getBookingTerminalFromUrl,
     type BookingTerminal,
 } from '../types/terminal';
-import { setTerminalStorageValue, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
+import {
+    getTerminalStorageKey,
+    setTerminalStorageValue,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../utils/storage';
 import {
     getSlots,
     checkSlotAvailability,
@@ -57,7 +64,10 @@ export class QueueManager implements IQueueManager {
         this.events = events;
 
         this.config = {
-            storageKey: 'retryQueue',
+            storageKey: getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+                BOOKING_TERMINALS.DCT,
+            ),
             retryDelay: 1000,
             batchSize: 10,
             enableLogging: true,
@@ -73,19 +83,38 @@ export class QueueManager implements IQueueManager {
         };
     }
 
+    private getManagerTerminal(): BookingTerminal {
+        return this.config.storageKey.endsWith(`:${BOOKING_TERMINALS.BCT}`)
+            ? BOOKING_TERMINALS.BCT
+            : BOOKING_TERMINALS.DCT;
+    }
+
+    private getLogContext(terminal: BookingTerminal = this.getManagerTerminal()) {
+        return {
+            scope: 'queue',
+            terminal,
+        };
+    }
+
     async addToQueue(newItem: RetryObject): Promise<RetryObject[]> {
         return this.withMutex(async () => {
             const queue = await this.getQueue();
+            const terminal = this.resolveRequestTerminal(newItem);
 
             // Validate item
             if (!this.isValidItem(newItem)) {
-                consoleLog('Invalid item provided to queue', newItem);
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
+                    'Invalid item provided to queue',
+                    newItem,
+                );
                 return queue;
             }
 
             // Check for duplicates
             if (this.isDuplicate(newItem, queue)) {
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     `Duplicate item with tvAppId ${newItem.tvAppId} and startSlot ${newItem.startSlot} not added to ${this.config.storageKey}`,
                 );
                 return queue;
@@ -93,7 +122,8 @@ export class QueueManager implements IQueueManager {
 
             // Handle success status items
             if (newItem.status === 'success' && !this.hasSameTvAppId(newItem.tvAppId, queue)) {
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     `Item with status 'success' and new tvAppId ${newItem.tvAppId} not added to ${this.config.storageKey}`,
                 );
                 return queue;
@@ -107,14 +137,15 @@ export class QueueManager implements IQueueManager {
             queue.push(newItem);
             await setStorage({ [this.config.storageKey]: queue });
 
-            consoleLog(`Item added to ${this.config.storageKey}:`, newItem);
-            void analyticsService.trackBookingStarted(
-                newItem.terminal || getBookingTerminalFromUrl(newItem.url),
-                {
-                    mode: 'retry_queue',
-                    action: 'add',
-                },
+            consoleLogWithContext(
+                this.getLogContext(terminal),
+                `Item added to ${this.config.storageKey}:`,
+                newItem,
             );
+            void analyticsService.trackBookingStarted(terminal, {
+                mode: 'retry_queue',
+                action: 'add',
+            });
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -202,7 +233,7 @@ export class QueueManager implements IQueueManager {
         const { intervalMin = 1000, intervalMax = 5000, retryEnabled = true } = options;
 
         if (this.processingState.isProcessing) {
-            consoleLog('Processing is already running');
+            consoleLogWithContext(this.getLogContext(), 'Processing is already running');
             return;
         }
 
@@ -219,7 +250,10 @@ export class QueueManager implements IQueueManager {
                 const isAuthenticated = await this.authService.isAuthenticated();
 
                 if (!isAuthenticated) {
-                    consoleLogWithoutSave('User is not authenticated. Skipping this cycle.');
+                    consoleLogWithoutSaveWithContext(
+                        this.getLogContext(),
+                        'User is not authenticated. Skipping this cycle.',
+                    );
                     clearBadge();
                     this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests, false);
                     return;
@@ -237,7 +271,7 @@ export class QueueManager implements IQueueManager {
                 return;
             } catch (error) {
                 this.processingState.errorCount++;
-                consoleError('Error in queue processing:', error);
+                consoleErrorWithContext(this.getLogContext(), 'Error in queue processing:', error);
                 this.events.onProcessingError?.(error as Error);
             }
 
@@ -257,7 +291,7 @@ export class QueueManager implements IQueueManager {
         }
 
         this.events.onProcessingStopped?.();
-        consoleLog('Queue processing stopped');
+        consoleLogWithContext(this.getLogContext(), 'Queue processing stopped');
     }
 
     // Public methods for monitoring
@@ -319,7 +353,10 @@ export class QueueManager implements IQueueManager {
         this.processingTimeoutId = setTimeout(processNextRequests, randomInterval);
 
         if (hasActiveSubscriptions) {
-            consoleLogWithoutSave(`Next processing cycle in ${randomInterval / 1000} seconds`);
+            consoleLogWithoutSaveWithContext(
+                this.getLogContext(),
+                `Next processing cycle in ${randomInterval / 1000} seconds`,
+            );
         }
     }
 
@@ -424,7 +461,8 @@ export class QueueManager implements IQueueManager {
 
             if (isSlotRefreshTooOftenResponse(slotsText)) {
                 slotRefreshTooOften = true;
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     '⏸️ SlotRefreshTooOftenInfo: pausing 10s before next getSlots cycle',
                     date,
                 );

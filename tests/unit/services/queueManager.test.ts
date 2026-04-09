@@ -1,32 +1,41 @@
 // Mock the existing utilities FIRST, before any imports
-jest.mock('../../../src/utils', () => ({
-    generateUniqueId: jest.fn(() => 'mock-id'),
-    consoleLog: jest.fn(),
-    consoleError: jest.fn(),
-    consoleLogWithoutSave: jest.fn(),
-    getStorage: jest.fn(),
-    setStorage: jest.fn(),
-    getFirstFormDataString: jest.fn((values?: unknown[]) => {
-        const value = values?.[0];
-        return typeof value === 'string' ? value : null;
-    }),
-    normalizeFormData: jest.fn((body: any) => {
-        // normalizeFormData should return the same structure if body already has formData
-        // In real code it normalizes arrays, but for tests we preserve the structure
-        if (body && body.formData) {
-            return body;
-        }
-        // If body is already formData structure, return it wrapped
-        return {
-            formData: {
-                TvAppId: ['test-tv-app'],
-                SlotStart: ['01.01.2025 10:00'],
-                SlotEnd: ['01.01.2025 11:00'],
-            },
-        };
-    }),
-    parseDateTimeFromDMY: jest.fn((_date: string) => new Date('2025-01-01T11:00:00')),
-}));
+jest.mock('../../../src/utils', () => {
+    const consoleLog = jest.fn();
+    const consoleError = jest.fn();
+    const consoleLogWithoutSave = jest.fn();
+
+    return {
+        generateUniqueId: jest.fn(() => 'mock-id'),
+        consoleLog,
+        consoleLogWithContext: consoleLog,
+        consoleError,
+        consoleErrorWithContext: consoleError,
+        consoleLogWithoutSave,
+        consoleLogWithoutSaveWithContext: consoleLogWithoutSave,
+        getStorage: jest.fn(),
+        setStorage: jest.fn(),
+        getFirstFormDataString: jest.fn((values?: unknown[]) => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        }),
+        normalizeFormData: jest.fn((body: any) => {
+            // normalizeFormData should return the same structure if body already has formData
+            // In real code it normalizes arrays, but for tests we preserve the structure
+            if (body && body.formData) {
+                return body;
+            }
+            // If body is already formData structure, return it wrapped
+            return {
+                formData: {
+                    TvAppId: ['test-tv-app'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            };
+        }),
+        parseDateTimeFromDMY: jest.fn((_date: string) => new Date('2025-01-01T11:00:00')),
+    };
+});
 
 // Mock baltichub helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({
@@ -45,8 +54,12 @@ jest.mock('../../../src/services/baltichub', () => ({
 }));
 
 jest.mock('../../../src/utils/storage', () => ({
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
     setTerminalStorageValue: jest.fn(),
     TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
         UNAUTHORIZED: 'unauthorized',
     },
 }));
@@ -173,7 +186,10 @@ describe('QueueManager', () => {
             const result = await queueManager.addToQueue(duplicateItem);
 
             expect(result).toHaveLength(1);
-            expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Duplicate item'));
+            expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
+                expect.stringContaining('Duplicate item'),
+            );
         });
 
         it('should not add invalid items', async () => {
@@ -184,6 +200,7 @@ describe('QueueManager', () => {
 
             expect(result).toHaveLength(0);
             expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
                 'Invalid item provided to queue',
                 invalidItem,
             );
@@ -197,6 +214,7 @@ describe('QueueManager', () => {
 
             expect(result).toHaveLength(0);
             expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
                 expect.stringContaining("Item with status 'success'"),
             );
         });
@@ -415,7 +433,10 @@ describe('QueueManager', () => {
             queueManager.startProcessing();
             queueManager.startProcessing(); // Second call
 
-            expect(mockConsoleLog).toHaveBeenCalledWith('Processing is already running');
+            expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
+                'Processing is already running',
+            );
         });
 
         it('should stop processing when user is not authenticated', async () => {

@@ -21,13 +21,13 @@ export const TERMINAL_STORAGE_NAMESPACES = {
 export type TerminalStorageNamespace =
     (typeof TERMINAL_STORAGE_NAMESPACES)[keyof typeof TERMINAL_STORAGE_NAMESPACES];
 
-const LEGACY_DCT_STORAGE_KEYS: Record<TerminalStorageNamespace, string> = {
-    [TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE]: 'retryQueue',
-    [TERMINAL_STORAGE_NAMESPACES.GROUP_STATES]: 'groupStates',
-    [TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY]: 'requestCacheBody',
-    [TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS]: 'requestCacheHeaders',
-    [TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED]: 'unauthorized',
-};
+export const LEGACY_DCT_STORAGE_KEYS: readonly string[] = [
+    TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+    TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+    TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+] as const;
 
 export function getTerminalStorageKey(
     namespace: TerminalStorageNamespace,
@@ -36,30 +36,21 @@ export function getTerminalStorageKey(
     return `${namespace}:${terminal}`;
 }
 
+export async function clearLegacyDctStorage(): Promise<void> {
+    try {
+        await removeStorage([...LEGACY_DCT_STORAGE_KEYS]);
+    } catch (error) {
+        consoleError('Error clearing legacy DCT storage:', error);
+    }
+}
+
 export async function getTerminalStorageValue<T>(
     namespace: TerminalStorageNamespace,
     terminal: BookingTerminal,
     defaultValue: T,
 ): Promise<T> {
     const terminalKey = getTerminalStorageKey(namespace, terminal);
-    const legacyKey =
-        terminal === BOOKING_TERMINALS.DCT ? LEGACY_DCT_STORAGE_KEYS[namespace] : undefined;
-    const keys = legacyKey ? [terminalKey, legacyKey] : [terminalKey];
-    const result = (await getStorage(keys)) as Record<string, unknown>;
-    if (legacyKey) {
-        const legacyValue = result[legacyKey];
-
-        if (legacyValue !== undefined) {
-            const terminalValue = result[terminalKey];
-
-            if (terminalValue !== legacyValue) {
-                await setStorage({ [terminalKey]: legacyValue });
-            }
-
-            return legacyValue as T;
-        }
-    }
-
+    const result = (await getStorage(terminalKey)) as Record<string, unknown>;
     const terminalValue = result[terminalKey];
 
     if (terminalValue !== undefined) {
@@ -75,15 +66,7 @@ export async function setTerminalStorageValue<T>(
     value: T,
 ): Promise<void> {
     const terminalKey = getTerminalStorageKey(namespace, terminal);
-    const storageData: Record<string, unknown> = {
-        [terminalKey]: value,
-    };
-
-    if (terminal === BOOKING_TERMINALS.DCT) {
-        storageData[LEGACY_DCT_STORAGE_KEYS[namespace]] = value;
-    }
-
-    await setStorage(storageData);
+    await setStorage({ [terminalKey]: value });
 }
 
 /**
@@ -176,8 +159,6 @@ export async function cleanupCache(): Promise<boolean> {
     consoleLog('Cleaning up cache...');
     try {
         await setStorage({
-            requestCacheBody: {},
-            requestCacheHeaders: {},
             [getTerminalStorageKey(
                 TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
                 BOOKING_TERMINALS.DCT,

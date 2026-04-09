@@ -4,6 +4,11 @@ import { errorLogService } from '../services/errorLogService';
 
 type LogType = 'log' | 'error';
 
+export interface LogContext {
+    scope?: string;
+    terminal?: string;
+}
+
 export interface SessionLogEntry {
     type: LogType;
     message: string;
@@ -25,6 +30,30 @@ function getSessionLogsFromResult(result: unknown): SessionLogEntry[] {
 
 function formatLogMessage(args: unknown[]): string {
     return args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' ');
+}
+
+function formatContextLabel(context?: LogContext): string {
+    if (!context) {
+        return '';
+    }
+
+    const labels = [context.scope, context.terminal?.toUpperCase()].filter(Boolean);
+
+    if (!labels.length) {
+        return '';
+    }
+
+    return labels.map(label => `[${label}]`).join('');
+}
+
+function addContextToArgs(context: LogContext | undefined, args: unknown[]): unknown[] {
+    const contextLabel = formatContextLabel(context);
+
+    if (!contextLabel) {
+        return args;
+    }
+
+    return [contextLabel, ...args];
 }
 
 function getTimestampPrefix(): [string, string, string] {
@@ -49,10 +78,18 @@ export function consoleLog(...args: unknown[]) {
     });
 }
 
+export function consoleLogWithContext(context: LogContext, ...args: unknown[]) {
+    return consoleLog(...addContextToArgs(context, args));
+}
+
 export function consoleLogWithoutSave(...args: unknown[]) {
     if (process.env.NODE_ENV === 'development') {
         console.log(...getTimestampPrefix(), ...args);
     }
+}
+
+export function consoleLogWithoutSaveWithContext(context: LogContext, ...args: unknown[]) {
+    return consoleLogWithoutSave(...addContextToArgs(context, args));
 }
 
 export function consoleError(...args: unknown[]) {
@@ -77,6 +114,10 @@ export function consoleError(...args: unknown[]) {
             .join(' ');
         errorLogService.logError(errorMessage, 'background', { args });
     }
+}
+
+export function consoleErrorWithContext(context: LogContext, ...args: unknown[]) {
+    return consoleError(...addContextToArgs(context, args));
 }
 
 // Async helpers for chrome.storage.session

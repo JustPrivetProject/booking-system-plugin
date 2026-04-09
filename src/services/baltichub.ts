@@ -16,6 +16,8 @@ import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     fetchRequest,
     normalizeFormData,
     getFirstFormDataString,
@@ -136,14 +138,19 @@ export async function getDriverNameAndContainer(
     retryQueue: RetryObject[],
     terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<{ driverName: string; containerNumber: string }> {
-    consoleLog('Getting driver name and container for TV App ID:', tvAppId);
+    const logContext = { scope: 'booking', terminal };
+
+    consoleLogWithContext(logContext, 'Getting driver name and container for TV App ID:', tvAppId);
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const containerIdRegex = /"ContainerId":"([^"]+)"/;
 
     // Check if retryQueue is defined and is an array
     if (!retryQueue || !Array.isArray(retryQueue)) {
-        consoleLog('RetryQueue is undefined or not an array, skipping cache lookup');
+        consoleLogWithContext(
+            logContext,
+            'RetryQueue is undefined or not an array, skipping cache lookup',
+        );
     } else {
         const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
         if (sameItem) {
@@ -156,14 +163,18 @@ export async function getDriverNameAndContainer(
 
     const response = await getEditForm(tvAppId, terminal);
     if (!response.ok) {
-        consoleLog('Error getting driver name: Response not OK', JSONstringify(response));
+        consoleLogWithContext(
+            logContext,
+            'Error getting driver name: Response not OK',
+            JSONstringify(response),
+        );
         return { driverName: '', containerNumber: '' };
     }
 
     const tvAppEditText = await response.text();
-    consoleLog('Request Edit form:', tvAppEditText);
+    consoleLogWithContext(logContext, 'Request Edit form:', tvAppEditText);
     if (!tvAppEditText.trim()) {
-        consoleLog('Error getting driver name: Response is empty');
+        consoleLogWithContext(logContext, 'Error getting driver name: Response is empty');
         return { driverName: '', containerNumber: '' };
     }
 
@@ -174,8 +185,8 @@ export async function getDriverNameAndContainer(
     const containerNumberMatch = tvAppEditText.match(containerIdRegex);
     const containerNumber = containerNumberMatch?.[1] || '';
 
-    consoleLog('Driver info:', driverName);
-    consoleLog('Container ID:', containerNumber);
+    consoleLogWithContext(logContext, 'Driver info:', driverName);
+    consoleLogWithContext(logContext, 'Container ID:', containerNumber);
     return {
         driverName,
         containerNumber,
@@ -204,6 +215,7 @@ export async function executeRequest(
     time: string[],
 ): Promise<RetryObject> {
     const terminal = resolveRetryTerminal(req);
+    const logContext = { scope: 'booking', terminal };
 
     if (!req.body || !req.body.formData) {
         throw new Error('Request body or formData is missing');
@@ -244,7 +256,11 @@ export async function executeRequest(
                 Actual: { SlotStart: updatedSlotStart, SlotEnd: updatedSlotEnd },
                 tvAppId,
             };
-            consoleError('❌ CRITICAL: Time update failed!', JSON.stringify(errorData, null, 2));
+            consoleErrorWithContext(
+                logContext,
+                '❌ CRITICAL: Time update failed!',
+                JSON.stringify(errorData, null, 2),
+            );
             throw new Error(
                 `Time update failed: expected ${req.startSlot}, got ${updatedSlotStart}`,
             );
@@ -257,7 +273,11 @@ export async function executeRequest(
                 tvAppId,
                 Status: 'Already matches',
             };
-            consoleLog('🔄 Slot time already matches:', JSON.stringify(matchData, null, 2));
+            consoleLogWithContext(
+                logContext,
+                '🔄 Slot time already matches:',
+                JSON.stringify(matchData, null, 2),
+            );
         } else {
             const verifiedData = {
                 SlotStart: updatedSlotStart,
@@ -265,7 +285,11 @@ export async function executeRequest(
                 tvAppId,
                 Status: '✅ Verified',
             };
-            consoleLog('✅ Time update verified:', JSON.stringify(verifiedData, null, 2));
+            consoleLogWithContext(
+                logContext,
+                '✅ Time update verified:',
+                JSON.stringify(verifiedData, null, 2),
+            );
         }
     } else {
         const cachedTimeData = {
@@ -275,7 +299,8 @@ export async function executeRequest(
             'req.startSlot': req.startSlot || 'not set',
             'req.endSlot': req.endSlot || 'not set',
         };
-        consoleLog(
+        consoleLogWithContext(
+            logContext,
             '📤 Sending request with cached slot time:',
             JSON.stringify(cachedTimeData, null, 2),
         );
@@ -290,7 +315,11 @@ export async function executeRequest(
         SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
         'Time array': time.join(', '),
     };
-    consoleLog('📤 Sending booking request:', JSON.stringify(requestData, null, 2));
+    consoleLogWithContext(
+        logContext,
+        '📤 Sending booking request:',
+        JSON.stringify(requestData, null, 2),
+    );
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -322,7 +351,11 @@ export async function executeRequest(
         '⚠️ VERIFY':
             req.body.formData.SlotStart?.[0] === req.startSlot ? '✅ YES' : '❌ NO - MISMATCH!',
     };
-    consoleLog('📥 Received response:', JSON.stringify(responseData, null, 2));
+    consoleLogWithContext(
+        logContext,
+        '📥 Received response:',
+        JSON.stringify(responseData, null, 2),
+    );
 
     if (response.ok && isEbramaLoginPageResponse(parsedResponse, responseUrl)) {
         await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal, true);
@@ -340,11 +373,18 @@ export async function executeRequest(
             SlotStart: req.body.formData.SlotStart?.[0] || 'not set',
             SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
         };
-        consoleLog('✅ Request retried successfully:', JSON.stringify(successData, null, 2));
+        consoleLogWithContext(
+            logContext,
+            '✅ Request retried successfully:',
+            JSON.stringify(successData, null, 2),
+        );
 
         // Send centralized notifications (Windows + Email)
         try {
-            consoleLog('🎉 Booking success! Preparing to send notifications...');
+            consoleLogWithContext(
+                logContext,
+                '🎉 Booking success! Preparing to send notifications...',
+            );
 
             const notificationData: Partial<BrevoEmailData> = {
                 notificationSource: terminal === BOOKING_TERMINALS.BCT ? 'BCT' : 'DCT',
@@ -353,14 +393,14 @@ export async function executeRequest(
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };
-            consoleLog('🎉 Notification data prepared:', notificationData);
+            consoleLogWithContext(logContext, '🎉 Notification data prepared:', notificationData);
 
             await notificationService.sendBookingSuccessNotifications(
                 notificationData as BrevoEmailData,
             );
-            consoleLog('🎉 Notification process completed');
+            consoleLogWithContext(logContext, '🎉 Notification process completed');
         } catch (error) {
-            consoleError('❌ Error sending notifications:', error);
+            consoleErrorWithContext(logContext, '❌ Error sending notifications:', error);
         }
 
         return {

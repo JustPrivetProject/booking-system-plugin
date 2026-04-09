@@ -26,7 +26,11 @@ jest.mock('../../../src/utils/storage', () => ({
 jest.mock('../../../src/utils', () => ({
     fetchRequest: jest.fn(),
     consoleLog: jest.fn(),
+    consoleLogWithContext: jest.fn(),
     consoleLogWithoutSave: jest.fn(),
+    consoleLogWithoutSaveWithContext: jest.fn(),
+    consoleError: jest.fn(),
+    consoleErrorWithContext: jest.fn(),
     formatDateToDMY: jest.fn(),
     normalizeFormData: jest.fn(),
     JSONstringify: jest.fn(obj => JSON.stringify(obj)),

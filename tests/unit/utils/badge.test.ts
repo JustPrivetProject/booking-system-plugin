@@ -360,7 +360,7 @@ describe('Badge Manager', () => {
     describe('syncStatusBadgeFromStorage', () => {
         it('should include BCT retry queue statuses when syncing badge', async () => {
             testHelper.getStorage.mockResolvedValue({
-                retryQueue: [],
+                [`retryQueue:${BOOKING_TERMINALS.DCT}`]: [],
                 [`retryQueue:${BOOKING_TERMINALS.BCT}`]: [{ status: TEST_STATUSES.ERROR }],
                 gctGroups: [],
             });
@@ -369,7 +369,7 @@ describe('Badge Manager', () => {
             await syncStatusBadgeFromStorage();
 
             expect(testHelper.getStorage).toHaveBeenCalledWith([
-                'retryQueue',
+                `retryQueue:${BOOKING_TERMINALS.DCT}`,
                 `retryQueue:${BOOKING_TERMINALS.BCT}`,
                 'gctGroups',
             ]);
@@ -379,7 +379,7 @@ describe('Badge Manager', () => {
 
         it('should clear badge when no DCT, BCT, or GCT statuses exist', async () => {
             testHelper.getStorage.mockResolvedValue({
-                retryQueue: [],
+                [`retryQueue:${BOOKING_TERMINALS.DCT}`]: [],
                 [`retryQueue:${BOOKING_TERMINALS.BCT}`]: [],
                 gctGroups: [],
             });

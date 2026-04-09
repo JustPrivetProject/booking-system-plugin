@@ -1,8 +1,15 @@
 import type { RetryObject } from '../types/baltichub';
 import type { ProcessingOptions } from '../types/queue';
+import { BOOKING_TERMINALS } from '../types/terminal';
+import { getTerminalStorageKey, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
 
 import type { QueueManager } from './queueManager';
 import { QueueManagerFactory } from './queueManagerFactory';
+
+const DEFAULT_DCT_QUEUE_STORAGE_KEY = getTerminalStorageKey(
+    TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+    BOOKING_TERMINALS.DCT,
+);
 
 /**
  * Adapter class to maintain backward compatibility with the old QueueManager singleton pattern
@@ -12,7 +19,7 @@ export class QueueManagerAdapter {
     private static instances = new Map<string, QueueManagerAdapter>();
     private queueManager!: QueueManager;
 
-    constructor(storageKey = 'retryQueue') {
+    constructor(storageKey = DEFAULT_DCT_QUEUE_STORAGE_KEY) {
         const existingInstance = QueueManagerAdapter.instances.get(storageKey);
 
         if (existingInstance) {
@@ -27,7 +34,7 @@ export class QueueManagerAdapter {
         QueueManagerAdapter.instances.set(storageKey, this);
     }
 
-    static getInstance(storageKey = 'retryQueue'): QueueManagerAdapter {
+    static getInstance(storageKey = DEFAULT_DCT_QUEUE_STORAGE_KEY): QueueManagerAdapter {
         const existingInstance = QueueManagerAdapter.instances.get(storageKey);
 
         if (existingInstance) {

@@ -80,6 +80,32 @@ async function waitForAsyncOperations(
     await new Promise(resolve => setTimeout(resolve, 100));
 }
 
+function withNamespacedDctStorage<T extends Record<string, unknown>>(storage: T): T {
+    const namespacedStorage = { ...storage } as Record<string, unknown>;
+
+    if ('unauthorized' in storage) {
+        namespacedStorage['unauthorized:dct'] = storage.unauthorized;
+    }
+
+    if ('retryQueue' in storage) {
+        namespacedStorage['retryQueue:dct'] = storage.retryQueue;
+    }
+
+    if ('groupStates' in storage) {
+        namespacedStorage['groupStates:dct'] = storage.groupStates;
+    }
+
+    if ('requestCacheBody' in storage) {
+        namespacedStorage['requestCacheBody:dct'] = storage.requestCacheBody;
+    }
+
+    if ('requestCacheHeaders' in storage) {
+        namespacedStorage['requestCacheHeaders:dct'] = storage.requestCacheHeaders;
+    }
+
+    return namespacedStorage as T;
+}
+
 describe('MessageHandler', () => {
     let messageHandler: MessageHandler;
     let mockGetLastProperty: jest.Mock;
@@ -187,7 +213,7 @@ describe('MessageHandler', () => {
             });
 
             // Mock storage
-            mockGetStorage.mockResolvedValue(mockStorageData);
+            mockGetStorage.mockResolvedValue(withNamespacedDctStorage(mockStorageData));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
@@ -243,7 +269,7 @@ describe('MessageHandler', () => {
             const message = { action: Actions.GET_AUTH_STATUS };
             const sender = {} as chrome.runtime.MessageSender;
 
-            mockGetStorage.mockResolvedValue({ unauthorized: false });
+            mockGetStorage.mockResolvedValue(withNamespacedDctStorage({ unauthorized: false }));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
@@ -554,22 +580,28 @@ describe('MessageHandler', () => {
             // 2. Second call in processCachedRequest for [requestCacheBody, retryQueue, testEnv, tableData]
             // 3-4. Two calls inside removeCachedRequest for requestCacheBody and requestCacheHeaders
             mockGetStorage
-                .mockResolvedValueOnce(mockStorageData) // First call: requestCacheHeaders
-                .mockResolvedValueOnce({
-                    // Second call: [requestCacheBody, retryQueue, testEnv, tableData]
-                    requestCacheBody: mockRequestCacheBody,
-                    retryQueue: [],
-                    testEnv: false,
-                    tableData: null,
-                })
-                .mockResolvedValueOnce({
-                    // Third call: inside removeCachedRequest for requestCacheBody
-                    requestCacheBody: mockRequestCacheBody,
-                })
-                .mockResolvedValueOnce({
-                    // Fourth call: inside removeCachedRequest for requestCacheHeaders
-                    requestCacheHeaders: mockStorageData.requestCacheHeaders,
-                });
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Second call: [requestCacheBody, retryQueue, testEnv, tableData]
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Third call: inside removeCachedRequest for requestCacheBody
+                        requestCacheBody: mockRequestCacheBody,
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Fourth call: inside removeCachedRequest for requestCacheHeaders
+                        requestCacheHeaders: mockStorageData.requestCacheHeaders,
+                    }),
+                );
 
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
@@ -598,20 +630,22 @@ describe('MessageHandler', () => {
             // Wait for async operations to complete
             await waitForAsyncOperations(mockSendResponse);
 
-            expect(mockGetStorage).toHaveBeenCalledWith('requestCacheHeaders');
+            expect(mockGetStorage).toHaveBeenCalledWith('requestCacheHeaders:dct');
             expect(mockQueueManager.addToQueue).toHaveBeenCalled();
             // removeCachedRequest calls setStorage twice: once for body, once for headers
             // After removing 'request-1', both caches should be empty (no 'request-1' key)
             expect(mockSetStorage).toHaveBeenCalledTimes(2);
             const setStorageCalls = mockSetStorage.mock.calls;
-            const bodyCall = setStorageCalls.find(call => call[0].requestCacheBody !== undefined);
+            const bodyCall = setStorageCalls.find(
+                call => call[0]['requestCacheBody:dct'] !== undefined,
+            );
             const headersCall = setStorageCalls.find(
-                call => call[0].requestCacheHeaders !== undefined,
+                call => call[0]['requestCacheHeaders:dct'] !== undefined,
             );
             expect(bodyCall).toBeDefined();
             expect(headersCall).toBeDefined();
-            expect(bodyCall[0].requestCacheBody).not.toHaveProperty('request-1');
-            expect(headersCall[0].requestCacheHeaders).not.toHaveProperty('request-1');
+            expect(bodyCall[0]['requestCacheBody:dct']).not.toHaveProperty('request-1');
+            expect(headersCall[0]['requestCacheHeaders:dct']).not.toHaveProperty('request-1');
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
         });
 
@@ -661,12 +695,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -744,12 +782,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -815,12 +857,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: null,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -871,12 +917,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: {},
-                retryQueue: [],
-                testEnv: false,
-                tableData: null,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: {},
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                );
 
             mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
             mockExtractFirstId.mockReturnValue('request-1');
@@ -909,7 +959,7 @@ describe('MessageHandler', () => {
             });
 
             mockGetStorage
-                .mockResolvedValueOnce(mockStorageData)
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
                 .mockRejectedValueOnce(new Error('Storage error'));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
@@ -1493,12 +1543,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1577,12 +1631,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1660,12 +1718,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1742,12 +1804,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1824,12 +1890,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({

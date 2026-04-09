@@ -7,6 +7,8 @@ import { syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     sortStatusesByPriority,
     normalizeFormData,
     getFirstFormDataString,
@@ -60,7 +62,11 @@ function getActiveBookingTerminal(): PopupBookingTerminal {
 function updateAllBookingQueueDisplays(): void {
     POPUP_BOOKING_TERMINALS.forEach(terminal => {
         updateQueueDisplay(terminal).catch(error => {
-            consoleError(`Error updating ${terminal} queue display:`, error);
+            consoleErrorWithContext(
+                getPopupLogContext(terminal),
+                'Error updating queue display:',
+                error,
+            );
         });
     });
 }
@@ -70,6 +76,14 @@ let isBctTabEnabled = false;
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
 let hasTrackedPopupSessionStart = false;
+const groupStateCache: Partial<Record<PopupBookingTerminal, Record<string, boolean>>> = {};
+
+function getPopupLogContext(terminal?: PopupBookingTerminal) {
+    return {
+        scope: 'popup',
+        terminal,
+    };
+}
 
 function requireElement<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
@@ -202,6 +216,8 @@ async function syncContainerCheckerAlarmState(): Promise<void> {
 }
 
 function sendMessageToBackground(action, data, options = { updateQueue: true }) {
+    const terminal = data?.terminal as PopupBookingTerminal | undefined;
+
     chrome.runtime.sendMessage(
         {
             target: 'background',
@@ -210,20 +226,35 @@ function sendMessageToBackground(action, data, options = { updateQueue: true }) 
         },
         response => {
             if (chrome.runtime.lastError) {
-                consoleError('Error sending message:', chrome.runtime.lastError);
+                consoleErrorWithContext(
+                    getPopupLogContext(terminal),
+                    'Error sending message:',
+                    chrome.runtime.lastError,
+                );
                 return;
             }
 
             // Обработка ответа от background.js
             if (response && response.success) {
-                consoleLog(`Action ${action} completed successfully`);
+                consoleLogWithContext(
+                    getPopupLogContext(terminal),
+                    `Action ${action} completed successfully`,
+                );
                 if (options.updateQueue) {
-                    updateQueueDisplay(data?.terminal || DCT_BOOKING_TERMINAL).catch(error => {
-                        consoleError('Queue refresh after background action failed:', error);
+                    updateQueueDisplay(terminal || DCT_BOOKING_TERMINAL).catch(error => {
+                        consoleErrorWithContext(
+                            getPopupLogContext(terminal || DCT_BOOKING_TERMINAL),
+                            'Queue refresh after background action failed:',
+                            error,
+                        );
                     });
                 }
             } else {
-                consoleError(`Action ${action} failed:`, response?.error || 'Unknown error');
+                consoleErrorWithContext(
+                    getPopupLogContext(terminal),
+                    `Action ${action} failed:`,
+                    response?.error || 'Unknown error',
+                );
             }
         },
     );
@@ -279,11 +310,7 @@ async function setStatusMultipleRequests(
 
 async function restoreGroupStates(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
     try {
-        const groupStates = await getTerminalStorageValue(
-            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-            terminal,
-            {},
-        );
+        const groupStates = await getCachedGroupStates(terminal);
         const tableBody = getQueueTableBody(terminal);
 
         tableBody.querySelectorAll<HTMLElement>('.group-row').forEach(groupRow => {
@@ -294,7 +321,11 @@ async function restoreGroupStates(terminal: PopupBookingTerminal = DCT_BOOKING_T
             setGroupExpandedState(groupRow, isOpen);
         });
     } catch (error) {
-        consoleError('Error restoring group states:', error);
+        consoleErrorWithContext(
+            getPopupLogContext(terminal),
+            'Error restoring group states:',
+            error,
+        );
     }
 }
 
@@ -307,42 +338,33 @@ async function deleteGroupStateById(
     groupId: string | number,
     terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
 ): Promise<object> {
-    // Get current groupStates from storage
-    const groupStates = await getTerminalStorageValue(
-        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-        terminal,
-        {},
-    );
+    const groupStates = await getCachedGroupStates(terminal);
 
     // Delete the specified group ID if it exists
     if (groupId in groupStates) {
         delete groupStates[groupId];
-
-        // Save the updated groupStates back to storage
-        await setTerminalStorageValue(
-            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-            terminal,
-            groupStates,
+        await persistGroupStates(terminal);
+        consoleLogWithContext(
+            getPopupLogContext(terminal),
+            `Group state with ID ${groupId} was deleted`,
         );
-        consoleLog(`Group state with ID ${groupId} was deleted`);
     } else {
-        consoleLog(`Group state with ID ${groupId} does not exist`);
+        consoleLogWithContext(
+            getPopupLogContext(terminal),
+            `Group state with ID ${groupId} does not exist`,
+        );
     }
 
     return groupStates;
 }
 
 async function clearStateGroups(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
-    // Get current groupStates from storage
-    const groupStates = await getTerminalStorageValue(
-        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-        terminal,
-        {},
-    );
+    const groupStates = await getCachedGroupStates(terminal);
 
     if (Object.entries(groupStates).length) {
-        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.GROUP_STATES, terminal, {});
-        consoleLog('Group state was cleared');
+        groupStateCache[terminal] = {};
+        await persistGroupStates(terminal);
+        consoleLogWithContext(getPopupLogContext(terminal), 'Group state was cleared');
     }
 
     return groupStates;
@@ -406,6 +428,35 @@ function canPauseStatus(status: string): boolean {
     return isPauseDisabled(status) !== 'disabled';
 }
 
+async function getCachedGroupStates(
+    terminal: PopupBookingTerminal,
+): Promise<Record<string, boolean>> {
+    if (!groupStateCache[terminal]) {
+        const storedGroupStates = await getTerminalStorageValue(
+            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+            terminal,
+            {},
+        );
+
+        groupStateCache[terminal] = Object.entries(storedGroupStates).reduce<
+            Record<string, boolean>
+        >((accumulator, [groupId, isOpen]) => {
+            accumulator[groupId] = isOpen === true;
+            return accumulator;
+        }, {});
+    }
+
+    return groupStateCache[terminal] as Record<string, boolean>;
+}
+
+async function persistGroupStates(terminal: PopupBookingTerminal): Promise<void> {
+    await setTerminalStorageValue(
+        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+        terminal,
+        groupStateCache[terminal] || {},
+    );
+}
+
 function getGroupChildRows(groupRow: HTMLElement): HTMLElement[] {
     const rows: HTMLElement[] = [];
     let nextRow = groupRow.nextElementSibling;
@@ -437,7 +488,7 @@ function setGroupExpandedState(groupRow: HTMLElement, isOpen: boolean): void {
 }
 
 async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
-    consoleLog('updateQueueDisplay', terminal);
+    consoleLogWithContext(getPopupLogContext(terminal), 'Updating queue display');
     const isAuthenticated = await authService.isAuthenticated();
     if (!isAuthenticated) {
         return;
@@ -592,24 +643,21 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
 
                     const groupId = groupRow.dataset.groupId;
                     if (!groupId) return;
+
                     const isCurrentlyOpen = groupRow.dataset.isOpen === 'true';
+                    const groupStates = await getCachedGroupStates(terminal);
+                    groupStates[groupId] = !isCurrentlyOpen;
 
                     setGroupExpandedState(groupRow, !isCurrentlyOpen);
 
                     try {
-                        const groupStates = await getTerminalStorageValue(
-                            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-                            terminal,
-                            {},
-                        );
-                        groupStates[groupId] = !isCurrentlyOpen;
-                        await setTerminalStorageValue(
-                            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-                            terminal,
-                            groupStates,
-                        );
+                        await persistGroupStates(terminal);
                     } catch (error) {
-                        consoleError('Error saving group state:', error);
+                        consoleErrorWithContext(
+                            getPopupLogContext(terminal),
+                            'Error saving group state:',
+                            error,
+                        );
                     }
                 });
             });
@@ -716,7 +764,11 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
                 });
             });
     } catch (error) {
-        consoleError(`Error updating ${terminal} queue display:`, error);
+        consoleErrorWithContext(
+            getPopupLogContext(terminal),
+            'Error updating queue display:',
+            error,
+        );
     }
 }
 
@@ -724,14 +776,20 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (
         namespace === 'local' &&
-        (changes.retryQueue ||
-            changes[
-                getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, DCT_BOOKING_TERMINAL)
-            ])
+        changes[
+            getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, DCT_BOOKING_TERMINAL)
+        ]
     ) {
-        consoleLog('Queue data changed, updating UI');
+        consoleLogWithContext(
+            getPopupLogContext(DCT_BOOKING_TERMINAL),
+            'Queue data changed, updating UI',
+        );
         updateQueueDisplay(DCT_BOOKING_TERMINAL).catch(error => {
-            consoleError('DCT queue refresh failed:', error);
+            consoleErrorWithContext(
+                getPopupLogContext(DCT_BOOKING_TERMINAL),
+                'Queue refresh failed:',
+                error,
+            );
         });
     }
     if (
@@ -740,9 +798,16 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
             getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, BCT_BOOKING_TERMINAL)
         ]
     ) {
-        consoleLog('BCT queue data changed, updating UI');
+        consoleLogWithContext(
+            getPopupLogContext(BCT_BOOKING_TERMINAL),
+            'Queue data changed, updating UI',
+        );
         updateQueueDisplay(BCT_BOOKING_TERMINAL).catch(error => {
-            consoleError('BCT queue refresh failed:', error);
+            consoleErrorWithContext(
+                getPopupLogContext(BCT_BOOKING_TERMINAL),
+                'Queue refresh failed:',
+                error,
+            );
         });
     }
     if (
