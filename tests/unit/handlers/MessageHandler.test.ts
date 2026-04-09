@@ -18,6 +18,7 @@ jest.mock('../../../src/services/featureAccessService', () => ({
     featureAccessService: {
         isFeatureEnabled: jest.fn(),
     },
+    isFeatureKey: jest.fn(value => value === 'gct' || value === 'bct'),
 }));
 jest.mock('../../../src/utils/storage', () => {
     const actual = jest.requireActual('../../../src/utils/storage');
@@ -249,6 +250,22 @@ describe('MessageHandler', () => {
             expect(result).toBe(true);
         });
 
+        it('should resolve BCT auth status from the sender url', async () => {
+            const message = { action: Actions.GET_AUTH_STATUS };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/tv-apps',
+            } as chrome.runtime.MessageSender;
+
+            mockGetStorage.mockResolvedValue({ 'unauthorized:bct': true });
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockGetStorage).toHaveBeenCalledWith('unauthorized:bct');
+            expect(mockSendResponse).toHaveBeenCalledWith({ unauthorized: true });
+        });
+
         it('should handle LOGIN_SUCCESS action', () => {
             const message = {
                 action: Actions.LOGIN_SUCCESS,
@@ -285,6 +302,25 @@ describe('MessageHandler', () => {
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+            expect(autoLoginService.loadCredentials).toHaveBeenCalledWith('dct');
+        });
+
+        it('should route BCT LOAD_AUTO_LOGIN_CREDENTIALS by sender url', async () => {
+            const message = { action: Actions.LOAD_AUTO_LOGIN_CREDENTIALS };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/login',
+            } as chrome.runtime.MessageSender;
+
+            (autoLoginService.loadCredentials as jest.Mock).mockResolvedValue({
+                login: 'bct@example.com',
+                password: 'password123',
+            });
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(autoLoginService.loadCredentials).toHaveBeenCalledWith('bct');
         });
 
         it('should handle IS_AUTO_LOGIN_ENABLED action', () => {
@@ -296,6 +332,7 @@ describe('MessageHandler', () => {
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+            expect(autoLoginService.isEnabled).toHaveBeenCalledWith('dct');
         });
 
         describe('background target actions', () => {
@@ -313,6 +350,26 @@ describe('MessageHandler', () => {
 
                 expect(result).toBe(true);
                 expect(mockQueueManager.removeFromQueue).toHaveBeenCalledWith('request-1');
+            });
+
+            it('should route BCT REMOVE_REQUEST to the BCT queue manager', () => {
+                const mockBctQueueManager = {
+                    removeFromQueue: jest.fn().mockResolvedValue(undefined),
+                };
+                const message = {
+                    target: 'background',
+                    action: Actions.REMOVE_REQUEST,
+                    data: { id: 'request-1', terminal: 'bct' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                (QueueManagerAdapter.getInstance as jest.Mock).mockReturnValue(mockBctQueueManager);
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+                expect(QueueManagerAdapter.getInstance).toHaveBeenCalledWith('retryQueue:bct');
+                expect(mockBctQueueManager.removeFromQueue).toHaveBeenCalledWith('request-1');
             });
 
             it('should handle UPDATE_REQUEST_STATUS action', () => {
@@ -360,7 +417,7 @@ describe('MessageHandler', () => {
                 const message = {
                     target: 'background',
                     action: Actions.GET_FEATURE_ACCESS,
-                    data: { featureKey: 'gct_tab' },
+                    data: { featureKey: 'gct' },
                 };
                 const sender = {} as chrome.runtime.MessageSender;
 
@@ -372,8 +429,26 @@ describe('MessageHandler', () => {
 
                 await waitForAsyncOperations(mockSendResponse);
 
-                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct_tab');
+                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct');
                 expect(mockSendResponse).toHaveBeenCalledWith({ success: true, enabled: true });
+            });
+
+            it('should reject invalid feature keys', () => {
+                const message = {
+                    target: 'background',
+                    action: Actions.GET_FEATURE_ACCESS,
+                    data: { featureKey: 'invalid-feature' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+                expect(mockSendResponse).toHaveBeenCalledWith({
+                    success: false,
+                    enabled: false,
+                    error: 'Invalid feature key',
+                });
             });
 
             it('should handle unknown action', () => {
@@ -928,6 +1003,23 @@ describe('MessageHandler', () => {
             });
         });
 
+        it('should write BCT auth restoration to the BCT unauthorized key', async () => {
+            const message = {
+                action: Actions.LOGIN_SUCCESS,
+                message: { success: true },
+            };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/login',
+            } as chrome.runtime.MessageSender;
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockSetStorage).toHaveBeenCalledWith({ 'unauthorized:bct': false });
+            expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
+        });
+
         it('should handle AUTO_LOGIN_ATTEMPT with success false', async () => {
             const message = {
                 action: Actions.AUTO_LOGIN_ATTEMPT,
@@ -978,7 +1070,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -998,7 +1090,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -1018,7 +1110,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -1038,7 +1130,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -1073,7 +1165,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 error: 'Load error',

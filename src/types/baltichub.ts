@@ -1,3 +1,5 @@
+import type { BookingTerminal } from './terminal';
+
 export type RetryObject = {
     body: RequestBody;
     driverName?: string;
@@ -15,6 +17,7 @@ export type RetryObject = {
     updated?: boolean; // e.g. true
     pausedUntil?: number; // timestamp until which this request should be paused (e.g. after YbqToMuchTransactionInSector)
     timestamp: number;
+    terminal?: BookingTerminal;
     tvAppId: string;
     url: string;
 };

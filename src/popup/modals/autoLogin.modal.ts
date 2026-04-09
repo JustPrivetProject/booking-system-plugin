@@ -1,7 +1,10 @@
 import type { AutoLoginCredentials } from '../../services/autoLoginService';
 import { autoLoginService } from '../../services/autoLoginService';
+import { BOOKING_TERMINALS, type BookingTerminal } from '../../types/terminal';
 
-export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
+export function showAutoLoginModal(
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<AutoLoginCredentials | null> {
     return new Promise(resolve => {
         const bodyElement = document.querySelector('body');
         const initialBodyHeight = bodyElement?.style.height || '';
@@ -207,7 +210,7 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
         cancelButton.style.gap = '6px';
 
         // Load existing credentials if available
-        autoLoginService.loadCredentials().then(credentials => {
+        autoLoginService.loadCredentials(terminal).then(credentials => {
             if (credentials) {
                 // Check if credentials are valid (not corrupted)
                 const isLoginValid =
@@ -224,7 +227,7 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
                     passwordInput.value = credentials.password || '';
                 } else {
                     // Clear corrupted credentials
-                    autoLoginService.clearCredentials();
+                    autoLoginService.clearCredentials(terminal);
                     loginInput.value = '';
                     passwordInput.value = '';
                 }
@@ -254,7 +257,7 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
             try {
                 showStatusMessage('💾 Zapisywanie danych...', true);
 
-                await autoLoginService.saveCredentials(credentials);
+                await autoLoginService.saveCredentials(credentials, terminal);
 
                 showStatusMessage('✅ Dane zostały zapisane pomyślnie!', true);
             } catch (error) {
@@ -272,7 +275,7 @@ export function showAutoLoginModal(): Promise<AutoLoginCredentials | null> {
             try {
                 showStatusMessage('🔄 Czyszczenie danych...', true);
 
-                await autoLoginService.clearCredentials();
+                await autoLoginService.clearCredentials(terminal);
                 loginInput.value = '';
                 passwordInput.value = '';
 

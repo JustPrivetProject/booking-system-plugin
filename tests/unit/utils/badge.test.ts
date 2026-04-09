@@ -5,8 +5,10 @@ import {
     resetBadge,
     getLastBadgeStatus,
     syncAuthenticationBadge,
+    syncStatusBadgeFromStorage,
     isLoggedOutBadgeVisible,
 } from '../../../src/utils/badge';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Types for better type safety in tests
 type ChromeAction = {
@@ -64,15 +66,27 @@ jest.mock('../../../src/utils/status-utils', () => ({
     sortStatusesByPriority: jest.fn(),
 }));
 
+jest.mock('../../../src/utils/storage', () => ({
+    getStorage: jest.fn(),
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
+    TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
+    },
+}));
+
 // Test utilities
 class BadgeTestHelper {
     public chromeMock: ChromeMock;
     public sortStatusesByPriority: jest.MockedFunction<(statuses: string[]) => string[]>;
+    public getStorage: jest.MockedFunction<(keys: string[]) => Promise<Record<string, unknown>>>;
 
     constructor() {
         this.chromeMock = (global as any).chrome as ChromeMock;
         this.sortStatusesByPriority =
             require('../../../src/utils/status-utils').sortStatusesByPriority;
+        this.getStorage = require('../../../src/utils/storage').getStorage;
     }
 
     setupChromeMock(): void {
@@ -124,6 +138,7 @@ class BadgeTestHelper {
         this.chromeMock.action.setBadgeBackgroundColor.mockClear();
         this.chromeMock.runtime.lastError = null;
         this.sortStatusesByPriority.mockReset();
+        this.getStorage.mockReset();
     }
 
     simulateChromeError(error: Error): void {
@@ -339,6 +354,40 @@ describe('Badge Manager', () => {
             );
             testHelper.expectBadgeText('');
             expect(isLoggedOutBadgeVisible()).toBe(false);
+        });
+    });
+
+    describe('syncStatusBadgeFromStorage', () => {
+        it('should include BCT retry queue statuses when syncing badge', async () => {
+            testHelper.getStorage.mockResolvedValue({
+                retryQueue: [],
+                [`retryQueue:${BOOKING_TERMINALS.BCT}`]: [{ status: TEST_STATUSES.ERROR }],
+                gctGroups: [],
+            });
+            testHelper.mockStatusSorting([TEST_STATUSES.ERROR]);
+
+            await syncStatusBadgeFromStorage();
+
+            expect(testHelper.getStorage).toHaveBeenCalledWith([
+                'retryQueue',
+                `retryQueue:${BOOKING_TERMINALS.BCT}`,
+                'gctGroups',
+            ]);
+            expect(testHelper.sortStatusesByPriority).toHaveBeenCalledWith([TEST_STATUSES.ERROR]);
+            testHelper.expectBadgeText(TEST_ICONS.ERROR);
+        });
+
+        it('should clear badge when no DCT, BCT, or GCT statuses exist', async () => {
+            testHelper.getStorage.mockResolvedValue({
+                retryQueue: [],
+                [`retryQueue:${BOOKING_TERMINALS.BCT}`]: [],
+                gctGroups: [],
+            });
+
+            await syncStatusBadgeFromStorage();
+
+            testHelper.expectNoBadgeUpdate();
+            expect(getLastBadgeStatus()).toBe('');
         });
     });
 

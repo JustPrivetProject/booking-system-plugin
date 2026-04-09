@@ -10,6 +10,7 @@ import { autoLoginService } from '../../../src/services/autoLoginService';
 import { getEbramaKeepAliveIntervalMs } from '../../../src/services/ebramaSessionService';
 import { sessionService } from '../../../src/services/sessionService';
 import { GCT_WATCHER_DEFAULTS } from '../../../src/gct/types';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -222,7 +223,14 @@ describe('BackgroundController', () => {
 
             backgroundController['handleInstallation'](details);
 
-            expect(autoLoginService.migrateAndCleanData).toHaveBeenCalled();
+            expect(autoLoginService.migrateAndCleanData).toHaveBeenNthCalledWith(
+                1,
+                BOOKING_TERMINALS.DCT,
+            );
+            expect(autoLoginService.migrateAndCleanData).toHaveBeenNthCalledWith(
+                2,
+                BOOKING_TERMINALS.BCT,
+            );
         });
 
         it('should handle migration errors gracefully', () => {
@@ -263,8 +271,10 @@ describe('BackgroundController', () => {
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
             expect(setStorage).toHaveBeenCalledWith({ unauthorized: false });
+            expect(setStorage).toHaveBeenCalledWith({ 'unauthorized:bct': false });
             expect(setStorage).toHaveBeenCalledWith({ headerHidden: false });
             expect(setStorage).toHaveBeenCalledWith({ tableData: [] });
+            expect(setStorage).toHaveBeenCalledWith({ 'tableData:bct': [] });
             expect(setStorage).toHaveBeenCalledWith({ retryQueue: [] });
             expect(setStorage).toHaveBeenCalledWith({ groupStates: {} });
             expect(setStorage).toHaveBeenCalledWith({ requestCacheBody: {} });
@@ -298,6 +308,7 @@ describe('BackgroundController', () => {
             const existingData = {
                 notificationSettings: { email: { enabled: true } },
                 tableData: [['existing', 'data']],
+                'tableData:bct': [['existing', 'bct-data']],
             };
             (getStorage as jest.Mock).mockResolvedValue(existingData);
 

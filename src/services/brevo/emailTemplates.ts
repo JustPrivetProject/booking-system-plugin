@@ -5,8 +5,16 @@ import { formatTimeForEmail } from '../../utils/date-utils';
  * Email template utilities and generators
  */
 export class EmailTemplates {
-    private static getBookingSystemName(emailData: BrevoEmailData): 'GCT' | 'BalticHub' {
-        return emailData.notificationSource === 'GCT' ? 'GCT' : 'BalticHub';
+    private static getBookingSystemName(emailData: BrevoEmailData): 'GCT' | 'BalticHub' | 'BCT' {
+        if (emailData.notificationSource === 'GCT') {
+            return 'GCT';
+        }
+
+        if (emailData.notificationSource === 'BCT') {
+            return 'BCT';
+        }
+
+        return 'BalticHub';
     }
 
     private static getBookingSuccessVerb(emailData: BrevoEmailData): 'zamieniona' | 'zmieniona' {
@@ -139,7 +147,12 @@ To jest automatyczna wiadomość. Prosimy nie odpowiadać na ten e-mail.`.trim()
      * Generate email subject line
      */
     static generateSubject(emailData: BrevoEmailData): string {
-        const sourcePrefix = emailData.notificationSource === 'GCT' ? '[GCT]' : '[DCT]';
+        const sourcePrefix =
+            emailData.notificationSource === 'GCT'
+                ? '[GCT]'
+                : emailData.notificationSource === 'BCT'
+                  ? '[BCT]'
+                  : '[DCT]';
 
         // Create more informative subject line
         let subject = `${emailData.containerNumber || emailData.tvAppId}`;

@@ -9,6 +9,7 @@ import {
 import { RetryObject } from '../../../src/types/baltichub';
 import { Statuses, ErrorType } from '../../../src/data';
 import { notificationService } from '../../../src/services/notificationService';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Test Data Constants Pattern
 const TEST_DATES = {
@@ -218,6 +219,13 @@ jest.mock('../../../src/services/notificationService', () => ({
     },
 }));
 
+jest.mock('../../../src/utils/storage', () => ({
+    setTerminalStorageValue: jest.fn(),
+    TERMINAL_STORAGE_NAMESPACES: {
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
+
 // Mock chrome notifications
 global.chrome = {
     notifications: {
@@ -231,6 +239,7 @@ class BaltichubTestHelper {
     private mockHelper: any;
     private mockChrome: any;
     private mockNotificationService: any;
+    private mockStorageUtils: any;
 
     constructor() {
         this.mockUtils = require('../../../src/utils');
@@ -239,6 +248,7 @@ class BaltichubTestHelper {
         this.mockNotificationService = notificationService as jest.Mocked<
             typeof notificationService
         >;
+        this.mockStorageUtils = require('../../../src/utils/storage');
     }
 
     setupMocks(): void {
@@ -368,6 +378,14 @@ class BaltichubTestHelper {
         expect(this.mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalled();
     }
 
+    expectUnauthorizedFlagSet(terminal: string): void {
+        expect(this.mockStorageUtils.setTerminalStorageValue).toHaveBeenCalledWith(
+            'unauthorized',
+            terminal,
+            true,
+        );
+    }
+
     resetMocks(): void {
         jest.clearAllMocks();
         this.setupMocks();
@@ -412,6 +430,26 @@ describe('Baltichub Service', () => {
             expect(result).toEqual(TEST_RESPONSES.SUCCESS);
         });
 
+        it('should fetch BCT slots for given date', async () => {
+            const result = await getSlots(TEST_DATES.VALID, 1, BOOKING_TERMINALS.BCT);
+
+            testHelper.expectFetchRequestCalledWith(
+                'https://ebrama.bct.ictsi.com/Home/GetSlotsForPreview',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        Referer: 'https://ebrama.bct.ictsi.com/tv-apps',
+                        Accept: '*/*',
+                    },
+                    body: JSON.stringify({ date: '25.12.2024', type: 1 }),
+                    credentials: 'omit',
+                },
+            );
+            expect(result).toEqual(TEST_RESPONSES.SUCCESS);
+        });
+
         it('should handle fetch error', async () => {
             // Arrange
             const { fetchRequest } = require('../../../src/utils');
@@ -439,6 +477,26 @@ describe('Baltichub Service', () => {
                         'Content-Type': 'application/json; charset=UTF-8',
                         'X-requested-with': 'XMLHttpRequest',
                         Referer: 'https://ebrama.baltichub.com/tv-apps',
+                        Accept: '*/*',
+                        'X-Extension-Request': 'JustPrivetProject',
+                    },
+                    credentials: 'include',
+                },
+            );
+            expect(result).toEqual(TEST_RESPONSES.SUCCESS);
+        });
+
+        it('should fetch BCT edit form for tvAppId', async () => {
+            const result = await getEditForm(TEST_TV_APP_IDS.VALID, BOOKING_TERMINALS.BCT);
+
+            testHelper.expectFetchRequestCalledWith(
+                'https://ebrama.bct.ictsi.com/TVApp/EditTvAppModal?tvAppId=tv-app-123',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'X-requested-with': 'XMLHttpRequest',
+                        Referer: 'https://ebrama.bct.ictsi.com/tv-apps',
                         Accept: '*/*',
                         'X-Extension-Request': 'JustPrivetProject',
                     },
@@ -645,7 +703,7 @@ describe('Baltichub Service', () => {
         });
 
         it('should mark unauthorized storage only for eBrama authorization errors', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { fetchRequest, createFormData } = require('../../../src/utils');
             const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
 
             createFormData.mockReturnValue(new FormData());
@@ -666,15 +724,14 @@ describe('Baltichub Service', () => {
 
             const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.DCT);
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
         });
 
         it('should treat 200 login page response as eBrama authorization loss', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { fetchRequest, createFormData } = require('../../../src/utils');
             const { isEbramaLoginPageResponse } = require('../../../src/utils/baltichub.helper');
 
-            setStorage.mockClear();
             createFormData.mockReturnValue(new FormData());
             fetchRequest.mockResolvedValue({
                 ok: true,
@@ -694,18 +751,47 @@ describe('Baltichub Service', () => {
 
             const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.DCT);
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
             expect(result.status_message).toBe(
                 'Problem z autoryzacją - wymagane ponowne logowanie',
             );
         });
 
-        it('should not mark unauthorized storage for non-auth handled errors', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
-            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+        it('should mark BCT unauthorized storage for BCT login page response', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            const { isEbramaLoginPageResponse } = require('../../../src/utils/baltichub.helper');
 
-            setStorage.mockClear();
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                url: 'https://ebrama.bct.ictsi.com/Account/Login',
+                text: jest
+                    .fn()
+                    .mockResolvedValue(
+                        '<!DOCTYPE html><html><form action="/Account/Login"></form></html>',
+                    ),
+            });
+            isEbramaLoginPageResponse.mockReturnValue(true);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.BCT);
+        });
+
+        it('should not mark unauthorized storage for non-auth handled errors', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+            const { setTerminalStorageValue } = require('../../../src/utils/storage');
+
+            setTerminalStorageValue.mockClear();
             createFormData.mockReturnValue(new FormData());
             fetchRequest.mockResolvedValue({
                 ok: false,
@@ -724,7 +810,7 @@ describe('Baltichub Service', () => {
 
             await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).not.toHaveBeenCalledWith({ unauthorized: true });
+            expect(setTerminalStorageValue).not.toHaveBeenCalled();
         });
 
         it('should send notifications on success', async () => {

@@ -1,6 +1,7 @@
 import { showAutoLoginModal } from '../../../../src/popup/modals/autoLogin.modal';
 import { autoLoginService } from '../../../../src/services/autoLoginService';
 import type { AutoLoginCredentials } from '../../../../src/services/autoLoginService';
+import { BOOKING_TERMINALS } from '../../../../src/types/terminal';
 
 // Mock autoLoginService
 jest.mock('../../../../src/services/autoLoginService');
@@ -122,6 +123,22 @@ describe('AutoLoginModal', () => {
             expect(mockAutoLoginService.loadCredentials).toHaveBeenCalled();
         });
 
+        it('should load credentials for the provided BCT terminal', async () => {
+            const modalPromise = showAutoLoginModal(BOOKING_TERMINALS.BCT);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockAutoLoginService.loadCredentials).toHaveBeenCalledWith(
+                BOOKING_TERMINALS.BCT,
+            );
+
+            const cancelButton = Array.from(document.querySelectorAll('button')).find(
+                btn => btn.textContent === '✕ Zamknij',
+            );
+            (cancelButton as HTMLElement)?.click();
+            await modalPromise;
+        });
+
         it('should handle password visibility toggle', async () => {
             const modalPromise = showAutoLoginModal();
 
@@ -177,6 +194,27 @@ describe('AutoLoginModal', () => {
 
             const result = await modalPromise;
             expect(result).toBeNull();
+        });
+
+        it('should clear credentials for the provided BCT terminal', async () => {
+            const modalPromise = showAutoLoginModal(BOOKING_TERMINALS.BCT);
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const clearButton = Array.from(document.querySelectorAll('button')).find(
+                btn => btn.textContent === '🗑 Wyczyść',
+            );
+            (clearButton as HTMLElement)?.click();
+
+            expect(mockAutoLoginService.clearCredentials).toHaveBeenCalledWith(
+                BOOKING_TERMINALS.BCT,
+            );
+
+            const cancelButton = Array.from(document.querySelectorAll('button')).find(
+                btn => btn.textContent === '✕ Zamknij',
+            );
+            (cancelButton as HTMLElement)?.click();
+            await modalPromise;
         });
 
         it('should return null when Cancel button is clicked', async () => {

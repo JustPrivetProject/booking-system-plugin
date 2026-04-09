@@ -104,7 +104,7 @@ tr:last-child td {
 }
 
 /* Empty table */
-#queueTableBody:empty::after {
+.booking-queue-body:empty::after {
     content: 'Proszę dodać zadania do realizacji';
     display: block;
     font-size: var(--font-size-table);
@@ -114,7 +114,7 @@ tr:last-child td {
     width: var(--app-width);
 }
 
-#queueTableBody:empty + tr {
+.booking-queue-body:empty + tr {
     display: none;
 }
 
@@ -344,7 +344,7 @@ tr:hover td {
     background-color: transparent; /* Убираем фон у ячеек при наведении */
 }
 
-#queueTable td:first-child {
+.booking-queue-table td:first-child {
     width: 22px;
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
@@ -1106,11 +1106,34 @@ tr[data-is-open='false'] .status-icon {
     padding: 0;
 }
 
+#bctView,
 #gctView {
     width: 100%;
     min-width: var(--app-width);
-    min-height: 240px;
     padding-top: 4px;
+}
+
+.feature-shell-view {
+    min-height: 240px;
+    padding: 12px;
+}
+
+.feature-shell-card {
+    border: 1px dashed #d4d4d4;
+    border-radius: 10px;
+    background: #fafafa;
+    padding: 16px;
+}
+
+.feature-shell-card h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.feature-shell-card p {
+    margin: 0;
+    color: #666;
+    line-height: 1.45;
 }
 
 .gct-controls {

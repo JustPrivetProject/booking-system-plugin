@@ -1,7 +1,7 @@
 import './popup.css';
 import { Statuses, Actions } from '../data';
 import { authService } from '../services/authService';
-import { autoLoginService } from '../services/autoLoginService';
+import { autoLoginService, getAutoLoginStorageKey } from '../services/autoLoginService';
 import type { RetryObjectArray } from '../types/baltichub';
 import { syncStatusBadgeFromStorage } from '../utils/badge';
 import {
@@ -24,16 +24,49 @@ import { updateContainerCheckerAlarm } from '../services/containerChecker/contai
 import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
 import { initGctUI } from './gct';
+import {
+    getTerminalStorageKey,
+    getTerminalStorageValue,
+    setTerminalStorageValue,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../utils/storage';
+import { BOOKING_TERMINALS } from '../types/terminal';
 
-type PopupTab = 'booking' | 'containerChecker' | 'gct';
+type PopupTab = 'booking' | 'bct' | 'containerChecker' | 'gct';
 
 interface PopupWindow extends Window {
     _toggleHeaderReset?: () => Promise<void>;
 }
 
 const POPUP_ACTIVE_TAB_KEY = 'popupActiveTab';
+const DCT_BOOKING_TERMINAL = BOOKING_TERMINALS.DCT;
+const BCT_BOOKING_TERMINAL = BOOKING_TERMINALS.BCT;
+const POPUP_BOOKING_TERMINALS = [DCT_BOOKING_TERMINAL, BCT_BOOKING_TERMINAL] as const;
+
+type PopupBookingTerminal = (typeof POPUP_BOOKING_TERMINALS)[number];
+
+function getQueueTableBodyId(terminal: PopupBookingTerminal): string {
+    return terminal === DCT_BOOKING_TERMINAL ? 'queueTableBody' : 'bctQueueTableBody';
+}
+
+function getQueueTableBody(terminal: PopupBookingTerminal): HTMLElement {
+    return requireElement<HTMLElement>(getQueueTableBodyId(terminal));
+}
+
+function getActiveBookingTerminal(): PopupBookingTerminal {
+    return activePopupTab === 'bct' ? BCT_BOOKING_TERMINAL : DCT_BOOKING_TERMINAL;
+}
+
+function updateAllBookingQueueDisplays(): void {
+    POPUP_BOOKING_TERMINALS.forEach(terminal => {
+        updateQueueDisplay(terminal).catch(error => {
+            consoleError(`Error updating ${terminal} queue display:`, error);
+        });
+    });
+}
 
 let activePopupTab: PopupTab = 'booking';
+let isBctTabEnabled = false;
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
 
@@ -60,24 +93,52 @@ function initGctUiOnce(): void {
     initGctUI();
 }
 
+function applyFeatureTabAccess(
+    tab: HTMLButtonElement | null,
+    isEnabled: boolean,
+    enabledTitle: string,
+    disabledTitle: string,
+): void {
+    tab?.classList.toggle('tab-label-disabled', !isEnabled);
+
+    if (!tab) {
+        return;
+    }
+
+    tab.disabled = false;
+    tab.setAttribute('aria-disabled', String(!isEnabled));
+    tab.title = isEnabled ? enabledTitle : disabledTitle;
+}
+
 function applyTabState(tab: PopupTab, persist = true): void {
-    const resolvedTab = tab === 'gct' && !isGctTabEnabled ? 'booking' : tab;
+    const resolvedTab =
+        (tab === 'gct' && !isGctTabEnabled) || (tab === 'bct' && !isBctTabEnabled)
+            ? 'booking'
+            : tab;
     const tabBooking = document.getElementById('tabBooking');
+    const tabBct = document.getElementById('tabBct') as HTMLButtonElement | null;
     const tabContainerChecker = document.getElementById('tabContainerChecker');
     const tabGct = document.getElementById('tabGct') as HTMLButtonElement | null;
     const bookingView = document.getElementById('bookingView');
+    const bctView = document.getElementById('bctView');
     const containerCheckerView = document.getElementById('containerCheckerView');
     const gctView = document.getElementById('gctView');
 
     activePopupTab = resolvedTab;
 
     tabBooking?.classList.toggle('active', resolvedTab === 'booking');
+    tabBct?.classList.toggle('active', resolvedTab === 'bct');
     tabContainerChecker?.classList.toggle('active', resolvedTab === 'containerChecker');
     tabGct?.classList.toggle('active', resolvedTab === 'gct');
 
     bookingView?.classList.toggle('hidden', resolvedTab !== 'booking');
+    bctView?.classList.toggle('hidden', resolvedTab !== 'bct' || !isBctTabEnabled);
     containerCheckerView?.classList.toggle('hidden', resolvedTab !== 'containerChecker');
     gctView?.classList.toggle('hidden', resolvedTab !== 'gct' || !isGctTabEnabled);
+
+    updateAutoLoginButtonState().catch(error => {
+        consoleError('Auto-login button refresh after tab change failed:', error);
+    });
 
     if (resolvedTab === 'containerChecker') {
         initContainerCheckerUiOnce();
@@ -95,30 +156,38 @@ function applyTabState(tab: PopupTab, persist = true): void {
 }
 
 async function refreshFeatureAccessUI(): Promise<void> {
+    const tabBct = document.getElementById('tabBct') as HTMLButtonElement | null;
+    const bctView = document.getElementById('bctView');
     const tabGct = document.getElementById('tabGct') as HTMLButtonElement | null;
     const gctView = document.getElementById('gctView');
     const isAuthenticated = await authService.isAuthenticated();
 
     if (!isAuthenticated) {
+        isBctTabEnabled = false;
         isGctTabEnabled = false;
     } else {
         try {
-            isGctTabEnabled = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT_TAB);
+            [isBctTabEnabled, isGctTabEnabled] = await Promise.all([
+                featureAccessService.isFeatureEnabled(FEATURE_KEYS.BCT),
+                featureAccessService.isFeatureEnabled(FEATURE_KEYS.GCT),
+            ]);
         } catch (error) {
             consoleError('Failed to load feature access:', error);
+            isBctTabEnabled = false;
             isGctTabEnabled = false;
         }
     }
 
-    tabGct?.classList.toggle('tab-label-disabled', !isGctTabEnabled);
-    if (tabGct) {
-        tabGct.disabled = false;
-        tabGct.setAttribute('aria-disabled', String(!isGctTabEnabled));
-        tabGct.title = isGctTabEnabled ? 'Moduł GCT' : 'Brak dostępu do modułu GCT';
-    }
+    applyFeatureTabAccess(tabBct, isBctTabEnabled, 'Moduł BCT', 'Brak dostępu do modułu BCT');
+    applyFeatureTabAccess(tabGct, isGctTabEnabled, 'Moduł GCT', 'Brak dostępu do modułu GCT');
+
+    bctView?.classList.toggle('hidden', activePopupTab !== 'bct' || !isBctTabEnabled);
     gctView?.classList.toggle('hidden', activePopupTab !== 'gct' || !isGctTabEnabled);
 
-    if (!isGctTabEnabled && activePopupTab === 'gct') {
+    if (
+        (!isBctTabEnabled && activePopupTab === 'bct') ||
+        (!isGctTabEnabled && activePopupTab === 'gct')
+    ) {
         applyTabState('booking');
     } else if (isGctTabEnabled && activePopupTab === 'gct') {
         initGctUiOnce();
@@ -147,7 +216,9 @@ function sendMessageToBackground(action, data, options = { updateQueue: true }) 
             if (response && response.success) {
                 consoleLog(`Action ${action} completed successfully`);
                 if (options.updateQueue) {
-                    updateQueueDisplay(); // Обновление отображения очереди
+                    updateQueueDisplay(data?.terminal || DCT_BOOKING_TERMINAL).catch(error => {
+                        consoleError('Queue refresh after background action failed:', error);
+                    });
                 }
             } else {
                 consoleError(`Action ${action} failed:`, response?.error || 'Unknown error');
@@ -156,35 +227,64 @@ function sendMessageToBackground(action, data, options = { updateQueue: true }) 
     );
 }
 
-async function removeRequestFromRetryQueue(id) {
-    return sendMessageToBackground(Actions.REMOVE_REQUEST, { id });
+async function removeRequestFromRetryQueue(
+    id,
+    terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
+) {
+    return sendMessageToBackground(Actions.REMOVE_REQUEST, {
+        id,
+        terminal,
+    });
 }
 
-async function removeMultipleRequestsFromRetryQueue(ids) {
-    return sendMessageToBackground(Actions.REMOVE_MULTIPLE_REQUESTS, { ids });
+async function removeMultipleRequestsFromRetryQueue(
+    ids,
+    terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
+) {
+    return sendMessageToBackground(Actions.REMOVE_MULTIPLE_REQUESTS, {
+        ids,
+        terminal,
+    });
 }
 
-async function setStatusRequest(id, status, status_message) {
+async function setStatusRequest(
+    id,
+    status,
+    status_message,
+    terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
+) {
     return sendMessageToBackground(Actions.UPDATE_REQUEST_STATUS, {
         id,
         status,
         status_message,
+        terminal,
     });
 }
 
-async function setStatusMultipleRequests(ids: string[], status: string, status_message: string) {
+async function setStatusMultipleRequests(
+    ids: string[],
+    status: string,
+    status_message: string,
+    terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
+) {
     return sendMessageToBackground(Actions.UPDATE_MULTIPLE_REQUESTS_STATUS, {
         ids,
         status,
         status_message,
+        terminal,
     });
 }
 
-async function restoreGroupStates() {
+async function restoreGroupStates(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
     try {
-        const { groupStates = {} } = await chrome.storage.local.get('groupStates');
+        const groupStates = await getTerminalStorageValue(
+            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+            terminal,
+            {},
+        );
+        const tableBody = getQueueTableBody(terminal);
 
-        document.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
+        tableBody.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
             const groupRow = header.closest<HTMLElement>('.group-row');
             if (!groupRow) return;
 
@@ -216,16 +316,27 @@ async function restoreGroupStates() {
  * @param {string|number} groupId - The ID of the group state to delete
  * @returns {Promise<Object>} - The updated group states object
  */
-async function deleteGroupStateById(groupId: string | number): Promise<object> {
+async function deleteGroupStateById(
+    groupId: string | number,
+    terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL,
+): Promise<object> {
     // Get current groupStates from storage
-    const { groupStates = {} } = await chrome.storage.local.get('groupStates');
+    const groupStates = await getTerminalStorageValue(
+        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+        terminal,
+        {},
+    );
 
     // Delete the specified group ID if it exists
     if (groupId in groupStates) {
         delete groupStates[groupId];
 
         // Save the updated groupStates back to storage
-        await chrome.storage.local.set({ groupStates });
+        await setTerminalStorageValue(
+            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+            terminal,
+            groupStates,
+        );
         consoleLog(`Group state with ID ${groupId} was deleted`);
     } else {
         consoleLog(`Group state with ID ${groupId} does not exist`);
@@ -234,12 +345,16 @@ async function deleteGroupStateById(groupId: string | number): Promise<object> {
     return groupStates;
 }
 
-async function clearStateGroups() {
+async function clearStateGroups(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
     // Get current groupStates from storage
-    const { groupStates = {} } = await chrome.storage.local.get('groupStates');
+    const groupStates = await getTerminalStorageValue(
+        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+        terminal,
+        {},
+    );
 
     if (Object.entries(groupStates).length) {
-        await chrome.storage.local.set({ groupStates: {} });
+        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.GROUP_STATES, terminal, {});
         consoleLog('Group state was cleared');
     }
 
@@ -304,20 +419,20 @@ function canPauseStatus(status: string): boolean {
     return isPauseDisabled(status) !== 'disabled';
 }
 
-async function updateQueueDisplay() {
-    consoleLog('updateQueueDisplay');
+async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
+    consoleLog('updateQueueDisplay', terminal);
     const isAuthenticated = await authService.isAuthenticated();
     if (!isAuthenticated) {
-        return; // Don't update the queue if user is not authenticated
+        return;
     }
 
     try {
-        // Get the queue from storage
-        const { retryQueue } = await new Promise<{
-            retryQueue: RetryObjectArray;
-        }>(resolve => chrome.storage.local.get({ retryQueue: [] }, resolve));
+        const retryQueue = await getTerminalStorageValue<RetryObjectArray>(
+            TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+            terminal,
+            [],
+        );
 
-        // Grouping by TvAppId
         const groupedData = retryQueue.reduce((acc: Record<string, RetryObjectArray>, req) => {
             const tvAppId = req.tvAppId;
             if (!acc[tvAppId]) acc[tvAppId] = [];
@@ -325,26 +440,24 @@ async function updateQueueDisplay() {
             return acc;
         }, {});
 
-        const tableBody = requireElement<HTMLElement>('queueTableBody');
-        tableBody.innerHTML = ''; // Clear the table
+        const tableBody = getQueueTableBody(terminal);
+        tableBody.innerHTML = '';
 
         const data = Object.entries(groupedData) as [string, RetryObjectArray][];
-        // clear states on empty grid
         if (!data.length) {
-            clearStateGroups();
-            await syncStatusBadgeFromStorage();
+            await clearStateGroups(terminal);
+            if (terminal === DCT_BOOKING_TERMINAL) {
+                await syncStatusBadgeFromStorage();
+            }
         }
-        // Populate the table with data from the queue
+
         data.forEach(([tvAppId, items]) => {
             const statusForGroup = sortStatusesByPriority(
                 items.map((item: RetryObjectArray[0]) => item.status),
             )[0];
             const statusIconForGroup = getStatusIcon(statusForGroup);
-
-            // Find item with highest priority status to get its custom color
             const prioritizedItem = items.find(item => item.status === statusForGroup);
             const statusColorForGroup = prioritizedItem?.status_color;
-
             const canResumeGroup = items.some(item => canResumeStatus(item.status));
             const canPauseGroup = items.some(item => canPauseStatus(item.status));
             const hasPusteSlotType = items.some(item => item.slotType === 4);
@@ -376,7 +489,6 @@ async function updateQueueDisplay() {
         </td>`;
             tableBody.appendChild(groupRow);
 
-            // Apply custom status color to group if available
             const groupStatusCell = groupRow.querySelector('.status') as HTMLElement;
             if (groupStatusCell && statusColorForGroup) {
                 applyCustomStatusColor(groupStatusCell, statusColorForGroup, statusForGroup);
@@ -412,45 +524,48 @@ async function updateQueueDisplay() {
             `;
                 tableBody.appendChild(row);
 
-                // Apply custom status color if available
                 const statusCell = row.querySelector('.status') as HTMLElement;
                 if (statusCell && req.status_color) {
                     applyCustomStatusColor(statusCell, req.status_color, req.status);
                 }
             });
         });
-        // Spellcheck suppression for Polish words
-        // kontenera, Brak, nazwy, kierowcy, Usuń, grupę, Wznów, Wstrzymaj
 
-        restoreGroupStates();
+        await restoreGroupStates(terminal);
 
-        // Add button handlers
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.remove-button:not(.group-remove-button)')
             .forEach(btn => {
-                btn.addEventListener('click', () => removeRequestFromRetryQueue(btn.dataset.id));
+                btn.addEventListener('click', () =>
+                    removeRequestFromRetryQueue(btn.dataset.id, terminal),
+                );
             });
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.pause-button:not(.group-pause-button)')
             .forEach(btn => {
                 btn.addEventListener('click', () => {
                     const requestId = btn.dataset.id;
                     if (!requestId) return;
 
-                    setStatusRequest(requestId, 'paused', 'Zadanie jest wstrzymane');
+                    setStatusRequest(requestId, 'paused', 'Zadanie jest wstrzymane', terminal);
                 });
             });
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.resume-button:not(.group-resume-button)')
             .forEach(btn => {
                 btn.addEventListener('click', () => {
                     const requestId = btn.dataset.id;
                     if (!requestId) return;
 
-                    setStatusRequest(requestId, 'in-progress', 'Zadanie jest w trakcie realizacji');
+                    setStatusRequest(
+                        requestId,
+                        'in-progress',
+                        'Zadanie jest w trakcie realizacji',
+                        terminal,
+                    );
                 });
             });
-        document.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
+        tableBody.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
             header.addEventListener('click', async function () {
                 const groupRow = this.closest<HTMLElement>('.group-row');
                 if (!groupRow) return;
@@ -458,8 +573,6 @@ async function updateQueueDisplay() {
                 const groupId = groupRow.dataset.groupId;
                 if (!groupId) return;
                 const toggleIcon = this.querySelector('.toggle-icon');
-
-                // Toggle open state
                 const isCurrentlyOpen = this.classList.contains('open');
                 this.classList.toggle('open');
 
@@ -467,24 +580,32 @@ async function updateQueueDisplay() {
                     toggleIcon.textContent = isCurrentlyOpen ? 'expand_more' : 'expand_less';
                 }
 
-                // Toggle child rows visibility
                 let nextRow = groupRow.nextElementSibling as HTMLElement;
                 while (nextRow && !nextRow.querySelector<HTMLElement>('.group-header')) {
                     nextRow.style.display = isCurrentlyOpen ? 'none' : 'table-row';
                     nextRow = nextRow.nextElementSibling as HTMLElement;
                 }
+
                 groupRow.dataset.isOpen = (!isCurrentlyOpen).toString();
-                // Save group state
+
                 try {
-                    const { groupStates = {} } = await chrome.storage.local.get('groupStates');
+                    const groupStates = await getTerminalStorageValue(
+                        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+                        terminal,
+                        {},
+                    );
                     groupStates[groupId] = !isCurrentlyOpen;
-                    await chrome.storage.local.set({ groupStates });
+                    await setTerminalStorageValue(
+                        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+                        terminal,
+                        groupStates,
+                    );
                 } catch (error) {
                     consoleError('Error saving group state:', error);
                 }
             });
         });
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-resume-button')
             .forEach(resumeButton => {
                 resumeButton.addEventListener('click', async function (event) {
@@ -510,13 +631,14 @@ async function updateQueueDisplay() {
                             idsToResume,
                             Statuses.IN_PROGRESS,
                             'Zadanie jest w trakcie realizacji',
+                            terminal,
                         );
                     } else {
                         await showInfoModal('Brak zadań do wznowienia w tej grupie.');
                     }
                 });
             });
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-pause-button')
             .forEach(pauseButton => {
                 pauseButton.addEventListener('click', async function (event) {
@@ -542,13 +664,14 @@ async function updateQueueDisplay() {
                             idsToPause,
                             Statuses.PAUSED,
                             'Zadanie jest wstrzymane',
+                            terminal,
                         );
                     } else {
                         await showInfoModal('Brak zadań do wstrzymania w tej grupie.');
                     }
                 });
             });
-        document
+        tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-remove-button')
             .forEach(removeButton => {
                 removeButton.addEventListener('click', async function (event) {
@@ -573,11 +696,10 @@ async function updateQueueDisplay() {
                         nextRow = nextRow.nextElementSibling;
                     }
 
-                    // Remove all items from queue in a single atomic operation
-                    await removeMultipleRequestsFromRetryQueue(idsToDelete);
+                    await removeMultipleRequestsFromRetryQueue(idsToDelete, terminal);
 
                     idsToDelete.forEach(id => {
-                        const row = document
+                        const row = tableBody
                             .querySelector(`.remove-button[data-id="${id}"]`)
                             ?.closest('tr');
                         if (row) row.remove();
@@ -586,22 +708,46 @@ async function updateQueueDisplay() {
                     groupHeaderRow.remove();
                     const groupId = groupHeaderRow.dataset.groupId;
                     if (groupId) {
-                        deleteGroupStateById(groupId);
+                        await deleteGroupStateById(groupId, terminal);
                     }
                 });
             });
     } catch (error) {
-        consoleError('Error updating queue display:', error);
+        consoleError(`Error updating ${terminal} queue display:`, error);
     }
 }
 
 // Listen for storage changes and update UI when retryQueue changes
 chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local' && changes.retryQueue) {
+    if (
+        namespace === 'local' &&
+        (changes.retryQueue ||
+            changes[
+                getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, DCT_BOOKING_TERMINAL)
+            ])
+    ) {
         consoleLog('Queue data changed, updating UI');
-        updateQueueDisplay();
+        updateQueueDisplay(DCT_BOOKING_TERMINAL).catch(error => {
+            consoleError('DCT queue refresh failed:', error);
+        });
     }
-    if (namespace === 'local' && changes.autoLoginData) {
+    if (
+        namespace === 'local' &&
+        changes[
+            getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, BCT_BOOKING_TERMINAL)
+        ]
+    ) {
+        consoleLog('BCT queue data changed, updating UI');
+        updateQueueDisplay(BCT_BOOKING_TERMINAL).catch(error => {
+            consoleError('BCT queue refresh failed:', error);
+        });
+    }
+    if (
+        namespace === 'local' &&
+        (changes.autoLoginData ||
+            changes[getAutoLoginStorageKey(DCT_BOOKING_TERMINAL)] ||
+            changes[getAutoLoginStorageKey(BCT_BOOKING_TERMINAL)])
+    ) {
         consoleLog('Auto-login data changed, updating UI');
         updateAutoLoginButtonState();
     }
@@ -674,15 +820,17 @@ function toggleHeaderVisibility() {
 
 async function updateAutoLoginButtonState() {
     try {
-        const isEnabled = await autoLoginService.isEnabled();
+        const terminal = getActiveBookingTerminal();
+        const isEnabled = await autoLoginService.isEnabled(terminal);
+        const terminalLabel = terminal === BCT_BOOKING_TERMINAL ? 'BCT' : 'DCT';
         const autoLoginToggle = document.getElementById('autoLoginToggle') as HTMLElement;
         if (autoLoginToggle) {
             if (isEnabled) {
                 autoLoginToggle.classList.add('enabled');
-                autoLoginToggle.title = 'Auto-Logowanie Włączone';
+                autoLoginToggle.title = `Auto-Logowanie ${terminalLabel} Włączone`;
             } else {
                 autoLoginToggle.classList.remove('enabled');
-                autoLoginToggle.title = 'Włącz Auto-Logowanie';
+                autoLoginToggle.title = `Włącz Auto-Logowanie ${terminalLabel}`;
             }
         }
     } catch (error) {
@@ -729,10 +877,12 @@ async function updateNotificationButtonState() {
 
 async function initTabs(): Promise<void> {
     const tabBooking = document.getElementById('tabBooking');
+    const tabBct = document.getElementById('tabBct');
     const tabContainerChecker = document.getElementById('tabContainerChecker');
     const tabGct = document.getElementById('tabGct');
 
     tabBooking?.addEventListener('click', () => applyTabState('booking'));
+    tabBct?.addEventListener('click', () => applyTabState('bct'));
     tabContainerChecker?.addEventListener('click', () => applyTabState('containerChecker'));
     tabGct?.addEventListener('click', () => applyTabState('gct'));
 
@@ -741,7 +891,12 @@ async function initTabs(): Promise<void> {
     try {
         const { [POPUP_ACTIVE_TAB_KEY]: storedTab } =
             await chrome.storage.local.get(POPUP_ACTIVE_TAB_KEY);
-        if (storedTab === 'containerChecker' || storedTab === 'booking' || storedTab === 'gct') {
+        if (
+            storedTab === 'containerChecker' ||
+            storedTab === 'booking' ||
+            storedTab === 'bct' ||
+            storedTab === 'gct'
+        ) {
             applyTabState(storedTab, false);
             return;
         }
@@ -754,8 +909,7 @@ async function initTabs(): Promise<void> {
 
 // Update the queue when the popup is opened
 document.addEventListener('DOMContentLoaded', () => {
-    restoreGroupStates();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
     toggleHeaderVisibility();
     restoreHeaderState();
     updateAutoLoginButtonState();
@@ -829,12 +983,12 @@ let cameFromAuthenticated = false;
 loginButton.addEventListener('click', e => {
     e.preventDefault();
     handleLogin();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
 });
 registerButton.addEventListener('click', e => {
     e.preventDefault();
     handleRegister();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
 });
 
 // Fix registration form toggle
@@ -926,18 +1080,19 @@ const autoLoginToggle = requireElement<HTMLElement>('autoLoginToggle');
 autoLoginToggle.addEventListener('click', async e => {
     e.preventDefault();
     try {
-        const isEnabled = await autoLoginService.isEnabled();
+        const terminal = getActiveBookingTerminal();
+        const isEnabled = await autoLoginService.isEnabled(terminal);
 
         if (isEnabled) {
             // If auto-login is enabled, show modal to manage credentials
-            const credentials = await showAutoLoginModal();
+            const credentials = await showAutoLoginModal(terminal);
             if (credentials) {
                 await updateAutoLoginButtonState();
                 await showInfoModal('Dane auto-login zostały zapisane pomyślnie!');
             }
         } else {
             // If auto-login is disabled, show modal to set up credentials
-            const credentials = await showAutoLoginModal();
+            const credentials = await showAutoLoginModal(terminal);
             if (credentials) {
                 await updateAutoLoginButtonState();
                 await showInfoModal('Auto-login został włączony!');
@@ -973,12 +1128,12 @@ notificationSettingsToggle.addEventListener('click', async e => {
 loginForm.addEventListener('submit', e => {
     e.preventDefault();
     handleLogin();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
 });
 registerForm.addEventListener('submit', e => {
     e.preventDefault();
     handleRegister();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
 });
 unbindForm.addEventListener('submit', e => {
     e.preventDefault();
@@ -1066,17 +1221,25 @@ async function handleRegister() {
     }
 }
 
-async function handleLogout() {
-    try {
-        // Pause all in-progress tasks before logout
-        const { retryQueue } = await chrome.storage.local.get({
-            retryQueue: [],
-        });
+async function pauseAllBookingQueues(reason: string): Promise<void> {
+    for (const terminal of POPUP_BOOKING_TERMINALS) {
+        const retryQueue = await getTerminalStorageValue<RetryObjectArray>(
+            TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+            terminal,
+            [],
+        );
+
         for (const item of retryQueue) {
             if (item.status === Statuses.IN_PROGRESS) {
-                await setStatusRequest(item.id, Statuses.PAUSED, 'Task paused due to logout');
+                await setStatusRequest(item.id, Statuses.PAUSED, reason, terminal);
             }
         }
+    }
+}
+
+async function handleLogout() {
+    try {
+        await pauseAllBookingQueues('Task paused due to logout');
 
         await authService.logout();
         await syncContainerCheckerAlarmState();
@@ -1094,13 +1257,7 @@ async function handleUnbind() {
     }
 
     try {
-        // Pause all retry queue items before unbinding
-        const { retryQueue } = await chrome.storage.local.get({
-            retryQueue: [],
-        });
-        for (const item of retryQueue) {
-            await setStatusRequest(item.id, Statuses.PAUSED, 'Task paused due to device unbinding');
-        }
+        await pauseAllBookingQueues('Task paused due to device unbinding');
 
         await authService.unbindDevice(unbindEmail.value, unbindPassword.value);
 
@@ -1191,7 +1348,7 @@ function showAuthenticatedUI(user: { email: string }) {
     const toggleHeaderBtn = document.getElementById('toggleHeaderBtn') as HTMLButtonElement;
     if (toggleHeaderBtn) toggleHeaderBtn.style.display = '';
     restoreHeaderState();
-    updateQueueDisplay();
+    updateAllBookingQueueDisplays();
     updateAutoLoginButtonState();
     updateNotificationButtonState();
     refreshFeatureAccessUI().catch(error => {
@@ -1241,7 +1398,10 @@ async function checkAuth() {
         }
     } else {
         // Try auto-login if not authenticated
-        const autoLoginSuccess = await autoLoginService.performAutoLogin();
+        const autoLoginSuccess = await autoLoginService.performAutoLoginWithFallback([
+            DCT_BOOKING_TERMINAL,
+            BCT_BOOKING_TERMINAL,
+        ]);
         if (autoLoginSuccess) {
             const user = await authService.getCurrentUser();
             if (user) {

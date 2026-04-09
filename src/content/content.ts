@@ -37,9 +37,6 @@ setInterval(async () => {
             return; // Skip other checks if extension is not connected
         }
 
-        const isAutoLoginEnabledResult = await isAutoLoginEnabled();
-        if (!isAutoLoginEnabledResult) return;
-
         const isUnauthorized = await isAppUnauthorized();
 
         if (isUnauthorized) {
@@ -96,8 +93,11 @@ window.addEventListener('load', async () => {
     const isAuth = await isUserAuthenticated();
     if (!isAuth) return;
 
-    const isAutoLoginEnabled = await isAppUnauthorized();
-    if (!isAutoLoginEnabled) return;
+    const autoLoginEnabled = await isAutoLoginEnabled();
+    if (!autoLoginEnabled) return;
+
+    const isUnauthorized = await isAppUnauthorized();
+    if (!isUnauthorized) return;
 
     if (location.pathname === '/') {
         consoleLog('[content] Home page detected, showing countdown modal...');

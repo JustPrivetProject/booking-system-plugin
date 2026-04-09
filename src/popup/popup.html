@@ -112,6 +112,16 @@
             <div class="tabs-row">
                 <button id="tabBooking" class="tab-label active" data-tab="booking">DCT</button>
                 <button
+                    id="tabBct"
+                    class="tab-label tab-label-disabled"
+                    data-tab="bct"
+                    title="Brak dostępu do modułu BCT"
+                    aria-disabled="true"
+                >
+                    BCT
+                    <span id="tabBctLockIcon" class="material-icons tab-lock-icon">lock</span>
+                </button>
+                <button
                     id="tabGct"
                     class="tab-label tab-label-disabled"
                     data-tab="gct"
@@ -127,8 +137,15 @@
             </div>
             <div id="bookingView" class="tab-content">
                 <div class="queue-container">
-                    <table id="queueTable">
-                        <tbody id="queueTableBody"></tbody>
+                    <table id="queueTable" class="booking-queue-table">
+                        <tbody id="queueTableBody" class="booking-queue-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="bctView" class="tab-content hidden">
+                <div class="queue-container">
+                    <table id="bctQueueTable" class="booking-queue-table">
+                        <tbody id="bctQueueTableBody" class="booking-queue-body"></tbody>
                     </table>
                 </div>
             </div>
