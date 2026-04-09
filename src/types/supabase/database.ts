@@ -3,6 +3,48 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
     public: {
         Tables: {
+            analytics_events: {
+                Row: {
+                    id: string;
+                    created_at: string;
+                    user_email: string;
+                    environment: 'dev' | 'prod';
+                    extension_version: string;
+                    event_name: string;
+                    feature_area: 'auth' | 'popup' | 'booking' | 'container_monitor';
+                    terminal: 'DCT' | 'BCT' | 'GCT' | null;
+                    success: boolean | null;
+                    error_type: string | null;
+                    metadata: Json;
+                };
+                Insert: {
+                    id?: string;
+                    created_at?: string;
+                    user_email: string;
+                    environment: 'dev' | 'prod';
+                    extension_version: string;
+                    event_name: string;
+                    feature_area: 'auth' | 'popup' | 'booking' | 'container_monitor';
+                    terminal?: 'DCT' | 'BCT' | 'GCT' | null;
+                    success?: boolean | null;
+                    error_type?: string | null;
+                    metadata?: Json;
+                };
+                Update: {
+                    id?: string;
+                    created_at?: string;
+                    user_email?: string;
+                    environment?: 'dev' | 'prod';
+                    extension_version?: string;
+                    event_name?: string;
+                    feature_area?: 'auth' | 'popup' | 'booking' | 'container_monitor';
+                    terminal?: 'DCT' | 'BCT' | 'GCT' | null;
+                    success?: boolean | null;
+                    error_type?: string | null;
+                    metadata?: Json;
+                };
+                Relationships: [];
+            };
             feature_access: {
                 Row: {
                     user_id: string;

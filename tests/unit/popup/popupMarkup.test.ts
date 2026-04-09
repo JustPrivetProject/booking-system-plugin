@@ -4,6 +4,7 @@ import path from 'node:path';
 describe('Popup booking markup parity', () => {
     const popupHtmlPath = path.resolve(__dirname, '../../../src/popup/popup.html');
     const popupCssPath = path.resolve(__dirname, '../../../src/popup/popup.css');
+    const popupTsPath = path.resolve(__dirname, '../../../src/popup/popup.ts');
 
     it('should give both booking tables the shared parity classes', () => {
         const popupHtml = fs.readFileSync(popupHtmlPath, 'utf8');
@@ -35,5 +36,16 @@ describe('Popup booking markup parity', () => {
         expect(popupCss).not.toContain(
             '#bctView,\n#gctView {\n    width: 100%;\n    min-width: var(--app-width);\n    min-height: 240px;',
         );
+    });
+
+    it('should keep booking group toggles row-based and clickable beyond the tiny icon cell', () => {
+        const popupTs = fs.readFileSync(popupTsPath, 'utf8');
+        const popupCss = fs.readFileSync(popupCssPath, 'utf8');
+
+        expect(popupTs).toContain('.group-row .group-header:not(.actions)');
+        expect(popupTs).toContain("!nextRow.classList.contains('group-row')");
+        expect(popupTs).toContain('setGroupExpandedState(groupRow, isOpen);');
+        expect(popupCss).toContain('td.group-header.actions {');
+        expect(popupCss).toContain('cursor: default;');
     });
 });

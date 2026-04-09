@@ -7,7 +7,6 @@ import { syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
-    // getOrCreateDeviceId,
     sortStatusesByPriority,
     normalizeFormData,
     getFirstFormDataString,
@@ -21,6 +20,7 @@ import { showNotificationSettingsModal } from './modals/notificationSettings.mod
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { getContainerCheckerState } from '../containerChecker/storage';
 import { updateContainerCheckerAlarm } from '../services/containerChecker/containerCheckerService';
+import { analyticsService } from '../services/analyticsService';
 import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
 import { initGctUI } from './gct';
@@ -69,6 +69,7 @@ let activePopupTab: PopupTab = 'booking';
 let isBctTabEnabled = false;
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
+let hasTrackedPopupSessionStart = false;
 
 function requireElement<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
@@ -125,6 +126,7 @@ function applyTabState(tab: PopupTab, persist = true): void {
     const gctView = document.getElementById('gctView');
 
     activePopupTab = resolvedTab;
+    void analyticsService.trackTabViewed(resolvedTab);
 
     tabBooking?.classList.toggle('active', resolvedTab === 'booking');
     tabBct?.classList.toggle('active', resolvedTab === 'bct');
@@ -284,27 +286,12 @@ async function restoreGroupStates(terminal: PopupBookingTerminal = DCT_BOOKING_T
         );
         const tableBody = getQueueTableBody(terminal);
 
-        tableBody.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
-            const groupRow = header.closest<HTMLElement>('.group-row');
-            if (!groupRow) return;
-
+        tableBody.querySelectorAll<HTMLElement>('.group-row').forEach(groupRow => {
             const groupId = groupRow.dataset.groupId;
             if (!groupId) return;
-            const isOpen = groupStates[groupId] || false;
-            groupRow.dataset.isOpen = isOpen;
-            // Update header state
-            header.classList.toggle('open', isOpen);
-            const toggleIcon = header.querySelector('.toggle-icon');
-            if (toggleIcon) {
-                toggleIcon.textContent = isOpen ? 'expand_less' : 'expand_more';
-            }
+            const isOpen = groupStates[groupId] === true;
 
-            // Toggle visibility of child rows
-            let nextRow = groupRow.nextElementSibling;
-            while (nextRow && !nextRow.querySelector('.group-header.toggle-cell')) {
-                (nextRow as HTMLElement).style.display = isOpen ? 'table-row' : 'none';
-                nextRow = nextRow.nextElementSibling;
-            }
+            setGroupExpandedState(groupRow, isOpen);
         });
     } catch (error) {
         consoleError('Error restoring group states:', error);
@@ -417,6 +404,36 @@ function canResumeStatus(status: string): boolean {
 
 function canPauseStatus(status: string): boolean {
     return isPauseDisabled(status) !== 'disabled';
+}
+
+function getGroupChildRows(groupRow: HTMLElement): HTMLElement[] {
+    const rows: HTMLElement[] = [];
+    let nextRow = groupRow.nextElementSibling;
+
+    while (nextRow && !nextRow.classList.contains('group-row')) {
+        if (nextRow instanceof HTMLElement) {
+            rows.push(nextRow);
+        }
+        nextRow = nextRow.nextElementSibling;
+    }
+
+    return rows;
+}
+
+function setGroupExpandedState(groupRow: HTMLElement, isOpen: boolean): void {
+    const toggleCell = groupRow.querySelector<HTMLElement>('.group-header.toggle-cell');
+    const toggleIcon = toggleCell?.querySelector<HTMLElement>('.toggle-icon');
+
+    toggleCell?.classList.toggle('open', isOpen);
+    if (toggleIcon) {
+        toggleIcon.textContent = isOpen ? 'expand_less' : 'expand_more';
+    }
+
+    getGroupChildRows(groupRow).forEach(row => {
+        row.style.display = isOpen ? 'table-row' : 'none';
+    });
+
+    groupRow.dataset.isOpen = isOpen.toString();
 }
 
 async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_TERMINAL) {
@@ -565,66 +582,57 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
                     );
                 });
             });
-        tableBody.querySelectorAll<HTMLElement>('.group-header.toggle-cell').forEach(header => {
-            header.addEventListener('click', async function () {
-                const groupRow = this.closest<HTMLElement>('.group-row');
-                if (!groupRow) return;
+        tableBody
+            .querySelectorAll<HTMLElement>('.group-row .group-header:not(.actions)')
+            .forEach(header => {
+                header.addEventListener('click', async event => {
+                    const currentHeader = event.currentTarget as HTMLElement;
+                    const groupRow = currentHeader.closest('.group-row') as HTMLElement | null;
+                    if (!groupRow) return;
 
-                const groupId = groupRow.dataset.groupId;
-                if (!groupId) return;
-                const toggleIcon = this.querySelector('.toggle-icon');
-                const isCurrentlyOpen = this.classList.contains('open');
-                this.classList.toggle('open');
+                    const groupId = groupRow.dataset.groupId;
+                    if (!groupId) return;
+                    const isCurrentlyOpen = groupRow.dataset.isOpen === 'true';
 
-                if (toggleIcon) {
-                    toggleIcon.textContent = isCurrentlyOpen ? 'expand_more' : 'expand_less';
-                }
+                    setGroupExpandedState(groupRow, !isCurrentlyOpen);
 
-                let nextRow = groupRow.nextElementSibling as HTMLElement;
-                while (nextRow && !nextRow.querySelector<HTMLElement>('.group-header')) {
-                    nextRow.style.display = isCurrentlyOpen ? 'none' : 'table-row';
-                    nextRow = nextRow.nextElementSibling as HTMLElement;
-                }
-
-                groupRow.dataset.isOpen = (!isCurrentlyOpen).toString();
-
-                try {
-                    const groupStates = await getTerminalStorageValue(
-                        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-                        terminal,
-                        {},
-                    );
-                    groupStates[groupId] = !isCurrentlyOpen;
-                    await setTerminalStorageValue(
-                        TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
-                        terminal,
-                        groupStates,
-                    );
-                } catch (error) {
-                    consoleError('Error saving group state:', error);
-                }
+                    try {
+                        const groupStates = await getTerminalStorageValue(
+                            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+                            terminal,
+                            {},
+                        );
+                        groupStates[groupId] = !isCurrentlyOpen;
+                        await setTerminalStorageValue(
+                            TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+                            terminal,
+                            groupStates,
+                        );
+                    } catch (error) {
+                        consoleError('Error saving group state:', error);
+                    }
+                });
             });
-        });
         tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-resume-button')
             .forEach(resumeButton => {
-                resumeButton.addEventListener('click', async function (event) {
+                resumeButton.addEventListener('click', async event => {
                     event.stopPropagation();
-                    if ((this as HTMLButtonElement).disabled) return;
+                    const button = event.currentTarget as HTMLButtonElement;
+                    if (button.disabled) return;
 
-                    const groupHeaderRow = this.closest<HTMLElement>('.group-row');
+                    const groupHeaderRow = button.closest('.group-row') as HTMLElement | null;
                     if (!groupHeaderRow) return;
 
-                    const idsToResume: string[] = [];
-                    let nextRow = groupHeaderRow.nextElementSibling;
-                    while (nextRow && !nextRow.classList.contains('group-row')) {
-                        const status = nextRow.getAttribute('data-status');
-                        const id = nextRow.getAttribute('data-id');
-                        if (id && status && canResumeStatus(status)) {
-                            idsToResume.push(id);
-                        }
-                        nextRow = nextRow.nextElementSibling;
-                    }
+                    const idsToResume = getGroupChildRows(groupHeaderRow)
+                        .map(row => ({
+                            status: row.getAttribute('data-status'),
+                            id: row.getAttribute('data-id'),
+                        }))
+                        .filter((item): item is { status: string; id: string } =>
+                            Boolean(item.id && item.status && canResumeStatus(item.status)),
+                        )
+                        .map(item => item.id);
 
                     if (idsToResume.length > 0) {
                         await setStatusMultipleRequests(
@@ -641,23 +649,23 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
         tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-pause-button')
             .forEach(pauseButton => {
-                pauseButton.addEventListener('click', async function (event) {
+                pauseButton.addEventListener('click', async event => {
                     event.stopPropagation();
-                    if ((this as HTMLButtonElement).disabled) return;
+                    const button = event.currentTarget as HTMLButtonElement;
+                    if (button.disabled) return;
 
-                    const groupHeaderRow = this.closest<HTMLElement>('.group-row');
+                    const groupHeaderRow = button.closest('.group-row') as HTMLElement | null;
                     if (!groupHeaderRow) return;
 
-                    const idsToPause: string[] = [];
-                    let nextRow = groupHeaderRow.nextElementSibling;
-                    while (nextRow && !nextRow.classList.contains('group-row')) {
-                        const status = nextRow.getAttribute('data-status');
-                        const id = nextRow.getAttribute('data-id');
-                        if (id && status && canPauseStatus(status)) {
-                            idsToPause.push(id);
-                        }
-                        nextRow = nextRow.nextElementSibling;
-                    }
+                    const idsToPause = getGroupChildRows(groupHeaderRow)
+                        .map(row => ({
+                            status: row.getAttribute('data-status'),
+                            id: row.getAttribute('data-id'),
+                        }))
+                        .filter((item): item is { status: string; id: string } =>
+                            Boolean(item.id && item.status && canPauseStatus(item.status)),
+                        )
+                        .map(item => item.id);
 
                     if (idsToPause.length > 0) {
                         await setStatusMultipleRequests(
@@ -674,7 +682,7 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
         tableBody
             .querySelectorAll<HTMLElement>('.group-row .group-remove-button')
             .forEach(removeButton => {
-                removeButton.addEventListener('click', async function (event) {
+                removeButton.addEventListener('click', async event => {
                     event.stopPropagation();
 
                     const confirmed = await createConfirmationModal(
@@ -683,18 +691,13 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
 
                     if (!confirmed) return;
 
-                    const groupHeaderRow = this.closest<HTMLElement>('.group-row');
+                    const button = event.currentTarget as HTMLButtonElement;
+                    const groupHeaderRow = button.closest('.group-row') as HTMLElement | null;
                     if (!groupHeaderRow) return;
-                    const idsToDelete: string[] = [];
 
-                    let nextRow = groupHeaderRow.nextElementSibling;
-                    while (nextRow && !nextRow.classList.contains('group-row')) {
-                        const removeBtn = nextRow.querySelector<HTMLElement>('.remove-button');
-                        if (removeBtn?.dataset?.id) {
-                            idsToDelete.push(removeBtn.dataset.id);
-                        }
-                        nextRow = nextRow.nextElementSibling;
-                    }
+                    const idsToDelete = getGroupChildRows(groupHeaderRow)
+                        .map(row => row.getAttribute('data-id'))
+                        .filter((id): id is string => Boolean(id));
 
                     await removeMultipleRequestsFromRetryQueue(idsToDelete, terminal);
 
@@ -1172,6 +1175,8 @@ async function handleLogin() {
         }
         const user = await authService.login(loginEmail.value, loginPassword.value);
         if (user) {
+            hasTrackedPopupSessionStart = true;
+            void analyticsService.trackSessionStarted('login', user.email);
             showAuthenticatedUI(user);
             manualRegisterMode = false;
         }
@@ -1286,7 +1291,7 @@ function getFriendlyErrorMessage(
     errorMessage: string | { code?: string; message?: string },
 ): string {
     if (typeof errorMessage === 'string' && errorMessage.includes('Device ID mismatch')) {
-        return 'Próbujesz się zalogować z nowego urządzenia. Zaloguj się z tego samego urządzenia z którego się rejestrowałeś';
+        return 'Próbujesz się zalogować z nowego urządzenia. Zaloguj się z tego samego urządzenia z którego się rejestrowałeś';
     }
 
     const errorMap: { [key: string]: string } = {
@@ -1308,7 +1313,6 @@ function getFriendlyErrorMessage(
         user_banned: 'Twoje konto jest zablokowane.',
     };
 
-    // Если error это объект с code/message
     if (typeof errorMessage === 'object' && errorMessage !== null) {
         if (errorMessage.code && errorMap[errorMessage.code]) {
             return errorMap[errorMessage.code];
@@ -1318,7 +1322,6 @@ function getFriendlyErrorMessage(
         }
     }
 
-    // Если error это строка в формате JSON
     if (typeof errorMessage === 'string') {
         try {
             const errObj = JSON.parse(errorMessage);
@@ -1378,6 +1381,7 @@ function showUnauthenticatedUI() {
     loginPassword.value = '';
     registerEmail.value = '';
     registerPassword.value = '';
+    hasTrackedPopupSessionStart = false;
     refreshFeatureAccessUI().catch(error => {
         consoleError('Failed to refresh feature access UI:', error);
     });
@@ -1392,6 +1396,10 @@ async function checkAuth() {
     if (isAuthenticated) {
         const user = await authService.getCurrentUser();
         if (user) {
+            if (!hasTrackedPopupSessionStart) {
+                hasTrackedPopupSessionStart = true;
+                void analyticsService.trackSessionStarted('restored', user.email);
+            }
             showAuthenticatedUI(user);
         } else {
             showUnauthenticatedUI();
@@ -1405,6 +1413,10 @@ async function checkAuth() {
         if (autoLoginSuccess) {
             const user = await authService.getCurrentUser();
             if (user) {
+                if (!hasTrackedPopupSessionStart) {
+                    hasTrackedPopupSessionStart = true;
+                    void analyticsService.trackSessionStarted('restored', user.email);
+                }
                 showAuthenticatedUI(user);
                 return;
             }

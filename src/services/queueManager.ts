@@ -36,6 +36,7 @@ import {
     validateRequestBeforeSlotCheck,
 } from './baltichub';
 import { isSlotRefreshTooOftenResponse } from '../utils/baltichub.helper';
+import { analyticsService } from './analyticsService';
 
 export class QueueManager implements IQueueManager {
     private authService: IAuthService;
@@ -107,6 +108,13 @@ export class QueueManager implements IQueueManager {
             await setStorage({ [this.config.storageKey]: queue });
 
             consoleLog(`Item added to ${this.config.storageKey}:`, newItem);
+            void analyticsService.trackBookingStarted(
+                newItem.terminal || getBookingTerminalFromUrl(newItem.url),
+                {
+                    mode: 'retry_queue',
+                    action: 'add',
+                },
+            );
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -643,6 +651,13 @@ export class QueueManager implements IQueueManager {
                 // Slot available - execute request
 
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
+                void analyticsService.trackBookingResultFromStatus(
+                    updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
+                    updatedReq.status,
+                    {
+                        mode: 'retry_queue',
+                    },
+                );
                 await this.updateQueueItem(req.id, updatedReq);
                 this.processingState.processedCount++;
             } catch (error) {

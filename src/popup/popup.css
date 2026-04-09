@@ -388,6 +388,7 @@ td.group-header.actions {
     max-width: 138px;
     text-align: right;
     vertical-align: middle;
+    cursor: default;
 }
 
 .gct-group-actions {

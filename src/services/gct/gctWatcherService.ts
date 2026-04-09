@@ -12,6 +12,7 @@ import {
 } from '../../gct/types';
 import { getGctState, saveGctGroups, touchGctLastTickAt } from '../../gct/storage';
 import { authService } from '../authService';
+import { analyticsService } from '../analyticsService';
 import { notificationService } from '../notificationService';
 import { syncStatusBadgeFromStorage } from '../../utils/badge';
 import { consoleError, consoleLog } from '../../utils';
@@ -399,6 +400,10 @@ export class GctWatcherService {
         }
 
         await this.saveGroups(nextGroups);
+        void analyticsService.trackBookingStarted('GCT', {
+            mode: 'watch_group',
+            action: 'add',
+        });
         const nextState = await this.getState();
         await this.ensureSchedules();
         return nextState;
@@ -1018,6 +1023,14 @@ export class GctWatcherService {
                             Object.assign(sibling, siblingRow);
                         }
 
+                        void analyticsService.trackBookingResult({
+                            terminal: 'GCT',
+                            success: true,
+                            metadata: {
+                                status: Statuses.SUCCESS,
+                            },
+                        });
+
                         shouldStopGroup = true;
                         break;
                     }
@@ -1043,6 +1056,14 @@ export class GctWatcherService {
                         row.active = false;
                         const errorRow = addHistory(row, 'error', row.statusMessage);
                         Object.assign(row, errorRow);
+                        void analyticsService.trackBookingResult({
+                            terminal: 'GCT',
+                            success: false,
+                            errorType: 'error',
+                            metadata: {
+                                status: Statuses.ERROR,
+                            },
+                        });
                     } else if (classification === 'auth') {
                         this.clearCachedToken(groupClone.id);
                         row.status = Statuses.AUTHORIZATION_ERROR;
@@ -1050,12 +1071,28 @@ export class GctWatcherService {
                         row.lastError = diagnosticError;
                         const authRow = addHistory(row, 'auth-lost', row.statusMessage);
                         Object.assign(row, authRow);
+                        void analyticsService.trackBookingResult({
+                            terminal: 'GCT',
+                            success: false,
+                            errorType: 'auth',
+                            metadata: {
+                                status: Statuses.AUTHORIZATION_ERROR,
+                            },
+                        });
                     } else {
                         row.status = Statuses.NETWORK_ERROR;
                         row.statusMessage = 'Błąd sieci, ponowię';
                         row.lastError = diagnosticError;
                         const networkRow = addHistory(row, 'network-error', row.lastError);
                         Object.assign(row, networkRow);
+                        void analyticsService.trackBookingResult({
+                            terminal: 'GCT',
+                            success: false,
+                            errorType: 'network',
+                            metadata: {
+                                status: Statuses.NETWORK_ERROR,
+                            },
+                        });
                     }
                 }
             }
