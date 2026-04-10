@@ -4,6 +4,11 @@ import * as containerCheckerService from '../../../src/services/containerChecker
 
 jest.mock('../../../src/containerChecker/storage');
 jest.mock('../../../src/services/containerChecker/containerCheckerService');
+jest.mock('../../../src/services/analyticsService', () => ({
+    analyticsService: {
+        trackContainerAdded: jest.fn(),
+    },
+}));
 
 const mockState = {
     watchlist: [],
@@ -95,6 +100,10 @@ describe('ContainerCheckerHandler', () => {
                     }),
                 ]),
             );
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).toHaveBeenCalledWith('container_monitor', 'DCT');
             expect(result).toBeDefined();
         });
 
@@ -152,6 +161,10 @@ describe('ContainerCheckerHandler', () => {
             const result = await handler.handleMessage(message);
 
             expect(storage.saveContainerCheckerWatchlist).not.toHaveBeenCalled();
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).not.toHaveBeenCalled();
             expect(result).toEqual({ ...mockState, watchlist: existingWatchlist });
         });
     });
@@ -188,6 +201,10 @@ describe('ContainerCheckerHandler', () => {
             await handler.handleMessage(message);
 
             expect(storage.saveContainerCheckerWatchlist).toHaveBeenCalledWith([]);
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).not.toHaveBeenCalled();
         });
     });
 

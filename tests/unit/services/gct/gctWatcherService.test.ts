@@ -33,6 +33,12 @@ jest.mock('../../../../src/services/gct/gctApi');
 jest.mock('../../../../src/utils/badge', () => ({
     syncStatusBadgeFromStorage: jest.fn(),
 }));
+jest.mock('../../../../src/services/analyticsService', () => ({
+    analyticsService: {
+        trackContainerAdded: jest.fn(),
+        trackBookingSuccess: jest.fn(),
+    },
+}));
 jest.mock('../../../../src/utils', () => ({
     consoleError: jest.fn(),
     consoleLog: jest.fn(),
@@ -157,6 +163,10 @@ describe('GctWatcherService', () => {
         expect(state.groups[0].vehicleNumber).toBe('NDZ45396');
         expect(state.groups[0].containerNumber).toBe('TCLU3141931');
         expect(state.groups[0].rows).toHaveLength(2);
+        expect(
+            require('../../../../src/services/analyticsService').analyticsService
+                .trackContainerAdded,
+        ).toHaveBeenCalledWith('booking', 'GCT');
     });
 
     it('does not create a new group when the initial login fails', async () => {
@@ -609,6 +619,10 @@ describe('GctWatcherService', () => {
             }),
         );
         expect(syncStatusBadgeFromStorage).toHaveBeenCalled();
+        expect(
+            require('../../../../src/services/analyticsService').analyticsService
+                .trackBookingSuccess,
+        ).toHaveBeenCalledWith('GCT');
     });
 
     it('keeps monitoring when booking verification fails', async () => {

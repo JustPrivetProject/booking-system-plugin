@@ -144,10 +144,7 @@ export class QueueManager implements IQueueManager {
                 `Item added to ${this.config.storageKey}:`,
                 newItem,
             );
-            void analyticsService.trackBookingStarted(terminal, {
-                mode: 'retry_queue',
-                action: 'add',
-            });
+            void analyticsService.trackContainerAdded('booking', terminal);
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -706,14 +703,12 @@ export class QueueManager implements IQueueManager {
                 // Slot available - execute request
 
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
-                void analyticsService.trackBookingResultFromStatus(
-                    updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
-                    updatedReq.status,
-                    {
-                        mode: 'retry_queue',
-                    },
-                );
                 await this.updateQueueItem(req.id, updatedReq);
+                if (updatedReq.status === Statuses.SUCCESS) {
+                    void analyticsService.trackBookingSuccess(
+                        updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
+                    );
+                }
                 this.processingState.processedCount++;
             } catch (error) {
                 this.processingState.errorCount++;

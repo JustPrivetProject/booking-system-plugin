@@ -17,12 +17,12 @@ import {
 import { showAutoLoginModal } from './modals/autoLogin.modal';
 import { createConfirmationModal } from './modals/confirmation.modal';
 import { showEmailConfirmationModal } from './modals/emailConfirm.modal';
+import { removeBookingGroup } from './groupRemoval';
 import { showInfoModal } from './modals/info.modal';
 import { showNotificationSettingsModal } from './modals/notificationSettings.modal';
 import { notificationSettingsService } from '../services/notificationSettingsService';
 import { getContainerCheckerState } from '../containerChecker/storage';
 import { updateContainerCheckerAlarm } from '../services/containerChecker/containerCheckerService';
-import { analyticsService } from '../services/analyticsService';
 import { FEATURE_KEYS, featureAccessService } from '../services/featureAccessService';
 import { initContainerCheckerUI } from './containerChecker';
 import { initGctUI } from './gct';
@@ -75,7 +75,6 @@ let activePopupTab: PopupTab = 'booking';
 let isBctTabEnabled = false;
 let isGctTabEnabled = false;
 let isContainerCheckerUiInitialized = false;
-let hasTrackedPopupSessionStart = false;
 const groupStateCache: Partial<Record<PopupBookingTerminal, Record<string, boolean>>> = {};
 
 function getPopupLogContext(terminal?: PopupBookingTerminal) {
@@ -140,7 +139,6 @@ function applyTabState(tab: PopupTab, persist = true): void {
     const gctView = document.getElementById('gctView');
 
     activePopupTab = resolvedTab;
-    void analyticsService.trackTabViewed(resolvedTab);
 
     tabBooking?.classList.toggle('active', resolvedTab === 'booking');
     tabBct?.classList.toggle('active', resolvedTab === 'bct');
@@ -733,34 +731,21 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
                 removeButton.addEventListener('click', async event => {
                     event.stopPropagation();
 
-                    const confirmed = await createConfirmationModal(
-                        'Na pewno chcesz usunąć całą grupę zadań?',
-                    );
+                    const button = event.currentTarget as HTMLButtonElement | null;
+                    if (!button) return;
 
-                    if (!confirmed) return;
-
-                    const button = event.currentTarget as HTMLButtonElement;
-                    const groupHeaderRow = button.closest('.group-row') as HTMLElement | null;
-                    if (!groupHeaderRow) return;
-
-                    const idsToDelete = getGroupChildRows(groupHeaderRow)
-                        .map(row => row.getAttribute('data-id'))
-                        .filter((id): id is string => Boolean(id));
-
-                    await removeMultipleRequestsFromRetryQueue(idsToDelete, terminal);
-
-                    idsToDelete.forEach(id => {
-                        const row = tableBody
-                            .querySelector(`.remove-button[data-id="${id}"]`)
-                            ?.closest('tr');
-                        if (row) row.remove();
+                    await removeBookingGroup(button, tableBody, {
+                        confirmRemoval: async () =>
+                            Boolean(
+                                await createConfirmationModal(
+                                    'Na pewno chcesz usunąć całą grupę zadań?',
+                                ),
+                            ),
+                        removeRequests: ids => removeMultipleRequestsFromRetryQueue(ids, terminal),
+                        deleteGroupState: async groupId => {
+                            await deleteGroupStateById(groupId, terminal);
+                        },
                     });
-
-                    groupHeaderRow.remove();
-                    const groupId = groupHeaderRow.dataset.groupId;
-                    if (groupId) {
-                        await deleteGroupStateById(groupId, terminal);
-                    }
                 });
             });
     } catch (error) {
@@ -1240,8 +1225,6 @@ async function handleLogin() {
         }
         const user = await authService.login(loginEmail.value, loginPassword.value);
         if (user) {
-            hasTrackedPopupSessionStart = true;
-            void analyticsService.trackSessionStarted('login', user.email);
             showAuthenticatedUI(user);
             manualRegisterMode = false;
         }
@@ -1446,7 +1429,6 @@ function showUnauthenticatedUI() {
     loginPassword.value = '';
     registerEmail.value = '';
     registerPassword.value = '';
-    hasTrackedPopupSessionStart = false;
     refreshFeatureAccessUI().catch(error => {
         consoleError('Failed to refresh feature access UI:', error);
     });
@@ -1461,10 +1443,6 @@ async function checkAuth() {
     if (isAuthenticated) {
         const user = await authService.getCurrentUser();
         if (user) {
-            if (!hasTrackedPopupSessionStart) {
-                hasTrackedPopupSessionStart = true;
-                void analyticsService.trackSessionStarted('restored', user.email);
-            }
             showAuthenticatedUI(user);
         } else {
             showUnauthenticatedUI();
@@ -1478,10 +1456,6 @@ async function checkAuth() {
         if (autoLoginSuccess) {
             const user = await authService.getCurrentUser();
             if (user) {
-                if (!hasTrackedPopupSessionStart) {
-                    hasTrackedPopupSessionStart = true;
-                    void analyticsService.trackSessionStarted('restored', user.email);
-                }
                 showAuthenticatedUI(user);
                 return;
             }

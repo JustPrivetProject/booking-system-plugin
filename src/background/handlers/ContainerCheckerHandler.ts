@@ -90,7 +90,7 @@ export class ContainerCheckerHandler {
                 ];
 
                 await saveContainerCheckerWatchlist(watchlist);
-                void analyticsService.trackContainerMonitorAction('item_added', { port });
+                void analyticsService.trackContainerAdded('container_monitor', port);
                 return getNormalizedContainerCheckerState();
             }
 
@@ -103,7 +103,6 @@ export class ContainerCheckerHandler {
                     return !(sameContainer && samePort);
                 });
                 await saveContainerCheckerWatchlist(nextWatchlist);
-                void analyticsService.trackContainerMonitorAction('item_removed', { port });
                 return getNormalizedContainerCheckerState();
             }
 

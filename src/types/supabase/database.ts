@@ -5,43 +5,31 @@ export interface Database {
         Tables: {
             analytics_events: {
                 Row: {
-                    id: string;
                     created_at: string;
                     user_email: string;
                     environment: 'dev' | 'prod';
                     extension_version: string;
-                    event_name: string;
-                    feature_area: 'auth' | 'popup' | 'booking' | 'container_monitor';
-                    terminal: 'DCT' | 'BCT' | 'GCT' | null;
-                    success: boolean | null;
-                    error_type: string | null;
-                    metadata: Json;
+                    feature_area: 'booking' | 'container_monitor';
+                    terminal: 'DCT' | 'BCT' | 'GCT';
+                    action: 'container_added' | 'booking_success';
                 };
                 Insert: {
-                    id?: string;
                     created_at?: string;
                     user_email: string;
                     environment: 'dev' | 'prod';
                     extension_version: string;
-                    event_name: string;
-                    feature_area: 'auth' | 'popup' | 'booking' | 'container_monitor';
-                    terminal?: 'DCT' | 'BCT' | 'GCT' | null;
-                    success?: boolean | null;
-                    error_type?: string | null;
-                    metadata?: Json;
+                    feature_area: 'booking' | 'container_monitor';
+                    terminal: 'DCT' | 'BCT' | 'GCT';
+                    action: 'container_added' | 'booking_success';
                 };
                 Update: {
-                    id?: string;
                     created_at?: string;
                     user_email?: string;
                     environment?: 'dev' | 'prod';
                     extension_version?: string;
-                    event_name?: string;
-                    feature_area?: 'auth' | 'popup' | 'booking' | 'container_monitor';
-                    terminal?: 'DCT' | 'BCT' | 'GCT' | null;
-                    success?: boolean | null;
-                    error_type?: string | null;
-                    metadata?: Json;
+                    feature_area?: 'booking' | 'container_monitor';
+                    terminal?: 'DCT' | 'BCT' | 'GCT';
+                    action?: 'container_added' | 'booking_success';
                 };
                 Relationships: [];
             };
