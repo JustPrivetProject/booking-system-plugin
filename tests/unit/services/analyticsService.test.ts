@@ -47,21 +47,18 @@ describe('analyticsService', () => {
         mockSessionService.getCurrentUser.mockResolvedValue(null);
         mockAuthService.getCurrentUser.mockResolvedValue(null);
 
-        await analyticsService.trackTabViewed('booking');
+        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.DCT);
 
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
 
-    it('inserts an analytics row with normalized environment and version', async () => {
+    it('inserts a container_added analytics row with explicit terminal context', async () => {
         mockSessionService.getCurrentUser.mockResolvedValue({ email: 'User@Example.com' });
 
         const insert = jest.fn().mockResolvedValue({ error: null });
         mockSupabase.from.mockReturnValue({ insert });
 
-        await analyticsService.trackBookingStarted(BOOKING_TERMINALS.BCT, {
-            mode: 'retry_queue',
-            action: 'add',
-        });
+        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.BCT);
 
         expect(mockSupabase.from).toHaveBeenCalledWith('analytics_events');
         expect(insert).toHaveBeenCalledWith([
@@ -69,57 +66,38 @@ describe('analyticsService', () => {
                 user_email: 'user@example.com',
                 environment: 'dev',
                 extension_version: '3.0.5',
-                event_name: 'booking_started',
                 feature_area: 'booking',
                 terminal: 'BCT',
-                metadata: {
-                    mode: 'retry_queue',
-                    action: 'add',
-                },
+                action: 'container_added',
             }),
         ]);
     });
 
-    it('removes forbidden metadata fields before insert', async () => {
+    it('inserts booking_success rows with a normalized terminal', async () => {
         mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
 
         const insert = jest.fn().mockResolvedValue({ error: null });
         mockSupabase.from.mockReturnValue({ insert });
 
-        await analyticsService.trackContainerMonitorAction('check_completed', {
-            containers_count: 3,
-            containerNumber: 'MSCU1234567',
-            password: 'secret',
-        });
+        await analyticsService.trackBookingSuccess('DCT');
 
         expect(insert).toHaveBeenCalledWith([
             expect.objectContaining({
-                metadata: {
-                    action: 'check_completed',
-                    containers_count: 3,
-                },
-            }),
-        ]);
-    });
-
-    it('maps booking statuses to booking_result rows', async () => {
-        mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
-
-        const insert = jest.fn().mockResolvedValue({ error: null });
-        mockSupabase.from.mockReturnValue({ insert });
-
-        await analyticsService.trackBookingResultFromStatus('DCT', 'authorization-error');
-
-        expect(insert).toHaveBeenCalledWith([
-            expect.objectContaining({
-                event_name: 'booking_result',
+                feature_area: 'booking',
                 terminal: 'DCT',
-                success: false,
-                error_type: 'auth',
-                metadata: {
-                    status: 'authorization-error',
-                },
+                action: 'booking_success',
             }),
         ]);
+    });
+
+    it('skips inserts when terminal context cannot be resolved', async () => {
+        mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
+
+        const insert = jest.fn().mockResolvedValue({ error: null });
+        mockSupabase.from.mockReturnValue({ insert });
+
+        await analyticsService.trackBookingSuccess(null);
+
+        expect(insert).not.toHaveBeenCalled();
     });
 });

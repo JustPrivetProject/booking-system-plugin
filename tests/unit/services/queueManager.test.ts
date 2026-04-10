@@ -70,6 +70,13 @@ jest.mock('../../../src/utils/badge', () => ({
     syncStatusBadgeFromStorage: jest.fn(),
 }));
 
+jest.mock('../../../src/services/analyticsService', () => ({
+    analyticsService: {
+        trackContainerAdded: jest.fn(),
+        trackBookingSuccess: jest.fn(),
+    },
+}));
+
 // Import AFTER all mocks are declared
 import { QueueManager } from '../../../src/services/queueManager';
 import { RetryObject } from '../../../src/types/baltichub';
@@ -87,6 +94,8 @@ describe('QueueManager', () => {
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
     let mockSetTerminalStorageValue: jest.Mock;
+    let mockTrackContainerAdded: jest.Mock;
+    let mockTrackBookingSuccess: jest.Mock;
 
     const mockRetryObject: RetryObject = {
         id: 'test-id-1',
@@ -118,6 +127,7 @@ describe('QueueManager', () => {
         const { consoleLog, consoleLogWithoutSave, consoleError } = require('../../../src/utils');
         const { clearBadge } = require('../../../src/utils/badge');
         const { setTerminalStorageValue } = require('../../../src/utils/storage');
+        const { analyticsService } = require('../../../src/services/analyticsService');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
@@ -126,6 +136,8 @@ describe('QueueManager', () => {
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
         mockSetTerminalStorageValue = setTerminalStorageValue;
+        mockTrackContainerAdded = analyticsService.trackContainerAdded;
+        mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
 
         // Restore normalizeFormData implementation after clearAllMocks
         normalizeFormData.mockImplementation((body: any) => {
@@ -176,6 +188,29 @@ describe('QueueManager', () => {
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: [mockRetryObject],
             });
+            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT);
+        });
+
+        it('should track BCT container additions with the BCT terminal', async () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const bctRetryObject: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct-add',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            mockGetStorage.mockResolvedValue({ 'retryQueue:bct': [] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await bctQueueManager.addToQueue(bctRetryObject);
+
+            expect(result).toHaveLength(1);
+            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.BCT);
         });
 
         it('should not add duplicate items', async () => {
@@ -407,6 +442,7 @@ describe('QueueManager', () => {
             mockCheckSlotAvailability.mockResolvedValue(true); // Slot available
             mockExecuteRequest.mockResolvedValue({
                 ...mockRetryObject,
+                terminal: BOOKING_TERMINALS.DCT,
                 status: 'success',
                 status_message: 'Processed',
             });
@@ -536,6 +572,7 @@ describe('QueueManager', () => {
             expect(mockExecuteRequest).toHaveBeenCalled();
             // Verify that item was updated
             expect(mockSetStorage).toHaveBeenCalled();
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
         });
 
         it('should keep request in queue when slot is not available', async () => {

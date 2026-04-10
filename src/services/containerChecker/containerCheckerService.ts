@@ -7,7 +7,6 @@ import {
 } from '../../containerChecker/storage';
 import { checkPort } from './portCheckers';
 import { authService } from '../authService';
-import { analyticsService } from '../analyticsService';
 import { notificationService } from '../notificationService';
 import { consoleError, consoleLog } from '../../utils/index';
 
@@ -262,11 +261,6 @@ export async function runContainerCheckCycle(): Promise<void> {
 
     await saveContainerCheckerWatchlist(updated);
     await touchContainerCheckerLastRunAt(nowIso());
-    void analyticsService.trackContainerMonitorAction('check_completed', {
-        containers_count: updated.length,
-        changes_detected: updated.filter(item => item.statusChanged || item.stateChanged).length,
-        errors_count: updated.filter(item => item.hasErrors).length,
-    });
     consoleLog('[Container Checker] Cycle completed', {
         processed: updated.length,
     });

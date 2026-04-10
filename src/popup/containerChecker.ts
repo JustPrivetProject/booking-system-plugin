@@ -3,7 +3,6 @@
  */
 import type { ContainerCheckerState } from '../containerChecker/types';
 import { consoleError, consoleLog } from '../utils/index';
-import { analyticsService } from '../services/analyticsService';
 
 function byId(id: string): HTMLElement | null {
     return document.getElementById(id);
@@ -257,7 +256,6 @@ async function handleCheckNow(): Promise<void> {
     try {
         consoleLog('[Container Checker][popup] Manual check requested');
         await sendContainerCheckerMessage('CHECK_NOW');
-        void analyticsService.trackContainerMonitorAction('manual_check');
         await refreshState();
     } catch (error) {
         consoleError('Check now:', error);
