@@ -1,5 +1,6 @@
 import { BrevoEmailService } from '../../../src/services/brevo/brevoEmailService';
 import { BrevoApiClient } from '../../../src/services/brevo/brevoApiClient';
+import { BREVO_CONFIG } from '../../../src/services/brevo/brevoConfig';
 import type { BrevoEmailData } from '../../../src/types/general';
 
 // Mock the API client
@@ -33,14 +34,14 @@ describe('BrevoEmailService', () => {
             expect(MockedBrevoApiClient).toHaveBeenCalledWith('test-api-key');
         });
 
-        it('should initialize without API key', () => {
+        it('should initialize with configured fallback API key when no explicit key is provided', () => {
             // Clear previous calls
             MockedBrevoApiClient.mockClear();
 
             // Create service without API key
             new BrevoEmailService();
 
-            expect(MockedBrevoApiClient).toHaveBeenCalledWith('');
+            expect(MockedBrevoApiClient).toHaveBeenCalledWith(BREVO_CONFIG.API_KEY);
         });
     });
 
@@ -147,9 +148,9 @@ describe('BrevoEmailService', () => {
 
             expect(status).toEqual({
                 hasApiKey: false, // Mock doesn't have apiKey property set
-                senderEmail: 'noreply@portsloty.com',
-                senderName: 'PortSloty ⚓',
-                apiUrl: 'https://api.brevo.com/v3/smtp/email',
+                senderEmail: BREVO_CONFIG.SENDER_EMAIL,
+                senderName: BREVO_CONFIG.SENDER_NAME,
+                apiUrl: BREVO_CONFIG.API_URL,
             });
         });
     });
