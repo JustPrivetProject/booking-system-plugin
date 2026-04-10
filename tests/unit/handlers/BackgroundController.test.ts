@@ -79,6 +79,10 @@ const mockQueueManager = {
     startProcessing: jest.fn(),
 };
 
+const mockBctQueueManager = {
+    startProcessing: jest.fn(),
+};
+
 const mockMessageHandler = {
     handleMessage: jest.fn(),
 };
@@ -96,7 +100,11 @@ describe('BackgroundController', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        (QueueManagerAdapter.getInstance as jest.Mock).mockReturnValue(mockQueueManager);
+        mockQueueManager.startProcessing.mockResolvedValue(undefined);
+        mockBctQueueManager.startProcessing.mockResolvedValue(undefined);
+        (QueueManagerAdapter.getInstance as jest.Mock).mockImplementation((storageKey?: string) =>
+            storageKey === 'retryQueue:bct' ? mockBctQueueManager : mockQueueManager,
+        );
         (MessageHandler as jest.Mock).mockImplementation(() => mockMessageHandler);
         (RequestHandler as jest.Mock).mockImplementation(() => mockRequestHandler);
         (StorageHandler as jest.Mock).mockImplementation(() => mockStorageHandler);
@@ -126,6 +134,7 @@ describe('BackgroundController', () => {
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
             expect(mockQueueManager.startProcessing).toHaveBeenCalled();
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalled();
             expect(chrome.runtime.onInstalled.addListener).toHaveBeenCalled();
             expect(chrome.runtime.onMessage.addListener).toHaveBeenCalled();
             expect(mockRequestHandler.setupRequestListeners).toHaveBeenCalled();
@@ -169,6 +178,12 @@ describe('BackgroundController', () => {
             await backgroundController['startQueueProcessing']();
 
             expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({
+                intervalMin: expect.any(Number),
+                intervalMax: expect.any(Number),
+                retryEnabled: true,
+            });
+            expect(QueueManagerAdapter.getInstance).toHaveBeenCalledWith('retryQueue:bct');
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalledWith({
                 intervalMin: expect.any(Number),
                 intervalMax: expect.any(Number),
                 retryEnabled: true,
@@ -408,6 +423,7 @@ describe('BackgroundController', () => {
 
             // Verify queue processing is started
             expect(mockQueueManager.startProcessing).toHaveBeenCalled();
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalled();
 
             // Verify event listeners are set up
             expect(chrome.runtime.onInstalled.addListener).toHaveBeenCalled();
@@ -455,6 +471,7 @@ describe('BackgroundController', () => {
             (getStorage as jest.Mock).mockResolvedValue({});
             const error = new Error('Queue error');
             mockQueueManager.startProcessing.mockRejectedValue(error);
+            mockBctQueueManager.startProcessing.mockResolvedValue(undefined);
 
             try {
                 await backgroundController.initialize();

@@ -1000,6 +1000,38 @@ describe('QueueManager', () => {
             expect(subscriptions).toHaveProperty('size', 2);
         });
 
+        it('should fall back to the manager terminal when request metadata is ambiguous', () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const ambiguousRequest: RetryObject = {
+                ...mockRetryObject,
+                url: 'not-a-valid-url',
+            };
+
+            delete (ambiguousRequest as Partial<RetryObject>).terminal;
+
+            const subscriptions = (bctQueueManager as any).createDateSlotTypeSubscriptions([
+                ambiguousRequest,
+            ]);
+
+            expect(Array.from(subscriptions.keys())).toEqual([
+                `${BOOKING_TERMINALS.BCT}|01.01.2025|1`,
+            ]);
+            expect(mockConsoleError).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: BOOKING_TERMINALS.BCT }),
+                'Missing request terminal metadata, falling back to manager terminal',
+                expect.objectContaining({
+                    requestId: 'test-id-1',
+                    storageKey: 'retryQueue:bct',
+                }),
+            );
+
+            bctQueueManager.stopProcessing();
+        });
+
         it('should handle default network error', async () => {
             const { Statuses } = require('../../../src/data');
             const existingQueue = [mockRetryObject];

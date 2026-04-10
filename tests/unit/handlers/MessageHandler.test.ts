@@ -6,6 +6,7 @@ import { sessionService } from '../../../src/services/sessionService';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { errorLogService } from '../../../src/services/errorLogService';
 import { featureAccessService } from '../../../src/services/featureAccessService';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock dependencies
@@ -501,6 +502,23 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
         });
+
+        it('should reject booking actions from unknown web hosts', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {
+                url: 'https://example.com/tv-apps',
+            } as chrome.runtime.MessageSender;
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+            expect(mockQueueManager.addToQueue).not.toHaveBeenCalled();
+            expect(mockSendResponse).toHaveBeenCalledWith({
+                success: false,
+                error: 'Unable to resolve booking terminal',
+            });
+        });
     });
 
     describe('error handling', () => {
@@ -821,6 +839,58 @@ describe('MessageHandler', () => {
 
             expect(mockQueueManager.addToQueue).toHaveBeenCalled();
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
+        });
+
+        it('should build BCT currentSlot from terminal-specific table headers', async () => {
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: '',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['bct-tv-id'],
+                    SlotStart: ['10.04.2026 13:00'],
+                    SlotEnd: ['10.04.2026 14:00'],
+                },
+            });
+
+            const retryObject = await (messageHandler as any).createRetryObject(
+                {
+                    url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                    body: {
+                        formData: {
+                            TvAppId: ['bct-tv-id'],
+                            SlotStart: ['10.04.2026 13:00'],
+                            SlotEnd: ['10.04.2026 14:00'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+                {
+                    url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                    headers: [],
+                    timestamp: Date.now(),
+                },
+                {
+                    retryQueue: [],
+                    tableData: [
+                        [
+                            'Status',
+                            'ID',
+                            'Data rozpoczęcia okna',
+                            'Start',
+                            'Koniec',
+                            'Nr kont. / ERO/EDO',
+                        ],
+                        ['AKTYWNA', 'bct-tv-id', '2026-04-10', '18:00', '19:00', 'CONT123'],
+                    ],
+                },
+                Actions.SHOW_ERROR,
+                BOOKING_TERMINALS.BCT,
+            );
+
+            expect(retryObject.currentSlot).toBe('2026-04-10 18:00');
+            expect(retryObject.containerNumber).toBe('CONT123');
         });
 
         it('should create retry object with SUCCEED_BOOKING action', async () => {

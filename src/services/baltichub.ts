@@ -42,7 +42,24 @@ const EBRAMA_TERMINAL_URLS: Record<BookingTerminal, typeof urls> = {
 };
 
 function resolveRetryTerminal(req?: Pick<RetryObject, 'terminal' | 'url'>): BookingTerminal {
-    return req?.terminal || getBookingTerminalFromUrl(req?.url) || BOOKING_TERMINALS.DCT;
+    if (req?.terminal) {
+        return req.terminal;
+    }
+
+    const terminalFromUrl = getBookingTerminalFromUrl(req?.url);
+    if (terminalFromUrl) {
+        return terminalFromUrl;
+    }
+
+    consoleErrorWithContext(
+        { scope: 'booking', terminal: BOOKING_TERMINALS.DCT },
+        'Unable to resolve retry terminal, defaulting to DCT',
+        {
+            url: req?.url,
+        },
+    );
+
+    return BOOKING_TERMINALS.DCT;
 }
 
 export async function getSlots(

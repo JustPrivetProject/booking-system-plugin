@@ -79,6 +79,37 @@ interface AuthAttemptPayload {
 }
 
 const REQUEST_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const EXTENSION_URL_PROTOCOLS = ['chrome-extension://', 'moz-extension://'] as const;
+
+const TERMINAL_TABLE_COLUMN_ALIASES: Record<
+    BookingTerminal,
+    {
+        id: string[];
+        selectedDate: string[];
+        start: string[];
+        containerNumber: string[];
+        status: string[];
+    }
+> = {
+    [BOOKING_TERMINALS.DCT]: {
+        id: [TABLE_DATA_NAMES.ID],
+        selectedDate: [TABLE_DATA_NAMES.SELECTED_DATE],
+        start: [TABLE_DATA_NAMES.START],
+        containerNumber: [TABLE_DATA_NAMES.CONTAINER_NUMBER],
+        status: [TABLE_DATA_NAMES.STATUS],
+    },
+    [BOOKING_TERMINALS.BCT]: {
+        id: [TABLE_DATA_NAMES.ID, 'Nr zadania'],
+        selectedDate: [
+            'Data rozpoczęcia okna',
+            'Data wybranego przedziału czasowego',
+            TABLE_DATA_NAMES.SELECTED_DATE,
+        ],
+        start: [TABLE_DATA_NAMES.START],
+        containerNumber: [TABLE_DATA_NAMES.CONTAINER_NUMBER, 'Nr kont. / ERO/EDO'],
+        status: [TABLE_DATA_NAMES.STATUS],
+    },
+};
 
 function getAuthAttemptPayload(message: HandlerMessage): AuthAttemptPayload {
     if (!message.message || typeof message.message !== 'object') {
@@ -96,15 +127,99 @@ function resolveBookingTerminal(value?: string): BookingTerminal {
     return isBookingTerminal(value) ? value : BOOKING_TERMINALS.DCT;
 }
 
-function resolveMessageTerminal(
+function tryResolveMessageTerminal(
     message: HandlerMessage,
     sender?: chrome.runtime.MessageSender,
-): BookingTerminal {
+): BookingTerminal | null {
     if (isBookingTerminal(message.data?.terminal)) {
         return message.data.terminal;
     }
 
-    return getBookingTerminalFromUrl(sender?.url) || BOOKING_TERMINALS.DCT;
+    return getBookingTerminalFromUrl(sender?.url);
+}
+
+function resolveMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal {
+    return tryResolveMessageTerminal(message, sender) || BOOKING_TERMINALS.DCT;
+}
+
+function isExtensionSenderUrl(url?: string): boolean {
+    return !!url && EXTENSION_URL_PROTOCOLS.some(protocol => url.startsWith(protocol));
+}
+
+function resolveRequiredMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal | null {
+    const resolvedTerminal = tryResolveMessageTerminal(message, sender);
+
+    if (resolvedTerminal) {
+        return resolvedTerminal;
+    }
+
+    if (!sender?.url || isExtensionSenderUrl(sender.url)) {
+        return BOOKING_TERMINALS.DCT;
+    }
+
+    consoleErrorWithContext(
+        getMessageHandlerLogContext(),
+        'Unable to resolve booking terminal for message',
+        {
+            action: message.action,
+            senderUrl: sender.url,
+            messageTerminal: message.data?.terminal,
+        },
+    );
+
+    return null;
+}
+
+function findTableColumnIndex(header: string[], candidates: string[]): number {
+    for (const candidate of candidates) {
+        const index = header.indexOf(candidate);
+        if (index >= 0) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+function getTableCellValue(
+    header: string[],
+    row: TableData[number],
+    candidates: string[],
+): string | undefined {
+    const columnIndex = findTableColumnIndex(header, candidates);
+
+    if (columnIndex < 0 || columnIndex >= row.length) {
+        return undefined;
+    }
+
+    const value = row[columnIndex];
+    return typeof value === 'string' ? value : undefined;
+}
+
+function buildCurrentSlotValue(
+    terminal: BookingTerminal,
+    header: string[],
+    row: TableData[number],
+): string {
+    const aliases = TERMINAL_TABLE_COLUMN_ALIASES[terminal];
+    const selectedDate = getTableCellValue(header, row, aliases.selectedDate)?.trim();
+    const start = getTableCellValue(header, row, aliases.start)?.trim();
+
+    if (selectedDate && start) {
+        return `${selectedDate} ${start}`;
+    }
+
+    if (selectedDate && /\d{1,2}:\d{2}/.test(selectedDate)) {
+        return selectedDate;
+    }
+
+    return '';
 }
 
 function getRetryQueueStorageKey(terminal: BookingTerminal): string {
@@ -215,7 +330,11 @@ export class MessageHandler {
         sendResponse: SendResponse,
     ): Promise<void> {
         try {
-            const terminal = resolveMessageTerminal(message, sender);
+            const terminal = resolveRequiredMessageTerminal(message, sender);
+            if (!terminal) {
+                sendResponse({ success: false, error: 'Unable to resolve booking terminal' });
+                return;
+            }
             consoleLogWithContext(
                 getMessageHandlerLogContext(terminal),
                 'Getting request from cache...',
@@ -247,7 +366,9 @@ export class MessageHandler {
             }
         } catch (error) {
             consoleErrorWithContext(
-                getMessageHandlerLogContext(resolveMessageTerminal(message, sender)),
+                getMessageHandlerLogContext(
+                    resolveRequiredMessageTerminal(message, sender) || undefined,
+                ),
                 'Error in handleBookingAction:',
                 error,
             );
@@ -557,16 +678,18 @@ export class MessageHandler {
         }
 
         if (tableData) {
+            const header = tableData[0] || [];
+            const columnAliases = TERMINAL_TABLE_COLUMN_ALIASES[terminal];
             let tableRow: TableData[number] | undefined;
             consoleLog('Getting table data...');
-            const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
+            const idIndex = findTableColumnIndex(header, columnAliases.id);
             if (idIndex >= 0) {
                 tableRow = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
             }
 
             if (!tableRow && driverAndContainer.containerNumber) {
                 consoleLog('TV App ID row not found, searching by container number...');
-                const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
+                const containerIndex = findTableColumnIndex(header, columnAliases.containerNumber);
                 if (containerIndex >= 0) {
                     tableRow = tableData.find((row: string[]) =>
                         row[containerIndex].includes(driverAndContainer.containerNumber),
@@ -580,14 +703,17 @@ export class MessageHandler {
             consoleLog('Row: ', tableRow);
 
             if (tableRow) {
-                const currentSlot = `${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
+                const currentSlot = buildCurrentSlotValue(terminal, header, tableRow);
                 consoleLog('Getting current slot time... :', currentSlot);
                 if (currentSlot) {
                     retryObject.currentSlot = currentSlot;
                 }
 
-                const containerNumber =
-                    tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER)];
+                const containerNumber = getTableCellValue(
+                    header,
+                    tableRow,
+                    columnAliases.containerNumber,
+                );
                 if (containerNumber) {
                     retryObject.containerNumber = containerNumber;
                 }
@@ -595,18 +721,17 @@ export class MessageHandler {
                 // PUSTE status (empty container) requires type 4 for getSlots API.
                 // Fallback only: prefer slotType derived from cached formData.SlotType above.
                 if (retryObject.slotType === undefined) {
-                    const statusIndex = tableData[0].indexOf(TABLE_DATA_NAMES.STATUS);
-                    if (statusIndex >= 0 && tableRow[statusIndex]) {
-                        const statusValue = String(tableRow[statusIndex]).toUpperCase().trim();
-                        if (statusValue === 'PUSTE') {
-                            retryObject.slotType = 4;
-                            consoleLog(
-                                '🎯 slotType fallback from table status:',
-                                `tvAppId=${tvAppId}`,
-                                `status=${statusValue}`,
-                                'slotType=4',
-                            );
-                        }
+                    const statusValue = getTableCellValue(header, tableRow, columnAliases.status)
+                        ?.toUpperCase()
+                        .trim();
+                    if (statusValue === 'PUSTE') {
+                        retryObject.slotType = 4;
+                        consoleLog(
+                            '🎯 slotType fallback from table status:',
+                            `tvAppId=${tvAppId}`,
+                            `status=${statusValue}`,
+                            'slotType=4',
+                        );
                     }
                 }
             }
@@ -637,10 +762,15 @@ export class MessageHandler {
     ): Promise<void> {
         try {
             const tableData = getTablePayload(message);
-            const terminal = resolveMessageTerminal(message, sender);
+            const terminal = resolveRequiredMessageTerminal(message, sender);
 
             if (!tableData) {
                 sendResponse({ success: false, error: 'Invalid table data payload' });
+                return;
+            }
+
+            if (!terminal) {
+                sendResponse({ success: false, error: 'Unable to resolve booking terminal' });
                 return;
             }
 
