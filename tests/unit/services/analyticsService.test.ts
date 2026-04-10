@@ -15,6 +15,9 @@ jest.mock('../../../src/services/authService', () => ({
 
 jest.mock('../../../src/services/supabaseClient', () => ({
     supabase: {
+        auth: {
+            getSession: jest.fn(),
+        },
         from: jest.fn(),
     },
 }));
@@ -32,6 +35,10 @@ describe('analyticsService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         process.env.NODE_ENV = 'development';
+        mockSupabase.auth.getSession.mockResolvedValue({
+            data: { session: { access_token: 'test-token' } },
+            error: null,
+        });
         (global as typeof globalThis & { chrome?: unknown }).chrome = {
             runtime: {
                 getManifest: () => ({ version: '3.0.5' }),
@@ -97,6 +104,21 @@ describe('analyticsService', () => {
         mockSupabase.from.mockReturnValue({ insert });
 
         await analyticsService.trackBookingSuccess(null);
+
+        expect(insert).not.toHaveBeenCalled();
+    });
+
+    it('skips inserts when Supabase auth session is unavailable', async () => {
+        mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
+        mockSupabase.auth.getSession.mockResolvedValue({
+            data: { session: null },
+            error: null,
+        });
+
+        const insert = jest.fn().mockResolvedValue({ error: null });
+        mockSupabase.from.mockReturnValue({ insert });
+
+        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.DCT);
 
         expect(insert).not.toHaveBeenCalled();
     });

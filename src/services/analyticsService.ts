@@ -78,6 +78,26 @@ async function resolveUserEmail(explicitEmail?: string): Promise<string | null> 
 
     return null;
 }
+
+async function hasSupabaseAuthSession(): Promise<boolean> {
+    try {
+        const {
+            data: { session },
+            error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+            consoleError('Failed to resolve Supabase auth session for analytics:', error);
+            return false;
+        }
+
+        return Boolean(session);
+    } catch (error) {
+        consoleError('Analytics session resolution failed:', error);
+        return false;
+    }
+}
+
 export const analyticsService = {
     async trackActivity({
         featureArea,
@@ -101,6 +121,19 @@ export const analyticsService = {
                 return;
             }
 
+            if (!(await hasSupabaseAuthSession())) {
+                consoleLog(
+                    'Skipping analytics event because Supabase auth session is unavailable:',
+                    {
+                        action,
+                        featureArea,
+                        terminal: normalizedTerminal,
+                        userEmail: resolvedUserEmail,
+                    },
+                );
+                return;
+            }
+
             const row: AnalyticsEventRow = {
                 created_at: new Date().toISOString(),
                 user_email: resolvedUserEmail,
@@ -113,7 +146,14 @@ export const analyticsService = {
 
             const { error } = await supabase.from('analytics_events').insert([row]);
             if (error) {
-                consoleError('Failed to track analytics event:', error);
+                consoleError('Failed to track analytics event:', {
+                    action,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint,
+                    message: error.message,
+                    row,
+                });
             }
         } catch (error) {
             consoleError('Analytics tracking failed:', error);
