@@ -212,11 +212,21 @@ export class BackgroundController {
     }
 
     private async startQueueProcessing(): Promise<void> {
-        await this.queueManager.startProcessing({
+        const processingOptions = {
             intervalMin: 500,
             intervalMax: 1500,
             retryEnabled: true,
-        });
+        };
+
+        await Promise.all([
+            this.queueManager.startProcessing(processingOptions),
+            QueueManagerAdapter.getInstance(
+                getTerminalStorageKey(
+                    TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+                    BOOKING_TERMINALS.BCT,
+                ),
+            ).startProcessing(processingOptions),
+        ]);
     }
 
     private setupEventListeners(): void {

@@ -29,6 +29,7 @@ import { Statuses, ErrorType, Messages } from '../data';
 import {
     BOOKING_TERMINALS,
     getBookingTerminalFromUrl,
+    isBookingTerminal,
     type BookingTerminal,
 } from '../types/terminal';
 import {
@@ -411,10 +412,19 @@ export class QueueManager implements IQueueManager {
         // Step 2: Fetch slots SEQUENTIALLY per (date, slotType) (avoids rate limit from parallel bursts)
         for (const key of subscriptionKeys) {
             const [terminalKey, date, slotTypeStr] = key.split('|');
-            const terminal =
-                terminalKey === BOOKING_TERMINALS.BCT
-                    ? BOOKING_TERMINALS.BCT
-                    : BOOKING_TERMINALS.DCT;
+            const terminal = isBookingTerminal(terminalKey)
+                ? terminalKey
+                : this.getManagerTerminal();
+            if (!isBookingTerminal(terminalKey)) {
+                consoleErrorWithContext(
+                    this.getLogContext(terminal),
+                    'Invalid subscription terminal key, falling back to manager terminal',
+                    {
+                        subscriptionKey: key,
+                        storageKey: this.config.storageKey,
+                    },
+                );
+            }
             const slotType = slotTypeStr ? parseInt(slotTypeStr, 10) : 1;
             const requests = subscriptions.get(key);
             if (!requests) {
@@ -823,7 +833,27 @@ export class QueueManager implements IQueueManager {
     }
 
     private resolveRequestTerminal(req: RetryObject): BookingTerminal {
-        return req.terminal || getBookingTerminalFromUrl(req.url) || BOOKING_TERMINALS.DCT;
+        if (req.terminal) {
+            return req.terminal;
+        }
+
+        const terminalFromUrl = getBookingTerminalFromUrl(req.url);
+        if (terminalFromUrl) {
+            return terminalFromUrl;
+        }
+
+        const managerTerminal = this.getManagerTerminal();
+        consoleErrorWithContext(
+            this.getLogContext(managerTerminal),
+            'Missing request terminal metadata, falling back to manager terminal',
+            {
+                requestId: req.id,
+                url: req.url,
+                storageKey: this.config.storageKey,
+            },
+        );
+
+        return managerTerminal;
     }
 
     private async markRequestUnauthorized(req: RetryObject): Promise<void> {
