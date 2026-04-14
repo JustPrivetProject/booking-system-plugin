@@ -29,26 +29,26 @@ drop index if exists public.analytics_events_created_at_idx;
 drop index if exists public.analytics_events_user_email_created_at_idx;
 drop index if exists public.analytics_events_event_name_created_at_idx;
 drop index if exists public.analytics_events_environment_created_at_idx;
+drop index if exists public.analytics_events_environment_created_at_desc_idx;
 drop index if exists public.analytics_events_terminal_created_at_idx;
 
 create table if not exists public.analytics_events (
     created_at timestamptz not null default now(),
     user_email text not null,
-    environment text not null check (environment in ('dev', 'prod')),
     extension_version text not null,
     feature_area text not null check (feature_area in ('booking', 'container_monitor')),
     terminal text not null check (terminal in ('DCT', 'BCT', 'GCT')),
     action text not null check (action in ('container_added', 'booking_success'))
 );
 
+alter table public.analytics_events
+    drop column if exists environment;
+
 create index if not exists analytics_events_created_at_desc_idx
     on public.analytics_events (created_at desc);
 
 create index if not exists analytics_events_user_email_created_at_desc_idx
     on public.analytics_events (user_email, created_at desc);
-
-create index if not exists analytics_events_environment_created_at_desc_idx
-    on public.analytics_events (environment, created_at desc);
 
 create index if not exists analytics_events_feature_terminal_created_at_desc_idx
     on public.analytics_events (feature_area, terminal, created_at desc);
@@ -89,34 +89,31 @@ from public.analytics_events
 group by 1, 2, 3, 4
 order by 1 desc, 2, 3, 4;
 
--- Booking successes by terminal and environment
+-- Booking successes by terminal
 select
-    environment,
     terminal,
     count(*) as booking_successes,
     count(distinct user_email) as users
 from public.analytics_events
 where feature_area = 'booking'
   and action = 'booking_success'
-group by 1, 2
-order by 1, 2;
+group by 1
+order by 1;
 
 -- Container additions split by booking tabs vs Monitor Kontenerow
 select
-    environment,
     feature_area,
     terminal,
     count(*) as containers_added
 from public.analytics_events
 where action = 'container_added'
-group by 1, 2, 3
-order by 1, 2, 3;
+group by 1, 2
+order by 1, 2;
 
 -- Recent activity feed
 select
     created_at,
     user_email,
-    environment,
     feature_area,
     terminal,
     action

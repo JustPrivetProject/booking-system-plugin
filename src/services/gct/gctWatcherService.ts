@@ -400,7 +400,7 @@ export class GctWatcherService {
         }
 
         await this.saveGroups(nextGroups);
-        void analyticsService.trackContainerAdded('booking', 'GCT');
+        await analyticsService.trackContainerAdded('booking', 'GCT');
         const nextState = await this.getState();
         await this.ensureSchedules();
         return nextState;
@@ -1072,7 +1072,7 @@ export class GctWatcherService {
             await this.persistGroup(groupClone);
 
             if (shouldStopGroup) {
-                void analyticsService.trackBookingSuccess('GCT');
+                await analyticsService.trackBookingSuccess('GCT');
                 await notificationService.sendBookingSuccessNotifications(
                     buildSuccessNotificationPayload(
                         groupClone,

@@ -121,6 +121,14 @@ describe('GctWatcherService', () => {
         (getNowInGctTimezone as jest.Mock).mockReturnValue('2026-03-17 10:00');
         (matchesCurrentBooking as jest.Mock).mockReturnValue(false);
         (buildBookPayload as jest.Mock).mockImplementation(slot => slot);
+        (
+            require('../../../../src/services/analyticsService').analyticsService
+                .trackContainerAdded as jest.Mock
+        ).mockResolvedValue(undefined);
+        (
+            require('../../../../src/services/analyticsService').analyticsService
+                .trackBookingSuccess as jest.Mock
+        ).mockResolvedValue(undefined);
 
         Object.defineProperty(globalThis, 'crypto', {
             value: {

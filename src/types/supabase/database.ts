@@ -7,7 +7,6 @@ export interface Database {
                 Row: {
                     created_at: string;
                     user_email: string;
-                    environment: 'dev' | 'prod';
                     extension_version: string;
                     feature_area: 'booking' | 'container_monitor';
                     terminal: 'DCT' | 'BCT' | 'GCT';
@@ -16,7 +15,6 @@ export interface Database {
                 Insert: {
                     created_at?: string;
                     user_email: string;
-                    environment: 'dev' | 'prod';
                     extension_version: string;
                     feature_area: 'booking' | 'container_monitor';
                     terminal: 'DCT' | 'BCT' | 'GCT';
@@ -25,7 +23,6 @@ export interface Database {
                 Update: {
                     created_at?: string;
                     user_email?: string;
-                    environment?: 'dev' | 'prod';
                     extension_version?: string;
                     feature_area?: 'booking' | 'container_monitor';
                     terminal?: 'DCT' | 'BCT' | 'GCT';

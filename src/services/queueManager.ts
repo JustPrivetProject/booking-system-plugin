@@ -144,7 +144,7 @@ export class QueueManager implements IQueueManager {
                 `Item added to ${this.config.storageKey}:`,
                 newItem,
             );
-            void analyticsService.trackContainerAdded('booking', terminal);
+            await analyticsService.trackContainerAdded('booking', terminal);
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -705,7 +705,7 @@ export class QueueManager implements IQueueManager {
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
                 await this.updateQueueItem(req.id, updatedReq);
                 if (updatedReq.status === Statuses.SUCCESS) {
-                    void analyticsService.trackBookingSuccess(
+                    await analyticsService.trackBookingSuccess(
                         updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
                     );
                 }

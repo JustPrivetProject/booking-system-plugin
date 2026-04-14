@@ -138,6 +138,8 @@ describe('QueueManager', () => {
         mockSetTerminalStorageValue = setTerminalStorageValue;
         mockTrackContainerAdded = analyticsService.trackContainerAdded;
         mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
+        mockTrackContainerAdded.mockResolvedValue(undefined);
+        mockTrackBookingSuccess.mockResolvedValue(undefined);
 
         // Restore normalizeFormData implementation after clearAllMocks
         normalizeFormData.mockImplementation((body: any) => {
@@ -189,6 +191,35 @@ describe('QueueManager', () => {
                 testQueue: [mockRetryObject],
             });
             expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT);
+        });
+
+        it('should wait for container-added analytics before resolving addToQueue', async () => {
+            mockGetStorage.mockResolvedValue({ testQueue: [] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            let resolveAnalytics: () => void = () => undefined;
+            mockTrackContainerAdded.mockImplementation(
+                () =>
+                    new Promise<void>(resolve => {
+                        resolveAnalytics = resolve;
+                    }),
+            );
+
+            let settled = false;
+            const addPromise = queueManager.addToQueue(mockRetryObject).then(result => {
+                settled = true;
+                return result;
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT);
+            expect(settled).toBe(false);
+
+            resolveAnalytics();
+            await addPromise;
+
+            expect(settled).toBe(true);
         });
 
         it('should track BCT container additions with the BCT terminal', async () => {
@@ -573,6 +604,35 @@ describe('QueueManager', () => {
             // Verify that item was updated
             expect(mockSetStorage).toHaveBeenCalled();
             expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
+        });
+
+        it('should wait for booking-success analytics before finishing a successful process cycle', async () => {
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            let resolveAnalytics: () => void = () => undefined;
+            mockTrackBookingSuccess.mockImplementation(
+                () =>
+                    new Promise<void>(resolve => {
+                        resolveAnalytics = resolve;
+                    }),
+            );
+
+            queueManager.startProcessing({
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
+            expect(queueManager.getProcessingState().processedCount).toBe(0);
+
+            resolveAnalytics();
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(queueManager.getProcessingState().processedCount).toBe(1);
         });
 
         it('should keep request in queue when slot is not available', async () => {

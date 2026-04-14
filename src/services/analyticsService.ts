@@ -5,7 +5,6 @@ import { authService } from './authService';
 import { sessionService } from './sessionService';
 import { supabase } from './supabaseClient';
 
-type AnalyticsEnvironment = 'dev' | 'prod';
 type AnalyticsFeatureArea = 'booking' | 'container_monitor';
 type AnalyticsTerminal = 'DCT' | 'BCT' | 'GCT';
 type AnalyticsAction = 'container_added' | 'booking_success';
@@ -13,7 +12,6 @@ type AnalyticsAction = 'container_added' | 'booking_success';
 interface AnalyticsEventRow {
     created_at: string;
     user_email: string;
-    environment: AnalyticsEnvironment;
     extension_version: string;
     feature_area: AnalyticsFeatureArea;
     terminal: AnalyticsTerminal;
@@ -27,8 +25,16 @@ interface TrackActivityInput {
     userEmail?: string;
 }
 
-function getEnvironment(): AnalyticsEnvironment {
-    return process.env.NODE_ENV === 'production' ? 'prod' : 'dev';
+function stringifyForLog(value: unknown): string {
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch {
+        return String(value);
+    }
 }
 
 function getExtensionVersion(): string {
@@ -137,7 +143,6 @@ export const analyticsService = {
             const row: AnalyticsEventRow = {
                 created_at: new Date().toISOString(),
                 user_email: resolvedUserEmail,
-                environment: getEnvironment(),
                 extension_version: getExtensionVersion(),
                 feature_area: featureArea,
                 terminal: normalizedTerminal,
@@ -146,17 +151,23 @@ export const analyticsService = {
 
             const { error } = await supabase.from('analytics_events').insert([row]);
             if (error) {
-                consoleError('Failed to track analytics event:', {
-                    action,
-                    code: error.code,
-                    details: error.details,
-                    hint: error.hint,
-                    message: error.message,
-                    row,
-                });
+                consoleError(
+                    'Failed to track analytics event:',
+                    stringifyForLog({
+                        action,
+                        code: error.code,
+                        details: error.details,
+                        hint: error.hint,
+                        message: error.message,
+                        row,
+                    }),
+                );
             }
         } catch (error) {
-            consoleError('Analytics tracking failed:', error);
+            consoleError(
+                'Analytics tracking failed:',
+                error instanceof Error ? error : stringifyForLog(error),
+            );
         }
     },
 

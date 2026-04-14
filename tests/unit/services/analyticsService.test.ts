@@ -34,7 +34,6 @@ describe('analyticsService', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        process.env.NODE_ENV = 'development';
         mockSupabase.auth.getSession.mockResolvedValue({
             data: { session: { access_token: 'test-token' } },
             error: null,
@@ -71,7 +70,6 @@ describe('analyticsService', () => {
         expect(insert).toHaveBeenCalledWith([
             expect.objectContaining({
                 user_email: 'user@example.com',
-                environment: 'dev',
                 extension_version: '3.0.5',
                 feature_area: 'booking',
                 terminal: 'BCT',
