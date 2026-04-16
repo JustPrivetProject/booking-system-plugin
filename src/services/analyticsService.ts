@@ -7,7 +7,7 @@ import { supabase } from './supabaseClient';
 
 type AnalyticsFeatureArea = 'booking' | 'container_monitor';
 type AnalyticsTerminal = 'DCT' | 'BCT' | 'GCT';
-type AnalyticsAction = 'container_added' | 'booking_success';
+type AnalyticsAction = 'container_added' | 'slot_added' | 'booking_success';
 
 interface AnalyticsEventRow {
     created_at: string;
@@ -16,6 +16,7 @@ interface AnalyticsEventRow {
     feature_area: AnalyticsFeatureArea;
     terminal: AnalyticsTerminal;
     action: AnalyticsAction;
+    container_key?: string | null;
 }
 
 interface TrackActivityInput {
@@ -23,6 +24,12 @@ interface TrackActivityInput {
     terminal: AnalyticsTerminal | BookingTerminal | null | undefined;
     action: AnalyticsAction;
     userEmail?: string;
+    containerNumber?: string | null;
+}
+
+interface TrackEventOptions {
+    userEmail?: string;
+    containerNumber?: string | null;
 }
 
 function stringifyForLog(value: unknown): string {
@@ -104,12 +111,52 @@ async function hasSupabaseAuthSession(): Promise<boolean> {
     }
 }
 
+function normalizeContainerNumber(containerNumber?: string | null): string | null {
+    if (!containerNumber) {
+        return null;
+    }
+
+    const normalized = containerNumber.trim().toUpperCase().replace(/\s+/g, '');
+    return normalized.length > 0 ? normalized : null;
+}
+
+function toHexString(bytes: Uint8Array): string {
+    return Array.from(bytes)
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+async function buildContainerKey(containerNumber?: string | null): Promise<string | null> {
+    const normalized = normalizeContainerNumber(containerNumber);
+    if (!normalized) {
+        return null;
+    }
+
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) {
+        return null;
+    }
+
+    try {
+        const payload = new TextEncoder().encode(normalized);
+        const digest = await subtle.digest('SHA-256', payload);
+        return toHexString(new Uint8Array(digest));
+    } catch (error) {
+        consoleError(
+            'Failed to hash analytics container key:',
+            error instanceof Error ? error : stringifyForLog(error),
+        );
+        return null;
+    }
+}
+
 export const analyticsService = {
     async trackActivity({
         featureArea,
         terminal,
         action,
         userEmail,
+        containerNumber,
     }: TrackActivityInput): Promise<void> {
         try {
             const resolvedUserEmail = await resolveUserEmail(userEmail);
@@ -140,6 +187,8 @@ export const analyticsService = {
                 return;
             }
 
+            const containerKey = await buildContainerKey(containerNumber);
+
             const row: AnalyticsEventRow = {
                 created_at: new Date().toISOString(),
                 user_email: resolvedUserEmail,
@@ -149,7 +198,12 @@ export const analyticsService = {
                 action,
             };
 
+            if (containerKey) {
+                row.container_key = containerKey;
+            }
+
             const { error } = await supabase.from('analytics_events').insert([row]);
+
             if (error) {
                 consoleError(
                     'Failed to track analytics event:',
@@ -174,25 +228,47 @@ export const analyticsService = {
     async trackContainerAdded(
         featureArea: AnalyticsFeatureArea,
         terminal: AnalyticsTerminal | BookingTerminal | null,
-        userEmail?: string,
+        options: TrackEventOptions = {},
     ): Promise<void> {
+        const { userEmail, containerNumber } = options;
+
         await this.trackActivity({
             featureArea,
             terminal,
             action: 'container_added',
             userEmail,
+            containerNumber,
         });
     },
 
     async trackBookingSuccess(
         terminal: AnalyticsTerminal | BookingTerminal | null,
-        userEmail?: string,
+        options: TrackEventOptions = {},
     ): Promise<void> {
+        const { userEmail, containerNumber } = options;
+
         await this.trackActivity({
             featureArea: 'booking',
             terminal,
             action: 'booking_success',
             userEmail,
+            containerNumber,
+        });
+    },
+
+    async trackSlotAdded(
+        featureArea: AnalyticsFeatureArea,
+        terminal: AnalyticsTerminal | BookingTerminal | null,
+        options: TrackEventOptions = {},
+    ): Promise<void> {
+        const { userEmail, containerNumber } = options;
+
+        await this.trackActivity({
+            featureArea,
+            terminal,
+            action: 'slot_added',
+            userEmail,
+            containerNumber,
         });
     },
 };

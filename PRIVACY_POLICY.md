@@ -29,7 +29,9 @@ We **do not**:
 - Sell user data.
 - Track users across different websites.
 
-For usage analytics, we may store the authenticated account email together with event metadata such as extension environment (`dev` or `prod`), extension version, active tab, booking terminal, action type, and normalized success or error categories.
+For usage analytics, we may store the authenticated account email together with event metadata such as extension version, feature area, terminal, and action type (for example `container_added`, `slot_added`, and `booking_success`).
+
+For container-level reporting, we may additionally store a one-way hashed container key derived from a normalized container number. We do not store raw container identifiers in analytics events.
 
 ## 4. Data Retention and Security
 

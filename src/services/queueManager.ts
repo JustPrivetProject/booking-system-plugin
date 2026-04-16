@@ -144,7 +144,9 @@ export class QueueManager implements IQueueManager {
                 `Item added to ${this.config.storageKey}:`,
                 newItem,
             );
-            await analyticsService.trackContainerAdded('booking', terminal);
+            await analyticsService.trackSlotAdded('booking', terminal, {
+                containerNumber: newItem.containerNumber,
+            });
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -707,6 +709,9 @@ export class QueueManager implements IQueueManager {
                 if (updatedReq.status === Statuses.SUCCESS) {
                     await analyticsService.trackBookingSuccess(
                         updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
+                        {
+                            containerNumber: updatedReq.containerNumber,
+                        },
                     );
                 }
                 this.processingState.processedCount++;

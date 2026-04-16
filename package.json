@@ -1,6 +1,6 @@
 {
     "name": "booking-system-plugin",
-    "version": "3.0.12",
+    "version": "3.0.13",
     "description": "",
     "main": "index.js",
     "scripts": {
@@ -33,7 +33,7 @@
         "version": "npm run sync:manifest-version",
         "prepare": "husky"
     },
-    "author": "Ilya Murashka",
+    "author": "Kris Rozmyslowicz",
     "license": "ISC",
     "devDependencies": {
         "@testing-library/jest-dom": "^6.4.2",

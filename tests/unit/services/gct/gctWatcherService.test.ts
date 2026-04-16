@@ -36,6 +36,7 @@ jest.mock('../../../../src/utils/badge', () => ({
 jest.mock('../../../../src/services/analyticsService', () => ({
     analyticsService: {
         trackContainerAdded: jest.fn(),
+        trackSlotAdded: jest.fn(),
         trackBookingSuccess: jest.fn(),
     },
 }));
@@ -127,6 +128,10 @@ describe('GctWatcherService', () => {
         ).mockResolvedValue(undefined);
         (
             require('../../../../src/services/analyticsService').analyticsService
+                .trackSlotAdded as jest.Mock
+        ).mockResolvedValue(undefined);
+        (
+            require('../../../../src/services/analyticsService').analyticsService
                 .trackBookingSuccess as jest.Mock
         ).mockResolvedValue(undefined);
 
@@ -174,7 +179,14 @@ describe('GctWatcherService', () => {
         expect(
             require('../../../../src/services/analyticsService').analyticsService
                 .trackContainerAdded,
-        ).toHaveBeenCalledWith('booking', 'GCT');
+        ).toHaveBeenCalledWith('booking', 'GCT', {
+            containerNumber: 'TCLU3141931',
+        });
+        expect(
+            require('../../../../src/services/analyticsService').analyticsService.trackSlotAdded,
+        ).toHaveBeenCalledWith('booking', 'GCT', {
+            containerNumber: 'TCLU3141931',
+        });
     });
 
     it('does not create a new group when the initial login fails', async () => {
@@ -630,7 +642,9 @@ describe('GctWatcherService', () => {
         expect(
             require('../../../../src/services/analyticsService').analyticsService
                 .trackBookingSuccess,
-        ).toHaveBeenCalledWith('GCT');
+        ).toHaveBeenCalledWith('GCT', {
+            containerNumber: 'TCLU3141931',
+        });
     });
 
     it('keeps monitoring when booking verification fails', async () => {

@@ -10,7 +10,8 @@ export interface Database {
                     extension_version: string;
                     feature_area: 'booking' | 'container_monitor';
                     terminal: 'DCT' | 'BCT' | 'GCT';
-                    action: 'container_added' | 'booking_success';
+                    action: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key: string | null;
                 };
                 Insert: {
                     created_at?: string;
@@ -18,7 +19,8 @@ export interface Database {
                     extension_version: string;
                     feature_area: 'booking' | 'container_monitor';
                     terminal: 'DCT' | 'BCT' | 'GCT';
-                    action: 'container_added' | 'booking_success';
+                    action: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key?: string | null;
                 };
                 Update: {
                     created_at?: string;
@@ -26,7 +28,8 @@ export interface Database {
                     extension_version?: string;
                     feature_area?: 'booking' | 'container_monitor';
                     terminal?: 'DCT' | 'BCT' | 'GCT';
-                    action?: 'container_added' | 'booking_success';
+                    action?: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key?: string | null;
                 };
                 Relationships: [];
             };

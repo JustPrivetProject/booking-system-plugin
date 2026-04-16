@@ -107,7 +107,9 @@ describe('ContainerCheckerHandler', () => {
             expect(
                 require('../../../src/services/analyticsService').analyticsService
                     .trackContainerAdded,
-            ).toHaveBeenCalledWith('container_monitor', 'DCT');
+            ).toHaveBeenCalledWith('container_monitor', 'DCT', {
+                containerNumber: 'ABCD1234567',
+            });
             expect(result).toBeDefined();
         });
 
@@ -140,7 +142,9 @@ describe('ContainerCheckerHandler', () => {
 
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            expect(trackContainerAdded).toHaveBeenCalledWith('container_monitor', 'DCT');
+            expect(trackContainerAdded).toHaveBeenCalledWith('container_monitor', 'DCT', {
+                containerNumber: 'ABCD1234567',
+            });
             expect(settled).toBe(false);
 
             resolveAnalytics();

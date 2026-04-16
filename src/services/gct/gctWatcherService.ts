@@ -400,7 +400,15 @@ export class GctWatcherService {
         }
 
         await this.saveGroups(nextGroups);
-        await analyticsService.trackContainerAdded('booking', 'GCT');
+        if (existingGroup) {
+            await analyticsService.trackSlotAdded('booking', 'GCT', {
+                containerNumber: normalizedDraft.containerNumber,
+            });
+        } else {
+            await analyticsService.trackContainerAdded('booking', 'GCT', {
+                containerNumber: normalizedDraft.containerNumber,
+            });
+        }
         const nextState = await this.getState();
         await this.ensureSchedules();
         return nextState;
@@ -1072,7 +1080,9 @@ export class GctWatcherService {
             await this.persistGroup(groupClone);
 
             if (shouldStopGroup) {
-                await analyticsService.trackBookingSuccess('GCT');
+                await analyticsService.trackBookingSuccess('GCT', {
+                    containerNumber: groupClone.containerNumber,
+                });
                 await notificationService.sendBookingSuccessNotifications(
                     buildSuccessNotificationPayload(
                         groupClone,

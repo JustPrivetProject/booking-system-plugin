@@ -95,6 +95,25 @@ describe('analyticsService', () => {
         ]);
     });
 
+    it('inserts slot_added rows for booking slot additions', async () => {
+        mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
+
+        const insert = jest.fn().mockResolvedValue({ error: null });
+        mockSupabase.from.mockReturnValue({ insert });
+
+        await analyticsService.trackSlotAdded('booking', BOOKING_TERMINALS.DCT, {
+            containerNumber: ' msnu 2991953 ',
+        });
+
+        expect(insert).toHaveBeenCalledWith([
+            expect.objectContaining({
+                feature_area: 'booking',
+                terminal: 'DCT',
+                action: 'slot_added',
+            }),
+        ]);
+    });
+
     it('skips inserts when terminal context cannot be resolved', async () => {
         mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
 

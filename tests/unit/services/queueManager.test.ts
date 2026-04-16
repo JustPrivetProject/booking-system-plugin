@@ -73,6 +73,7 @@ jest.mock('../../../src/utils/badge', () => ({
 jest.mock('../../../src/services/analyticsService', () => ({
     analyticsService: {
         trackContainerAdded: jest.fn(),
+        trackSlotAdded: jest.fn(),
         trackBookingSuccess: jest.fn(),
     },
 }));
@@ -94,7 +95,7 @@ describe('QueueManager', () => {
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
     let mockSetTerminalStorageValue: jest.Mock;
-    let mockTrackContainerAdded: jest.Mock;
+    let mockTrackSlotAdded: jest.Mock;
     let mockTrackBookingSuccess: jest.Mock;
 
     const mockRetryObject: RetryObject = {
@@ -105,6 +106,7 @@ describe('QueueManager', () => {
         currentSlot: '2025-01-01 10:00:00',
         status: 'in-progress',
         status_message: 'Processing',
+        containerNumber: 'MSNU2991953',
         url: 'https://test.com',
         body: {
             formData: {
@@ -136,9 +138,9 @@ describe('QueueManager', () => {
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
         mockSetTerminalStorageValue = setTerminalStorageValue;
-        mockTrackContainerAdded = analyticsService.trackContainerAdded;
+        mockTrackSlotAdded = analyticsService.trackSlotAdded;
         mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
-        mockTrackContainerAdded.mockResolvedValue(undefined);
+        mockTrackSlotAdded.mockResolvedValue(undefined);
         mockTrackBookingSuccess.mockResolvedValue(undefined);
 
         // Restore normalizeFormData implementation after clearAllMocks
@@ -190,15 +192,17 @@ describe('QueueManager', () => {
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: [mockRetryObject],
             });
-            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT);
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
         });
 
-        it('should wait for container-added analytics before resolving addToQueue', async () => {
+        it('should wait for slot-added analytics before resolving addToQueue', async () => {
             mockGetStorage.mockResolvedValue({ testQueue: [] });
             mockSetStorage.mockResolvedValue(undefined);
 
             let resolveAnalytics: () => void = () => undefined;
-            mockTrackContainerAdded.mockImplementation(
+            mockTrackSlotAdded.mockImplementation(
                 () =>
                     new Promise<void>(resolve => {
                         resolveAnalytics = resolve;
@@ -213,7 +217,9 @@ describe('QueueManager', () => {
 
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT);
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
             expect(settled).toBe(false);
 
             resolveAnalytics();
@@ -241,7 +247,9 @@ describe('QueueManager', () => {
             const result = await bctQueueManager.addToQueue(bctRetryObject);
 
             expect(result).toHaveLength(1);
-            expect(mockTrackContainerAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.BCT);
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.BCT, {
+                containerNumber: 'MSNU2991953',
+            });
         });
 
         it('should not add duplicate items', async () => {
@@ -603,7 +611,9 @@ describe('QueueManager', () => {
             expect(mockExecuteRequest).toHaveBeenCalled();
             // Verify that item was updated
             expect(mockSetStorage).toHaveBeenCalled();
-            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
         });
 
         it('should wait for booking-success analytics before finishing a successful process cycle', async () => {
@@ -626,7 +636,9 @@ describe('QueueManager', () => {
 
             await new Promise(resolve => setTimeout(resolve, 50));
 
-            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
             expect(queueManager.getProcessingState().processedCount).toBe(0);
 
             resolveAnalytics();
