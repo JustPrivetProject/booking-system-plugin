@@ -46,10 +46,13 @@ describe('Popup booking markup parity', () => {
         expect(popupTs).toContain('const groupStateCache');
         expect(popupTs).toContain('await getCachedGroupStates(terminal);');
         expect(popupTs).toContain("!nextRow.classList.contains('group-row')");
-        expect(popupTs).toContain('.group-row .group-header:not(.actions)');
+        expect(popupTs).toContain(
+            '.group-row .group-header.toggle-cell, .group-row .group-header.status',
+        );
         expect(popupTs).toContain('setGroupExpandedState(groupRow, isOpen);');
         expect(popupCss).toContain('td.group-header.actions {');
         expect(popupCss).toContain('td.group-header {');
+        expect(popupCss).toContain('cursor: default;');
         expect(popupCss).toContain('cursor: pointer;');
         expect(popupCss).toContain(
             '.booking-queue-table tbody tr:not(.group-row) td:first-child {',

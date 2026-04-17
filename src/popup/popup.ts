@@ -632,7 +632,9 @@ async function updateQueueDisplay(terminal: PopupBookingTerminal = DCT_BOOKING_T
                 });
             });
         tableBody
-            .querySelectorAll<HTMLElement>('.group-row .group-header:not(.actions)')
+            .querySelectorAll<HTMLElement>(
+                '.group-row .group-header.toggle-cell, .group-row .group-header.status',
+            )
             .forEach(header => {
                 header.addEventListener('click', async event => {
                     const currentHeader = event.currentTarget as HTMLElement;
@@ -1448,18 +1450,6 @@ async function checkAuth() {
             showUnauthenticatedUI();
         }
     } else {
-        // Try auto-login if not authenticated
-        const autoLoginSuccess = await autoLoginService.performAutoLoginWithFallback([
-            DCT_BOOKING_TERMINAL,
-            BCT_BOOKING_TERMINAL,
-        ]);
-        if (autoLoginSuccess) {
-            const user = await authService.getCurrentUser();
-            if (user) {
-                showAuthenticatedUI(user);
-                return;
-            }
-        }
         showUnauthenticatedUI();
     }
 }

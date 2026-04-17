@@ -378,7 +378,7 @@ td.group-header {
     height: var(--header-row-height);
     vertical-align: middle;
     border-top: none;
-    cursor: pointer;
+    cursor: default;
 }
 
 td.group-header.actions {
@@ -389,6 +389,12 @@ td.group-header.actions {
     text-align: right;
     vertical-align: middle;
     cursor: default;
+}
+
+tr.group-row:not(.gct-group-row) td.group-header.toggle-cell,
+tr.group-row:not(.gct-group-row) td.group-header.status,
+tr.gct-group-row td.group-header.toggle-cell {
+    cursor: pointer;
 }
 
 .gct-group-actions {
