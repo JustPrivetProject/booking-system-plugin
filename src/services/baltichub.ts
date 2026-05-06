@@ -453,6 +453,10 @@ export async function validateRequestBeforeSlotCheck(
     const endTimeStr = parseDateTimeFromDMY(getFirstFormDataString(body?.SlotEnd) || '');
     const currentTimeSlot = new Date(req.currentSlot);
     const currentTime = new Date();
+    const currentSlotDeadline =
+        req.terminal === BOOKING_TERMINALS.BCT
+            ? new Date(currentTimeSlot.getTime() + 60 * 60 * 1000 + 1000)
+            : currentTimeSlot;
 
     if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTime) {
         consoleLog('❌ End time is in the past, cannot process:', tvAppId);
@@ -463,7 +467,7 @@ export async function validateRequestBeforeSlotCheck(
         };
     }
 
-    if (currentTimeSlot < currentTime) {
+    if (currentSlotDeadline < currentTime) {
         consoleLog('❌ Changing the time is no longer possible:', tvAppId);
         return {
             ...req,

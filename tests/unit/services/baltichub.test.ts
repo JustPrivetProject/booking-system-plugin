@@ -957,6 +957,70 @@ describe('Baltichub Service', () => {
             expect(result?.status).toBe(Statuses.EXPIRED);
         });
 
+        it('should allow BCT requests while the current slot hour is still in progress', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const currentHourStart = new Date();
+            currentHourStart.setMinutes(0, 0, 0);
+
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                currentSlot: currentHourStart.toISOString(),
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).toBeNull();
+        });
+
+        it('should still return EXPIRED for BCT when the current slot hour has already ended', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const previousHourStart = new Date();
+            previousHourStart.setMinutes(0, 0, 0);
+            previousHourStart.setHours(previousHourStart.getHours() - 1);
+
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                currentSlot: previousHourStart.toISOString(),
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).not.toBeNull();
+            expect(result?.status).toBe(Statuses.EXPIRED);
+        });
+
         it('should return ANOTHER_TASK when task completed in another queue', async () => {
             const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
             const {
