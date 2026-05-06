@@ -103,7 +103,9 @@ export class RequestHandler {
 
         if (hasOurHeader) {
             this.ourRequestIds.add(details.requestId);
-            this.removeCachedBody(details.requestId, details.url).catch(error => {
+            this.removeCachedBody(details.requestId, details.url, {
+                suppressMissingLog: true,
+            }).catch(error => {
                 consoleLog('Error removing cached body for extension request:', error);
             });
             this.removeCachedHeaders(details.requestId, details.url).catch(error => {
@@ -118,7 +120,11 @@ export class RequestHandler {
         });
     }
 
-    private async removeCachedBody(requestId: string, url?: string): Promise<void> {
+    private async removeCachedBody(
+        requestId: string,
+        url?: string,
+        options?: { suppressMissingLog?: boolean },
+    ): Promise<void> {
         try {
             const terminal = getBookingTerminalFromUrl(url);
 
@@ -151,7 +157,7 @@ export class RequestHandler {
                     '🗑️ Removed cacheBody (our request):',
                     JSON.stringify(removeData, null, 2),
                 );
-            } else {
+            } else if (!options?.suppressMissingLog) {
                 consoleLog('⚠️ cacheBody not found for requestId:', requestId);
             }
         } catch (error) {

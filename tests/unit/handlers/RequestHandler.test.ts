@@ -412,6 +412,37 @@ describe('RequestHandler', () => {
             expect(requestHandler['ourRequestIds'].has('test-request-1')).toBe(true);
         });
 
+        it('should suppress missing body warning during pre-send cleanup for our requests', async () => {
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://ebrama.baltichub.com/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                requestHeaders: [
+                    { name: 'x-extension-request', value: 'JustPrivetProject' },
+                    { name: 'Content-Type', value: 'application/json' },
+                ],
+            } as chrome.webRequest.OnBeforeSendHeadersDetails;
+
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+
+            requestHandler['handleRequestHeaders'](details);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(consoleLog).not.toHaveBeenCalledWith(
+                '⚠️ cacheBody not found for requestId:',
+                'test-request-1',
+            );
+            expect(consoleLog).toHaveBeenCalledWith(
+                '✅ Marked request as extension-owned:',
+                'test-request-1',
+            );
+        });
+
         it('should handle storage errors gracefully', async () => {
             const details = {
                 requestId: 'test-request-1',
