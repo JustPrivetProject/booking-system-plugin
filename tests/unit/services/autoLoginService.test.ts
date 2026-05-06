@@ -15,17 +15,8 @@ jest.mock('../../../src/utils', () => ({
     consoleError: jest.fn(),
 }));
 
-// Mock authService
-jest.mock('../../../src/services/authService', () => ({
-    authService: {
-        isAuthenticated: jest.fn(),
-        login: jest.fn(),
-    },
-}));
-
 describe('AutoLoginService', () => {
     const mockStorage = require('../../../src/utils');
-    const mockAuthService = require('../../../src/services/authService').authService;
     const dctAutoLoginKey = getAutoLoginStorageKey(BOOKING_TERMINALS.DCT);
     const bctAutoLoginKey = getAutoLoginStorageKey(BOOKING_TERMINALS.BCT);
 
@@ -216,36 +207,6 @@ describe('AutoLoginService', () => {
         });
     });
 
-    describe('performAutoLoginWithFallback', () => {
-        it('should try BCT when DCT auto-login fails', async () => {
-            const performSpy = jest
-                .spyOn(autoLoginService, 'performAutoLogin')
-                .mockResolvedValueOnce(false)
-                .mockResolvedValueOnce(true);
-
-            const result = await autoLoginService.performAutoLoginWithFallback();
-
-            expect(result).toBe(true);
-            expect(performSpy).toHaveBeenNthCalledWith(1, BOOKING_TERMINALS.DCT);
-            expect(performSpy).toHaveBeenNthCalledWith(2, BOOKING_TERMINALS.BCT);
-            performSpy.mockRestore();
-        });
-
-        it('should stop fallback after the first successful terminal', async () => {
-            const performSpy = jest
-                .spyOn(autoLoginService, 'performAutoLogin')
-                .mockResolvedValueOnce(true)
-                .mockResolvedValueOnce(false);
-
-            const result = await autoLoginService.performAutoLoginWithFallback();
-
-            expect(result).toBe(true);
-            expect(performSpy).toHaveBeenCalledTimes(1);
-            expect(performSpy).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT);
-            performSpy.mockRestore();
-        });
-    });
-
     describe('validateStoredCredentials', () => {
         it('should return true for valid credentials', async () => {
             // Mock valid encrypted data
@@ -351,98 +312,6 @@ describe('AutoLoginService', () => {
             expect(result).toBeNull();
             expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to get auto-login data:',
-                expect.any(Error),
-            );
-        });
-    });
-
-    describe('performAutoLogin', () => {
-        it('should return true when user is already authenticated', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(true);
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(true);
-            expect(mockAuthService.isAuthenticated).toHaveBeenCalled();
-        });
-
-        it('should return false when auto-login is disabled', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-            mockStorage.getStorage.mockResolvedValue({});
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false when no credentials exist', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-            mockStorage.getStorage.mockResolvedValue({});
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should attempt login with saved credentials', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-
-            // Mock encrypted credentials
-            const encryptedData = {
-                login: 'encrypted-login',
-                password: 'encrypted-password',
-                enabled: true,
-                createdAt: Date.now(),
-            };
-
-            // Mock loading credentials
-            mockStorage.getStorage.mockResolvedValue({
-                [dctAutoLoginKey]: encryptedData,
-            });
-
-            mockAuthService.login.mockResolvedValue({
-                id: 'user-123',
-                email: testCredentials.login,
-            });
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(true);
-            // Since we're using mock encrypted data, the decrypted values will be empty strings
-            expect(mockAuthService.login).toHaveBeenCalledWith('', '');
-        });
-
-        it('should return false when login fails', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-
-            // Mock encrypted credentials
-            const encryptedData = {
-                login: 'encrypted-login',
-                password: 'encrypted-password',
-                enabled: true,
-                createdAt: Date.now(),
-            };
-
-            // Mock loading credentials
-            mockStorage.getStorage.mockResolvedValue({
-                [dctAutoLoginKey]: encryptedData,
-            });
-
-            mockAuthService.login.mockResolvedValue(null);
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false on error', async () => {
-            mockAuthService.isAuthenticated.mockRejectedValue(new Error('Auth error'));
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-            expect(mockStorage.consoleError).toHaveBeenCalledWith(
-                'Auto-login failed:',
                 expect.any(Error),
             );
         });

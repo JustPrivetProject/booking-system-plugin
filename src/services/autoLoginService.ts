@@ -1,8 +1,6 @@
 import { consoleError, consoleLog, getStorage, removeStorage, setStorage } from '../utils';
 import { BOOKING_TERMINALS, type BookingTerminal } from '../types/terminal';
 
-import { authService } from './authService';
-
 export interface AutoLoginCredentials {
     login: string;
     password: string;
@@ -250,51 +248,6 @@ export const autoLoginService = {
             consoleError('Failed to get auto-login data:', error);
             return null;
         }
-    },
-
-    /**
-     * Perform automatic login using saved credentials
-     */
-    async performAutoLogin(terminal: BookingTerminal = BOOKING_TERMINALS.DCT): Promise<boolean> {
-        try {
-            // Check if user is already authenticated
-            const isAuthenticated = await authService.isAuthenticated();
-            if (isAuthenticated) {
-                return true; // Already logged in
-            }
-
-            // Check if auto-login is enabled
-            const isEnabled = await this.isEnabled(terminal);
-            if (!isEnabled) {
-                return false;
-            }
-
-            // Load saved credentials
-            const credentials = await this.loadCredentials(terminal);
-            if (!credentials) {
-                return false;
-            }
-
-            // Attempt to login
-            const user = await authService.login(credentials.login, credentials.password);
-            return !!user;
-        } catch (error) {
-            consoleError('Auto-login failed:', error);
-            return false;
-        }
-    },
-
-    async performAutoLoginWithFallback(
-        terminals: BookingTerminal[] = [BOOKING_TERMINALS.DCT, BOOKING_TERMINALS.BCT],
-    ): Promise<boolean> {
-        for (const terminal of terminals) {
-            const success = await this.performAutoLogin(terminal);
-            if (success) {
-                return true;
-            }
-        }
-
-        return false;
     },
 
     /**
