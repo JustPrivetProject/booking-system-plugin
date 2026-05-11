@@ -83,6 +83,14 @@ module.exports = env => {
                         from: manifestPath,
                         to: 'manifest.json',
                     },
+                    {
+                        from: 'README.md',
+                        to: 'README.md',
+                    },
+                    {
+                        from: 'PRIVACY_POLICY.md',
+                        to: 'PRIVACY_POLICY.md',
+                    },
                 ],
             }),
             new Dotenv(),
