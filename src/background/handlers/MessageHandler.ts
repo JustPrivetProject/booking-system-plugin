@@ -5,7 +5,8 @@ import { getDriverNameAndContainer } from '../../services/baltichub';
 import { errorLogService } from '../../services/errorLogService';
 import { featureAccessService } from '../../services/featureAccessService';
 import type { FeatureKey } from '../../services/featureAccessService';
-import type { QueueManagerAdapter } from '../../services/queueManagerAdapter';
+import { isFeatureKey } from '../../services/featureAccessService';
+import { QueueManagerAdapter } from '../../services/queueManagerAdapter';
 import { sessionService } from '../../services/sessionService';
 import type {
     RequestCacheHeaderBody,
@@ -16,18 +17,30 @@ import type {
 } from '../../types/index';
 import type { RequestCacheBodes, RequestCacheHeaders } from '../../types/baltichub';
 import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    isBookingTerminal,
+    type BookingTerminal,
+} from '../../types/terminal';
+import {
     consoleLog,
     consoleError,
-    getLastProperty,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     normalizeFormData,
     getFirstFormDataString,
-    getPropertyById,
     getLogsFromSession,
     clearLogsInSession,
     getLocalStorageData,
     consoleLogWithoutSave,
 } from '../../utils';
-import { getOrCreateDeviceId, getStorage, setStorage } from '../../utils/storage';
+import {
+    getOrCreateDeviceId,
+    getStorage,
+    getTerminalStorageKey,
+    setStorage,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../../utils/storage';
 import { ContainerCheckerHandler, type ContainerCheckerMessage } from './ContainerCheckerHandler';
 import { GctHandler, type GctMessage } from './GctHandler';
 
@@ -40,6 +53,7 @@ interface BackgroundMessageData {
     status_message?: string;
     description?: string | null;
     featureKey?: string;
+    terminal?: string;
 }
 
 interface HandlerMessage {
@@ -64,6 +78,39 @@ interface AuthAttemptPayload {
     success?: boolean;
 }
 
+const REQUEST_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const EXTENSION_URL_PROTOCOLS = ['chrome-extension://', 'moz-extension://'] as const;
+
+const TERMINAL_TABLE_COLUMN_ALIASES: Record<
+    BookingTerminal,
+    {
+        id: string[];
+        selectedDate: string[];
+        start: string[];
+        containerNumber: string[];
+        status: string[];
+    }
+> = {
+    [BOOKING_TERMINALS.DCT]: {
+        id: [TABLE_DATA_NAMES.ID],
+        selectedDate: [TABLE_DATA_NAMES.SELECTED_DATE],
+        start: [TABLE_DATA_NAMES.START],
+        containerNumber: [TABLE_DATA_NAMES.CONTAINER_NUMBER],
+        status: [TABLE_DATA_NAMES.STATUS],
+    },
+    [BOOKING_TERMINALS.BCT]: {
+        id: [TABLE_DATA_NAMES.ID, 'Nr zadania'],
+        selectedDate: [
+            'Data rozpoczęcia okna',
+            'Data wybranego przedziału czasowego',
+            TABLE_DATA_NAMES.SELECTED_DATE,
+        ],
+        start: [TABLE_DATA_NAMES.START],
+        containerNumber: [TABLE_DATA_NAMES.CONTAINER_NUMBER, 'Nr kont. / ERO/EDO'],
+        status: [TABLE_DATA_NAMES.STATUS],
+    },
+};
+
 function getAuthAttemptPayload(message: HandlerMessage): AuthAttemptPayload {
     if (!message.message || typeof message.message !== 'object') {
         return {};
@@ -74,6 +121,132 @@ function getAuthAttemptPayload(message: HandlerMessage): AuthAttemptPayload {
 
 function getTablePayload(message: HandlerMessage): TableData | null {
     return Array.isArray(message.message) ? (message.message as TableData) : null;
+}
+
+function resolveBookingTerminal(value?: string): BookingTerminal {
+    return isBookingTerminal(value) ? value : BOOKING_TERMINALS.DCT;
+}
+
+function tryResolveMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal | null {
+    if (isBookingTerminal(message.data?.terminal)) {
+        return message.data.terminal;
+    }
+
+    return getBookingTerminalFromUrl(sender?.url);
+}
+
+function resolveMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal {
+    return tryResolveMessageTerminal(message, sender) || BOOKING_TERMINALS.DCT;
+}
+
+function isExtensionSenderUrl(url?: string): boolean {
+    return !!url && EXTENSION_URL_PROTOCOLS.some(protocol => url.startsWith(protocol));
+}
+
+function resolveRequiredMessageTerminal(
+    message: HandlerMessage,
+    sender?: chrome.runtime.MessageSender,
+): BookingTerminal | null {
+    const resolvedTerminal = tryResolveMessageTerminal(message, sender);
+
+    if (resolvedTerminal) {
+        return resolvedTerminal;
+    }
+
+    if (!sender?.url || isExtensionSenderUrl(sender.url)) {
+        return BOOKING_TERMINALS.DCT;
+    }
+
+    consoleErrorWithContext(
+        getMessageHandlerLogContext(),
+        'Unable to resolve booking terminal for message',
+        {
+            action: message.action,
+            senderUrl: sender.url,
+            messageTerminal: message.data?.terminal,
+        },
+    );
+
+    return null;
+}
+
+function findTableColumnIndex(header: string[], candidates: string[]): number {
+    for (const candidate of candidates) {
+        const index = header.indexOf(candidate);
+        if (index >= 0) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+function getTableCellValue(
+    header: string[],
+    row: TableData[number],
+    candidates: string[],
+): string | undefined {
+    const columnIndex = findTableColumnIndex(header, candidates);
+
+    if (columnIndex < 0 || columnIndex >= row.length) {
+        return undefined;
+    }
+
+    const value = row[columnIndex];
+    return typeof value === 'string' ? value : undefined;
+}
+
+function buildCurrentSlotValue(
+    terminal: BookingTerminal,
+    header: string[],
+    row: TableData[number],
+): string {
+    const aliases = TERMINAL_TABLE_COLUMN_ALIASES[terminal];
+    const selectedDate = getTableCellValue(header, row, aliases.selectedDate)?.trim();
+    const start = getTableCellValue(header, row, aliases.start)?.trim();
+
+    if (selectedDate && start) {
+        return `${selectedDate} ${start}`;
+    }
+
+    if (selectedDate && /\d{1,2}:\d{2}/.test(selectedDate)) {
+        return selectedDate;
+    }
+
+    return '';
+}
+
+function getRetryQueueStorageKey(terminal: BookingTerminal): string {
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE, terminal);
+}
+
+function getUnauthorizedStorageKey(terminal: BookingTerminal): string {
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal);
+}
+
+function getTableDataStorageKey(terminal: BookingTerminal): string {
+    return terminal === BOOKING_TERMINALS.DCT ? 'tableData' : `tableData:${terminal}`;
+}
+
+function getRequestCacheBodyStorageKey(terminal: BookingTerminal): string {
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY, terminal);
+}
+
+function getRequestCacheHeadersStorageKey(terminal: BookingTerminal): string {
+    return getTerminalStorageKey(TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS, terminal);
+}
+
+function getMessageHandlerLogContext(terminal?: BookingTerminal) {
+    return {
+        scope: 'background',
+        terminal,
+    };
 }
 
 export class MessageHandler {
@@ -87,18 +260,18 @@ export class MessageHandler {
 
     handleMessage(
         message: HandlerMessage,
-        _sender: chrome.runtime.MessageSender,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): boolean {
         // Handle error and success booking actions
         if (message.action === Actions.SHOW_ERROR || message.action === Actions.SUCCEED_BOOKING) {
-            this.handleBookingAction(message, sendResponse);
+            this.handleBookingAction(message, sender, sendResponse);
             return true;
         }
 
         // Handle table parsing
         if (message.action === Actions.PARSED_TABLE) {
-            this.handleTableParsing(message, sendResponse);
+            this.handleTableParsing(message, sender, sendResponse);
             return true;
         }
 
@@ -109,28 +282,28 @@ export class MessageHandler {
         }
 
         if (message.action === Actions.GET_AUTH_STATUS) {
-            this.handleAuthStatusCheck(sendResponse);
+            this.handleAuthStatusCheck(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.LOGIN_SUCCESS) {
-            this.handleLoginSuccess(message, sendResponse);
+            this.handleLoginSuccess(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.AUTO_LOGIN_ATTEMPT) {
-            this.handleAutoLoginAttempt(message, sendResponse);
+            this.handleAutoLoginAttempt(message, sender, sendResponse);
             return true;
         }
 
         // Handle auto-login related actions
         if (message.action === Actions.LOAD_AUTO_LOGIN_CREDENTIALS) {
-            this.handleLoadAutoLoginCredentials(sendResponse);
+            this.handleLoadAutoLoginCredentials(message, sender, sendResponse);
             return true;
         }
 
         if (message.action === Actions.IS_AUTO_LOGIN_ENABLED) {
-            this.handleAutoLoginEnabledCheck(sendResponse);
+            this.handleAutoLoginEnabledCheck(message, sender, sendResponse);
             return true;
         }
 
@@ -153,29 +326,52 @@ export class MessageHandler {
 
     private async handleBookingAction(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
-        consoleLog('Getting request from Cache...');
-
         try {
-            const data = await getStorage('requestCacheHeaders');
+            const terminal = resolveRequiredMessageTerminal(message, sender);
+            if (!terminal) {
+                sendResponse({ success: false, error: 'Unable to resolve booking terminal' });
+                return;
+            }
+            consoleLogWithContext(
+                getMessageHandlerLogContext(terminal),
+                'Getting request from cache...',
+            );
+            const requestCacheHeadersKey = getRequestCacheHeadersStorageKey(terminal);
+            const data = (await getStorage(requestCacheHeadersKey)) as Record<string, unknown>;
             const user = await authService.getCurrentUser();
 
             if (!user) {
-                consoleLog('User is not authenticated, cant add Container!');
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    'User is not authenticated, cannot add container',
+                );
                 sendResponse({ success: true, error: 'Not authorized' });
                 return;
             }
 
-            if (data.requestCacheHeaders) {
+            const requestCacheHeaders = data[requestCacheHeadersKey] as
+                | RequestCacheHeaders
+                | undefined;
+
+            if (requestCacheHeaders) {
                 await this.processCachedRequest(
-                    { requestCacheHeaders: data.requestCacheHeaders },
+                    { requestCacheHeaders },
                     message,
                     sendResponse,
+                    terminal,
                 );
             }
         } catch (error) {
-            consoleError('Error in handleBookingAction:', error);
+            consoleErrorWithContext(
+                getMessageHandlerLogContext(
+                    resolveRequiredMessageTerminal(message, sender) || undefined,
+                ),
+                'Error in handleBookingAction:',
+                error,
+            );
             sendResponse({
                 success: false,
                 error: 'Failed to process booking action',
@@ -187,119 +383,111 @@ export class MessageHandler {
         data: CachedHeadersPayload,
         message: HandlerMessage,
         sendResponse: SendResponse,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
     ): Promise<void> {
-        // Use the same requestId for both headers and body to avoid mismatch
-        // Get the last requestId (most recent) to match with getLastProperty
-        const requestIds = Object.keys(data.requestCacheHeaders || {});
-
-        if (requestIds.length === 0) {
-            consoleLog('No requestId found in cache headers');
-            sendResponse({ success: false, error: 'No cached request found' });
-            return;
-        }
-
-        // Get the most recent requestId (last in object, which should be the most recent)
-        const requestId = requestIds[requestIds.length - 1];
-
-        // Get headers for the selected requestId
-        const requestCacheHeaders: RequestCacheHeaderBody | null = getLastProperty(
-            data.requestCacheHeaders || {},
-        );
-
-        // Validate that the cached request is not too old (more than 5 minutes)
-        if (requestCacheHeaders) {
-            const cacheAge = Date.now() - requestCacheHeaders.timestamp;
-            const maxCacheAge = 5 * 60 * 1000; // 5 minutes
-
-            if (cacheAge > maxCacheAge) {
-                consoleLog(
-                    '⚠️ Cached request is too old:',
-                    `requestId=${requestId}`,
-                    `Age=${Math.round(cacheAge / 1000)}s`,
-                    `Max age=${maxCacheAge / 1000}s`,
-                    `Will process anyway, but this might be stale`,
-                );
-            } else {
-                consoleLog(
-                    '✅ Cached request age is acceptable:',
-                    `requestId=${requestId}`,
-                    `Age=${Math.round(cacheAge / 1000)}s`,
-                );
-            }
-        }
-
-        consoleLog(
-            '📦 Processing cached request:',
-            `requestId=${requestId}`,
-            `Total cached requests=${requestIds.length}`,
-            `Cache headers keys=${requestIds.join(', ')}`,
-            `Selected requestId=${requestId} (last in cache)`,
-            `⚠️ IMPORTANT: Verifying this is the correct request`,
-        );
-
         try {
-            if (!requestCacheHeaders) {
-                throw new Error('No cached request headers found');
+            const requestCacheBodyKey = getRequestCacheBodyStorageKey(terminal);
+            const retryQueueKey = getRetryQueueStorageKey(terminal);
+            const tableDataKey = getTableDataStorageKey(terminal);
+            const storageData = (await getStorage([
+                requestCacheBodyKey,
+                retryQueueKey,
+                'testEnv',
+                tableDataKey,
+            ])) as Record<string, unknown> & RetryObjectContext;
+
+            const retryQueue = (storageData[retryQueueKey] as RetryObject[] | undefined) || [];
+            const tableData = (storageData[tableDataKey] as TableData | undefined) || undefined;
+            const requestCacheBodyMap =
+                (storageData[requestCacheBodyKey] as RequestCacheBodes | undefined) ||
+                ({} as RequestCacheBodes);
+            const requestCacheHeadersMap = data.requestCacheHeaders || {};
+
+            const staleRequestIds = this.getExpiredCachedRequestIds(
+                requestCacheHeadersMap,
+                requestCacheBodyMap,
+            );
+
+            if (staleRequestIds.length > 0) {
+                await this.removeCachedRequests(staleRequestIds, terminal);
             }
 
-            const storageData = (await getStorage([
-                'requestCacheBody',
-                'retryQueue',
-                'testEnv',
-                'tableData',
-            ])) as RetryObjectContext & { requestCacheBody?: RequestCacheBodes };
-
-            const cachedBodyKeys = Object.keys(storageData.requestCacheBody || {});
-            consoleLog(
-                '📦 Cache state:',
-                `requestId=${requestId}`,
-                `Cached body keys=${cachedBodyKeys.join(', ')}`,
-                `Total cached bodies=${cachedBodyKeys.length}`,
+            const latestRequest = this.selectLatestCachedRequest(
+                requestCacheHeadersMap,
+                requestCacheBodyMap,
             );
 
-            const cachedBodies: RequestCacheBodes =
-                storageData.requestCacheBody ?? ({} as RequestCacheBodes);
-            const requestCacheBody: RequestCacheBodyObject | null = getPropertyById(
-                cachedBodies,
-                requestId,
-            );
+            if (!latestRequest) {
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    'No matching cached request found after cache cleanup',
+                );
+                sendResponse({ success: false, error: 'No cached request found' });
+                return;
+            }
+
+            const { requestId, requestCacheBody, requestCacheHeaders } = latestRequest;
 
             if (requestCacheBody) {
                 const retryObject = await this.createRetryObject(
                     requestCacheBody,
                     requestCacheHeaders,
-                    storageData as RetryObjectContext,
+                    {
+                        ...storageData,
+                        tableData,
+                        requestCacheBody: requestCacheBodyMap,
+                        retryQueue,
+                    } as RetryObjectContext,
                     message.action,
+                    terminal,
                 );
 
-                await this.queueManager.addToQueue(retryObject);
+                await this.getQueueManagerForTerminal(terminal).addToQueue(retryObject);
 
                 // Remove only the processed request from cache, not all
-                await this.removeCachedRequest(requestId);
+                await this.removeCachedRequest(requestId, terminal);
 
-                consoleLog(
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '✅ Successfully processed and removed from cache:',
                     `requestId=${requestId}`,
                 );
             } else {
-                consoleLog(
+                const cachedBodyKeys = Object.keys(requestCacheBodyMap);
+                consoleLogWithContext(
+                    getMessageHandlerLogContext(terminal),
                     '⚠️ No data in cache object for requestId:',
                     requestId,
                     `Available body keys=${cachedBodyKeys.join(', ')}`,
                 );
                 // Remove the requestId from headers cache even if body is missing
-                await this.removeCachedRequest(requestId);
+                await this.removeCachedRequest(requestId, terminal);
             }
 
             sendResponse({ success: true });
         } catch (error) {
-            consoleError('❌ Error in processCachedRequest:', error);
+            consoleErrorWithContext(
+                getMessageHandlerLogContext(terminal),
+                '❌ Error in processCachedRequest:',
+                error,
+            );
             // Try to clean up the failed request from cache
             try {
-                await this.removeCachedRequest(requestId);
-                consoleLog('🧹 Cleaned up failed request from cache:', requestId);
+                const requestIds = Object.keys(data.requestCacheHeaders || {});
+                if (requestIds.length > 0) {
+                    await this.removeCachedRequest(requestIds[requestIds.length - 1], terminal);
+                    consoleLogWithContext(
+                        getMessageHandlerLogContext(terminal),
+                        '🧹 Cleaned up failed request from cache:',
+                        requestIds[requestIds.length - 1],
+                    );
+                }
             } catch (cleanupError) {
-                consoleError('❌ Error cleaning up failed request:', cleanupError);
+                consoleErrorWithContext(
+                    getMessageHandlerLogContext(terminal),
+                    '❌ Error cleaning up failed request:',
+                    cleanupError,
+                );
             }
             sendResponse({
                 success: false,
@@ -308,19 +496,100 @@ export class MessageHandler {
         }
     }
 
+    private getExpiredCachedRequestIds(
+        requestCacheHeaders: RequestCacheHeaders,
+        requestCacheBodyMap: RequestCacheBodes,
+    ): string[] {
+        const now = Date.now();
+        const requestIds = new Set([
+            ...Object.keys(requestCacheHeaders),
+            ...Object.keys(requestCacheBodyMap),
+        ]);
+
+        return Array.from(requestIds).filter(requestId => {
+            const headerTimestamp = requestCacheHeaders[requestId]?.timestamp ?? 0;
+            const bodyTimestamp = requestCacheBodyMap[requestId]?.timestamp ?? 0;
+            const latestTimestamp = Math.max(headerTimestamp, bodyTimestamp);
+
+            return latestTimestamp > 0 && now - latestTimestamp > REQUEST_CACHE_MAX_AGE_MS;
+        });
+    }
+
+    private selectLatestCachedRequest(
+        requestCacheHeaders: RequestCacheHeaders,
+        requestCacheBodyMap: RequestCacheBodes,
+    ): {
+        requestId: string;
+        requestCacheHeaders: RequestCacheHeaderBody;
+        requestCacheBody: RequestCacheBodyObject;
+    } | null {
+        const requestIds = Object.keys(requestCacheHeaders)
+            .filter(requestId => Boolean(requestCacheBodyMap[requestId]))
+            .sort((left, right) => {
+                const leftTimestamp = Math.max(
+                    requestCacheHeaders[left]?.timestamp ?? 0,
+                    requestCacheBodyMap[left]?.timestamp ?? 0,
+                );
+                const rightTimestamp = Math.max(
+                    requestCacheHeaders[right]?.timestamp ?? 0,
+                    requestCacheBodyMap[right]?.timestamp ?? 0,
+                );
+
+                return rightTimestamp - leftTimestamp;
+            });
+
+        const requestId = requestIds[0];
+
+        if (!requestId) {
+            return null;
+        }
+
+        const requestCacheHeadersEntry = requestCacheHeaders[requestId];
+        const requestCacheBodyEntry = requestCacheBodyMap[requestId];
+
+        if (!requestCacheHeadersEntry || !requestCacheBodyEntry) {
+            return null;
+        }
+
+        return {
+            requestId,
+            requestCacheHeaders: requestCacheHeadersEntry,
+            requestCacheBody: requestCacheBodyEntry,
+        };
+    }
+
+    private async removeCachedRequests(
+        requestIds: string[],
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
+        await Promise.all(
+            requestIds.map(requestId => this.removeCachedRequest(requestId, terminal)),
+        );
+    }
+
     /**
      * Removes a specific request from cache by requestId
      * Instead of clearing all cache, removes only the processed request
      */
-    private async removeCachedRequest(requestId: string): Promise<void> {
+    private async removeCachedRequest(
+        requestId: string,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+    ): Promise<void> {
         try {
+            const requestCacheBodyKey = getRequestCacheBodyStorageKey(terminal);
+            const requestCacheHeadersKey = getRequestCacheHeadersStorageKey(terminal);
             const [bodyData, headersData] = await Promise.all([
-                getStorage('requestCacheBody'),
-                getStorage('requestCacheHeaders'),
+                getStorage(requestCacheBodyKey),
+                getStorage(requestCacheHeadersKey),
             ]);
 
-            const cacheBody: RequestCacheBodes = bodyData.requestCacheBody ?? {};
-            const cacheHeaders: RequestCacheHeaders = headersData.requestCacheHeaders ?? {};
+            const cacheBody: RequestCacheBodes =
+                ((bodyData as Record<string, unknown>)[requestCacheBodyKey] as RequestCacheBodes) ||
+                {};
+            const cacheHeaders: RequestCacheHeaders =
+                ((headersData as Record<string, unknown>)[
+                    requestCacheHeadersKey
+                ] as RequestCacheHeaders) || {};
 
             let removed = false;
 
@@ -340,8 +609,8 @@ export class MessageHandler {
 
             if (removed) {
                 await Promise.all([
-                    setStorage({ requestCacheBody: cacheBody }),
-                    setStorage({ requestCacheHeaders: cacheHeaders }),
+                    setStorage({ [requestCacheBodyKey]: cacheBody }),
+                    setStorage({ [requestCacheHeadersKey]: cacheHeaders }),
                 ]);
                 consoleLog(
                     '✅ Cache cleanup completed:',
@@ -362,6 +631,7 @@ export class MessageHandler {
         requestCacheHeaders: RequestCacheHeaderBody,
         data: RetryObjectContext,
         action?: string,
+        terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
     ): Promise<RetryObject> {
         const tableData = data.tableData;
         const retryObject: RetryObject = {
@@ -373,6 +643,7 @@ export class MessageHandler {
             endSlot: '',
             status: '',
             status_message: '',
+            terminal,
             tvAppId: '',
         };
 
@@ -382,6 +653,7 @@ export class MessageHandler {
         const driverAndContainer = (await getDriverNameAndContainer(
             tvAppId,
             data.retryQueue || [],
+            terminal,
         )) || {
             driverName: '',
             containerNumber: '',
@@ -406,29 +678,42 @@ export class MessageHandler {
         }
 
         if (tableData) {
+            const header = tableData[0] || [];
+            const columnAliases = TERMINAL_TABLE_COLUMN_ALIASES[terminal];
             let tableRow: TableData[number] | undefined;
             consoleLog('Getting table data...');
-            if (driverAndContainer.containerNumber) {
-                const containerIndex = tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER);
-                tableRow = tableData.find((row: string[]) =>
-                    row[containerIndex].includes(driverAndContainer.containerNumber),
-                );
-            } else {
-                consoleLog('Container number not found, searching by TV App ID...');
-                const idIndex = tableData[0].indexOf(TABLE_DATA_NAMES.ID);
+            const idIndex = findTableColumnIndex(header, columnAliases.id);
+            if (idIndex >= 0) {
                 tableRow = tableData.find((row: string[]) => row[idIndex].includes(tvAppId));
+            }
+
+            if (!tableRow && driverAndContainer.containerNumber) {
+                consoleLog('TV App ID row not found, searching by container number...');
+                const containerIndex = findTableColumnIndex(header, columnAliases.containerNumber);
+                if (containerIndex >= 0) {
+                    tableRow = tableData.find((row: string[]) =>
+                        row[containerIndex].includes(driverAndContainer.containerNumber),
+                    );
+                }
+            }
+
+            if (!tableRow) {
+                consoleLog('No matching table row found for tvAppId or container number:', tvAppId);
             }
             consoleLog('Row: ', tableRow);
 
             if (tableRow) {
-                const currentSlot = `${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.SELECTED_DATE)]} ${tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.START)]}`;
+                const currentSlot = buildCurrentSlotValue(terminal, header, tableRow);
                 consoleLog('Getting current slot time... :', currentSlot);
                 if (currentSlot) {
                     retryObject.currentSlot = currentSlot;
                 }
 
-                const containerNumber =
-                    tableRow[tableData[0].indexOf(TABLE_DATA_NAMES.CONTAINER_NUMBER)];
+                const containerNumber = getTableCellValue(
+                    header,
+                    tableRow,
+                    columnAliases.containerNumber,
+                );
                 if (containerNumber) {
                     retryObject.containerNumber = containerNumber;
                 }
@@ -436,18 +721,17 @@ export class MessageHandler {
                 // PUSTE status (empty container) requires type 4 for getSlots API.
                 // Fallback only: prefer slotType derived from cached formData.SlotType above.
                 if (retryObject.slotType === undefined) {
-                    const statusIndex = tableData[0].indexOf(TABLE_DATA_NAMES.STATUS);
-                    if (statusIndex >= 0 && tableRow[statusIndex]) {
-                        const statusValue = String(tableRow[statusIndex]).toUpperCase().trim();
-                        if (statusValue === 'PUSTE') {
-                            retryObject.slotType = 4;
-                            consoleLog(
-                                '🎯 slotType fallback from table status:',
-                                `tvAppId=${tvAppId}`,
-                                `status=${statusValue}`,
-                                'slotType=4',
-                            );
-                        }
+                    const statusValue = getTableCellValue(header, tableRow, columnAliases.status)
+                        ?.toUpperCase()
+                        .trim();
+                    if (statusValue === 'PUSTE') {
+                        retryObject.slotType = 4;
+                        consoleLog(
+                            '🎯 slotType fallback from table status:',
+                            `tvAppId=${tvAppId}`,
+                            `status=${statusValue}`,
+                            'slotType=4',
+                        );
                     }
                 }
             }
@@ -473,17 +757,24 @@ export class MessageHandler {
 
     private async handleTableParsing(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         try {
             const tableData = getTablePayload(message);
+            const terminal = resolveRequiredMessageTerminal(message, sender);
 
             if (!tableData) {
                 sendResponse({ success: false, error: 'Invalid table data payload' });
                 return;
             }
 
-            await setStorage({ tableData });
+            if (!terminal) {
+                sendResponse({ success: false, error: 'Unable to resolve booking terminal' });
+                return;
+            }
+
+            await setStorage({ [getTableDataStorageKey(terminal)]: tableData });
             consoleLog('Table saved in the storage', tableData);
             sendResponse({ success: true });
         } catch (error) {
@@ -505,10 +796,17 @@ export class MessageHandler {
             });
     }
 
-    private handleAuthStatusCheck(sendResponse: SendResponse): void {
-        getStorage('unauthorized')
-            .then(({ unauthorized }) => {
-                const isUnauthorized = !!unauthorized;
+    private handleAuthStatusCheck(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
+
+        getStorage(unauthorizedKey)
+            .then(data => {
+                const isUnauthorized = !!(data as Record<string, unknown>)[unauthorizedKey];
                 sendResponse({ unauthorized: isUnauthorized });
             })
             .catch(error => {
@@ -519,14 +817,17 @@ export class MessageHandler {
 
     private async handleLoginSuccess(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         const { success } = getAuthAttemptPayload(message);
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
         consoleLog('[background] LOGIN_SUCCESS:', success);
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false });
+                await setStorage({ [unauthorizedKey]: false });
                 consoleLog('[background] Manual login successful - Auth restored');
                 sendResponse({ success: true });
             } catch (error) {
@@ -544,13 +845,16 @@ export class MessageHandler {
 
     private async handleAutoLoginAttempt(
         message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
         sendResponse: SendResponse,
     ): Promise<void> {
         const { success } = getAuthAttemptPayload(message);
+        const terminal = resolveMessageTerminal(message, sender);
+        const unauthorizedKey = getUnauthorizedStorageKey(terminal);
 
         if (success) {
             try {
-                await setStorage({ unauthorized: false });
+                await setStorage({ [unauthorizedKey]: false });
                 consoleLog('[background] Auto-login successful - Auth restored');
                 sendResponse({ success: true, autoLogin: true });
             } catch (error) {
@@ -567,9 +871,15 @@ export class MessageHandler {
         }
     }
 
-    private handleLoadAutoLoginCredentials(sendResponse: SendResponse): void {
+    private handleLoadAutoLoginCredentials(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+
         autoLoginService
-            .loadCredentials()
+            .loadCredentials(terminal)
             .then(credentials => {
                 if (credentials) {
                     const isLoginValid =
@@ -594,7 +904,7 @@ export class MessageHandler {
                         consoleLog(
                             '[background] Detected corrupted auto-login credentials, clearing...',
                         );
-                        autoLoginService.clearCredentials();
+                        autoLoginService.clearCredentials(terminal);
                         sendResponse({ success: false, credentials: null });
                     }
                 } else {
@@ -604,19 +914,26 @@ export class MessageHandler {
             })
             .catch(error => {
                 consoleLog('[background] Error loading auto-login credentials:', error);
-                autoLoginService.clearCredentials();
+                autoLoginService.clearCredentials(terminal);
                 sendResponse({ success: false, error: error.message });
             });
     }
 
-    private handleAutoLoginEnabledCheck(sendResponse: SendResponse): void {
-        autoLoginService.isEnabled().then(isEnabled => {
+    private handleAutoLoginEnabledCheck(
+        message: HandlerMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: SendResponse,
+    ): void {
+        const terminal = resolveMessageTerminal(message, sender);
+
+        autoLoginService.isEnabled(terminal).then(isEnabled => {
             sendResponse({ success: true, isEnabled });
         });
     }
 
     private handleBackgroundActions(message: HandlerMessage, sendResponse: SendResponse): boolean {
         const data = message.data || {};
+        const queueManager = this.getQueueManagerForTerminal(resolveBookingTerminal(data.terminal));
 
         switch (message.action) {
             case Actions.REMOVE_REQUEST:
@@ -625,7 +942,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .removeFromQueue(data.id)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -640,7 +957,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .removeMultipleFromQueue(data.ids)
                     .then(() => sendResponse({ success: true }))
                     .catch(error => {
@@ -655,7 +972,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .updateQueueItem(data.id, {
                         status: data.status,
                         status_message: data.status_message,
@@ -676,7 +993,7 @@ export class MessageHandler {
                     return true;
                 }
 
-                this.queueManager
+                queueManager
                     .updateMultipleQueueItems(data.ids, {
                         status: data.status,
                         status_message: data.status_message,
@@ -702,6 +1019,15 @@ export class MessageHandler {
                     return true;
                 }
 
+                if (!isFeatureKey(data.featureKey)) {
+                    sendResponse({
+                        success: false,
+                        enabled: false,
+                        error: 'Invalid feature key',
+                    });
+                    return true;
+                }
+
                 featureAccessService
                     .isFeatureEnabled(data.featureKey as FeatureKey)
                     .then(enabled => sendResponse({ success: true, enabled }))
@@ -720,6 +1046,14 @@ export class MessageHandler {
                 sendResponse({ success: false });
                 return true;
         }
+    }
+
+    private getQueueManagerForTerminal(terminal: BookingTerminal): QueueManagerAdapter {
+        if (terminal === BOOKING_TERMINALS.DCT) {
+            return this.queueManager;
+        }
+
+        return QueueManagerAdapter.getInstance(getRetryQueueStorageKey(terminal));
     }
 
     private handleContainerCheckerActions(

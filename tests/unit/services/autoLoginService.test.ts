@@ -2,7 +2,9 @@ import {
     autoLoginService,
     AutoLoginCredentials,
     AutoLoginData,
+    getAutoLoginStorageKey,
 } from '../../../src/services/autoLoginService';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Mock storage utilities
 jest.mock('../../../src/utils', () => ({
@@ -13,17 +15,10 @@ jest.mock('../../../src/utils', () => ({
     consoleError: jest.fn(),
 }));
 
-// Mock authService
-jest.mock('../../../src/services/authService', () => ({
-    authService: {
-        isAuthenticated: jest.fn(),
-        login: jest.fn(),
-    },
-}));
-
 describe('AutoLoginService', () => {
     const mockStorage = require('../../../src/utils');
-    const mockAuthService = require('../../../src/services/authService').authService;
+    const dctAutoLoginKey = getAutoLoginStorageKey(BOOKING_TERMINALS.DCT);
+    const bctAutoLoginKey = getAutoLoginStorageKey(BOOKING_TERMINALS.BCT);
 
     const testCredentials: AutoLoginCredentials = {
         login: 'test@example.com',
@@ -50,7 +45,7 @@ describe('AutoLoginService', () => {
             await autoLoginService.saveCredentials(testCredentials);
 
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
-                autoLoginData: expect.objectContaining({
+                [dctAutoLoginKey]: expect.objectContaining({
                     login: expect.any(String),
                     password: expect.any(String),
                     enabled: true,
@@ -59,9 +54,24 @@ describe('AutoLoginService', () => {
             });
 
             // Verify the saved data is encrypted (not plain text)
-            const savedData = mockStorage.setStorage.mock.calls[0][0].autoLoginData;
+            const savedData = mockStorage.setStorage.mock.calls[0][0][dctAutoLoginKey];
             expect(savedData.login).not.toBe(testCredentials.login);
             expect(savedData.password).not.toBe(testCredentials.password);
+        });
+
+        it('should save BCT credentials to the BCT key only', async () => {
+            mockStorage.setStorage.mockResolvedValue(undefined);
+
+            await autoLoginService.saveCredentials(testCredentials, BOOKING_TERMINALS.BCT);
+
+            expect(mockStorage.setStorage).toHaveBeenCalledWith({
+                [bctAutoLoginKey]: expect.objectContaining({
+                    login: expect.any(String),
+                    password: expect.any(String),
+                    enabled: true,
+                    createdAt: expect.any(Number),
+                }),
+            });
         });
 
         it('should handle storage errors gracefully', async () => {
@@ -84,7 +94,7 @@ describe('AutoLoginService', () => {
             };
 
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: encryptedData,
+                [dctAutoLoginKey]: encryptedData,
             });
 
             const result = await autoLoginService.loadCredentials();
@@ -95,13 +105,13 @@ describe('AutoLoginService', () => {
                 login: '',
                 password: '',
             });
-            expect(mockStorage.getStorage).toHaveBeenCalledWith(['autoLoginData']);
+            expect(mockStorage.getStorage).toHaveBeenCalledWith([dctAutoLoginKey, 'autoLoginData']);
         });
 
         it('should return null when auto-login is disabled', async () => {
             const disabledData = { ...mockAutoLoginData, enabled: false };
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: disabledData,
+                [dctAutoLoginKey]: disabledData,
             });
 
             const result = await autoLoginService.loadCredentials();
@@ -133,7 +143,7 @@ describe('AutoLoginService', () => {
     describe('isEnabled', () => {
         it('should return true when auto-login is enabled', async () => {
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: mockAutoLoginData,
+                [dctAutoLoginKey]: mockAutoLoginData,
             });
 
             const result = await autoLoginService.isEnabled();
@@ -141,10 +151,21 @@ describe('AutoLoginService', () => {
             expect(result).toBe(true);
         });
 
+        it('should resolve BCT enabled state from the BCT key only', async () => {
+            mockStorage.getStorage.mockResolvedValue({
+                [bctAutoLoginKey]: mockAutoLoginData,
+            });
+
+            const result = await autoLoginService.isEnabled(BOOKING_TERMINALS.BCT);
+
+            expect(result).toBe(true);
+            expect(mockStorage.getStorage).toHaveBeenCalledWith([bctAutoLoginKey]);
+        });
+
         it('should return false when auto-login is disabled', async () => {
             const disabledData = { ...mockAutoLoginData, enabled: false };
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: disabledData,
+                [dctAutoLoginKey]: disabledData,
             });
 
             const result = await autoLoginService.isEnabled();
@@ -179,7 +200,10 @@ describe('AutoLoginService', () => {
 
             await autoLoginService.clearCredentials();
 
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
         });
     });
 
@@ -194,7 +218,7 @@ describe('AutoLoginService', () => {
             };
 
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: validEncryptedData,
+                [dctAutoLoginKey]: validEncryptedData,
             });
 
             const result = await autoLoginService.validateStoredCredentials();
@@ -232,7 +256,10 @@ describe('AutoLoginService', () => {
 
             await autoLoginService.clearCorruptedCredentials();
 
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
         });
 
         it('should not clear credentials when validation passes', async () => {
@@ -245,20 +272,23 @@ describe('AutoLoginService', () => {
             };
 
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: validData,
+                [dctAutoLoginKey]: validData,
             });
 
             await autoLoginService.clearCorruptedCredentials();
 
             // Since the mock data doesn't decrypt properly, it will be considered corrupted
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
         });
     });
 
     describe('getAutoLoginData', () => {
         it('should return auto-login data when it exists', async () => {
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: mockAutoLoginData,
+                [dctAutoLoginKey]: mockAutoLoginData,
             });
 
             const result = await autoLoginService.getAutoLoginData();
@@ -287,109 +317,17 @@ describe('AutoLoginService', () => {
         });
     });
 
-    describe('performAutoLogin', () => {
-        it('should return true when user is already authenticated', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(true);
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(true);
-            expect(mockAuthService.isAuthenticated).toHaveBeenCalled();
-        });
-
-        it('should return false when auto-login is disabled', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-            mockStorage.getStorage.mockResolvedValue({});
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false when no credentials exist', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-            mockStorage.getStorage.mockResolvedValue({});
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should attempt login with saved credentials', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-
-            // Mock encrypted credentials
-            const encryptedData = {
-                login: 'encrypted-login',
-                password: 'encrypted-password',
-                enabled: true,
-                createdAt: Date.now(),
-            };
-
-            // Mock loading credentials
-            mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: encryptedData,
-            });
-
-            mockAuthService.login.mockResolvedValue({
-                id: 'user-123',
-                email: testCredentials.login,
-            });
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(true);
-            // Since we're using mock encrypted data, the decrypted values will be empty strings
-            expect(mockAuthService.login).toHaveBeenCalledWith('', '');
-        });
-
-        it('should return false when login fails', async () => {
-            mockAuthService.isAuthenticated.mockResolvedValue(false);
-
-            // Mock encrypted credentials
-            const encryptedData = {
-                login: 'encrypted-login',
-                password: 'encrypted-password',
-                enabled: true,
-                createdAt: Date.now(),
-            };
-
-            // Mock loading credentials
-            mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: encryptedData,
-            });
-
-            mockAuthService.login.mockResolvedValue(null);
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false on error', async () => {
-            mockAuthService.isAuthenticated.mockRejectedValue(new Error('Auth error'));
-
-            const result = await autoLoginService.performAutoLogin();
-
-            expect(result).toBe(false);
-            expect(mockStorage.consoleError).toHaveBeenCalledWith(
-                'Auto-login failed:',
-                expect.any(Error),
-            );
-        });
-    });
-
     describe('disableAutoLogin', () => {
         it('should disable auto-login while keeping credentials', async () => {
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: mockAutoLoginData,
+                [dctAutoLoginKey]: mockAutoLoginData,
             });
             mockStorage.setStorage.mockResolvedValue(undefined);
 
             await autoLoginService.disableAutoLogin();
 
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
-                autoLoginData: expect.objectContaining({
+                [dctAutoLoginKey]: expect.objectContaining({
                     enabled: false,
                 }),
             });
@@ -410,14 +348,14 @@ describe('AutoLoginService', () => {
     describe('enableAutoLogin', () => {
         it('should enable auto-login when credentials exist', async () => {
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: { ...mockAutoLoginData, enabled: false },
+                [dctAutoLoginKey]: { ...mockAutoLoginData, enabled: false },
             });
             mockStorage.setStorage.mockResolvedValue(undefined);
 
             await autoLoginService.enableAutoLogin();
 
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
-                autoLoginData: expect.objectContaining({
+                [dctAutoLoginKey]: expect.objectContaining({
                     enabled: true,
                 }),
             });
@@ -439,13 +377,16 @@ describe('AutoLoginService', () => {
         it('should clear corrupted data during migration', async () => {
             // Mock data that will decrypt to empty strings (corrupted)
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: mockAutoLoginData,
+                [dctAutoLoginKey]: mockAutoLoginData,
             });
             mockStorage.removeStorage.mockResolvedValue(undefined);
 
             await autoLoginService.migrateAndCleanData();
 
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
             expect(mockStorage.consoleLog).toHaveBeenCalledWith(
                 'Clearing corrupted auto-login data during migration',
             );
@@ -462,7 +403,7 @@ describe('AutoLoginService', () => {
                 .mockResolvedValue(mockDecryptedCredentials);
 
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: {
+                [dctAutoLoginKey]: {
                     login: 'encrypted-login',
                     password: 'encrypted-password',
                     enabled: true,
@@ -475,7 +416,7 @@ describe('AutoLoginService', () => {
 
             // Should re-encrypt the data
             expect(mockStorage.setStorage).toHaveBeenCalledWith({
-                autoLoginData: expect.objectContaining({
+                [dctAutoLoginKey]: expect.objectContaining({
                     login: expect.any(String),
                     password: expect.any(String),
                     enabled: true,
@@ -491,7 +432,7 @@ describe('AutoLoginService', () => {
             // First call to getAutoLoginData succeeds, but loadCredentials fails
             mockStorage.getStorage
                 .mockResolvedValueOnce({
-                    autoLoginData: {
+                    [dctAutoLoginKey]: {
                         login: 'encrypted-login',
                         password: 'encrypted-password',
                         enabled: true,
@@ -504,7 +445,10 @@ describe('AutoLoginService', () => {
             await autoLoginService.migrateAndCleanData();
 
             // When loadCredentials fails, it should clear the data
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
             expect(mockStorage.consoleError).toHaveBeenNthCalledWith(
                 1,
                 'Failed to load auto-login credentials:',
@@ -527,7 +471,7 @@ describe('AutoLoginService', () => {
                 .mockResolvedValue(mockDecryptedCredentials);
 
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: {
+                [dctAutoLoginKey]: {
                     login: 'encrypted-login',
                     password: 'encrypted-password',
                     enabled: true,
@@ -540,7 +484,10 @@ describe('AutoLoginService', () => {
             await autoLoginService.migrateAndCleanData();
 
             // When saveCredentials fails, it should clear the data
-            expect(mockStorage.removeStorage).toHaveBeenCalledWith('autoLoginData');
+            expect(mockStorage.removeStorage).toHaveBeenCalledWith([
+                dctAutoLoginKey,
+                'autoLoginData',
+            ]);
             expect(mockStorage.consoleError).toHaveBeenCalledWith(
                 'Failed to migrate auto-login data:',
                 expect.any(Error),
@@ -573,7 +520,7 @@ describe('AutoLoginService', () => {
             process.env.NODE_ENV = 'development';
             mockStorage.setStorage.mockResolvedValue(undefined);
             mockStorage.getStorage.mockResolvedValue({
-                autoLoginData: mockAutoLoginData,
+                [dctAutoLoginKey]: mockAutoLoginData,
             });
             mockStorage.removeStorage.mockResolvedValue(undefined);
 

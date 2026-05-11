@@ -1,6 +1,11 @@
 import { Statuses, Messages, urls } from '../data';
 import type { RetryObject } from '../types/baltichub';
 import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    type BookingTerminal,
+} from '../types/terminal';
+import {
     parseSlotsIntoButtons,
     handleErrorResponse,
     isTaskCompletedInAnotherQueue,
@@ -11,6 +16,8 @@ import type { ErrorResponse } from '../utils/index';
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     fetchRequest,
     normalizeFormData,
     getFirstFormDataString,
@@ -18,25 +25,60 @@ import {
     parseDateTimeFromDMY,
     JSONstringify,
     formatDateToDMY,
-    setStorage,
 } from '../utils/index';
+import { setTerminalStorageValue, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
 import { BrevoEmailData } from '../types';
+
+const EBRAMA_TERMINAL_URLS: Record<BookingTerminal, typeof urls> = {
+    [BOOKING_TERMINALS.DCT]: urls,
+    [BOOKING_TERMINALS.BCT]: {
+        ...urls,
+        tvApps: 'https://ebrama.bct.ictsi.com/tv-apps',
+        getSlots: 'https://ebrama.bct.ictsi.com/Home/GetSlots',
+        getSlotsForPreview: 'https://ebrama.bct.ictsi.com/Home/GetSlotsForPreview',
+        editTvAppSubmit: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+        editTvAppModal: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppModal',
+    },
+};
+
+function resolveRetryTerminal(req?: Pick<RetryObject, 'terminal' | 'url'>): BookingTerminal {
+    if (req?.terminal) {
+        return req.terminal;
+    }
+
+    const terminalFromUrl = getBookingTerminalFromUrl(req?.url);
+    if (terminalFromUrl) {
+        return terminalFromUrl;
+    }
+
+    consoleErrorWithContext(
+        { scope: 'booking', terminal: BOOKING_TERMINALS.DCT },
+        'Unable to resolve retry terminal, defaulting to DCT',
+        {
+            url: req?.url,
+        },
+    );
+
+    return BOOKING_TERMINALS.DCT;
+}
 
 export async function getSlots(
     date: string,
     slotType: number = 1,
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<Response | ErrorResponse> {
     const [day, month, year] = date.split('.').map(Number);
     const newDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
     const dateAfterTransfer = formatDateToDMY(newDate);
+    const terminalUrls = EBRAMA_TERMINAL_URLS[terminal];
     // Use GetSlotsForPreview - public endpoint, anonymous, no rate limit
     // slotType: 1 = default, 4 = PUSTE (empty container)
-    return fetchRequest(urls.getSlotsForPreview, {
+    return fetchRequest(terminalUrls.getSlotsForPreview, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
             'X-Requested-With': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/tv-apps',
+            Referer: terminalUrls.tvApps,
             Accept: '*/*',
         },
         body: JSON.stringify({ date: dateAfterTransfer, type: slotType }),
@@ -44,13 +86,18 @@ export async function getSlots(
     });
 }
 
-export async function getEditForm(tvAppId: string): Promise<Response | ErrorResponse> {
-    return fetchRequest(`${urls.editTvAppModal}?tvAppId=${tvAppId}`, {
+export async function getEditForm(
+    tvAppId: string,
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
+): Promise<Response | ErrorResponse> {
+    const terminalUrls = EBRAMA_TERMINAL_URLS[terminal];
+
+    return fetchRequest(`${terminalUrls.editTvAppModal}?tvAppId=${tvAppId}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json; charset=UTF-8',
             'X-requested-with': 'XMLHttpRequest',
-            Referer: 'https://ebrama.baltichub.com/tv-apps',
+            Referer: terminalUrls.tvApps,
             Accept: '*/*',
             'X-Extension-Request': 'JustPrivetProject',
         },
@@ -106,15 +153,21 @@ export async function checkSlotAvailability(htmlText: string, time: string[]): P
 export async function getDriverNameAndContainer(
     tvAppId: string,
     retryQueue: RetryObject[],
+    terminal: BookingTerminal = BOOKING_TERMINALS.DCT,
 ): Promise<{ driverName: string; containerNumber: string }> {
-    consoleLog('Getting driver name and container for TV App ID:', tvAppId);
+    const logContext = { scope: 'booking', terminal };
+
+    consoleLogWithContext(logContext, 'Getting driver name and container for TV App ID:', tvAppId);
     const regex =
         /<select[^>]*id="SelectedDriver"[^>]*>[\s\S]*?<option[^>]*selected="selected"[^>]*>(.*?)<\/option>/;
     const containerIdRegex = /"ContainerId":"([^"]+)"/;
 
     // Check if retryQueue is defined and is an array
     if (!retryQueue || !Array.isArray(retryQueue)) {
-        consoleLog('RetryQueue is undefined or not an array, skipping cache lookup');
+        consoleLogWithContext(
+            logContext,
+            'RetryQueue is undefined or not an array, skipping cache lookup',
+        );
     } else {
         const sameItem = retryQueue.find(item => item.tvAppId === tvAppId);
         if (sameItem) {
@@ -125,16 +178,20 @@ export async function getDriverNameAndContainer(
         }
     }
 
-    const response = await getEditForm(tvAppId);
+    const response = await getEditForm(tvAppId, terminal);
     if (!response.ok) {
-        consoleLog('Error getting driver name: Response not OK', JSONstringify(response));
+        consoleLogWithContext(
+            logContext,
+            'Error getting driver name: Response not OK',
+            JSONstringify(response),
+        );
         return { driverName: '', containerNumber: '' };
     }
 
     const tvAppEditText = await response.text();
-    consoleLog('Request Edit form:', tvAppEditText);
+    consoleLogWithContext(logContext, 'Request Edit form:', tvAppEditText);
     if (!tvAppEditText.trim()) {
-        consoleLog('Error getting driver name: Response is empty');
+        consoleLogWithContext(logContext, 'Error getting driver name: Response is empty');
         return { driverName: '', containerNumber: '' };
     }
 
@@ -145,8 +202,8 @@ export async function getDriverNameAndContainer(
     const containerNumberMatch = tvAppEditText.match(containerIdRegex);
     const containerNumber = containerNumberMatch?.[1] || '';
 
-    consoleLog('Driver info:', driverName);
-    consoleLog('Container ID:', containerNumber);
+    consoleLogWithContext(logContext, 'Driver info:', driverName);
+    consoleLogWithContext(logContext, 'Container ID:', containerNumber);
     return {
         driverName,
         containerNumber,
@@ -174,6 +231,9 @@ export async function executeRequest(
     tvAppId: string,
     time: string[],
 ): Promise<RetryObject> {
+    const terminal = resolveRetryTerminal(req);
+    const logContext = { scope: 'booking', terminal };
+
     if (!req.body || !req.body.formData) {
         throw new Error('Request body or formData is missing');
     }
@@ -213,7 +273,11 @@ export async function executeRequest(
                 Actual: { SlotStart: updatedSlotStart, SlotEnd: updatedSlotEnd },
                 tvAppId,
             };
-            consoleError('❌ CRITICAL: Time update failed!', JSON.stringify(errorData, null, 2));
+            consoleErrorWithContext(
+                logContext,
+                '❌ CRITICAL: Time update failed!',
+                JSON.stringify(errorData, null, 2),
+            );
             throw new Error(
                 `Time update failed: expected ${req.startSlot}, got ${updatedSlotStart}`,
             );
@@ -226,7 +290,11 @@ export async function executeRequest(
                 tvAppId,
                 Status: 'Already matches',
             };
-            consoleLog('🔄 Slot time already matches:', JSON.stringify(matchData, null, 2));
+            consoleLogWithContext(
+                logContext,
+                '🔄 Slot time already matches:',
+                JSON.stringify(matchData, null, 2),
+            );
         } else {
             const verifiedData = {
                 SlotStart: updatedSlotStart,
@@ -234,7 +302,11 @@ export async function executeRequest(
                 tvAppId,
                 Status: '✅ Verified',
             };
-            consoleLog('✅ Time update verified:', JSON.stringify(verifiedData, null, 2));
+            consoleLogWithContext(
+                logContext,
+                '✅ Time update verified:',
+                JSON.stringify(verifiedData, null, 2),
+            );
         }
     } else {
         const cachedTimeData = {
@@ -244,7 +316,8 @@ export async function executeRequest(
             'req.startSlot': req.startSlot || 'not set',
             'req.endSlot': req.endSlot || 'not set',
         };
-        consoleLog(
+        consoleLogWithContext(
+            logContext,
             '📤 Sending request with cached slot time:',
             JSON.stringify(cachedTimeData, null, 2),
         );
@@ -259,7 +332,11 @@ export async function executeRequest(
         SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
         'Time array': time.join(', '),
     };
-    consoleLog('📤 Sending booking request:', JSON.stringify(requestData, null, 2));
+    consoleLogWithContext(
+        logContext,
+        '📤 Sending booking request:',
+        JSON.stringify(requestData, null, 2),
+    );
 
     const response = await fetchRequest(req.url, {
         method: 'POST',
@@ -291,10 +368,14 @@ export async function executeRequest(
         '⚠️ VERIFY':
             req.body.formData.SlotStart?.[0] === req.startSlot ? '✅ YES' : '❌ NO - MISMATCH!',
     };
-    consoleLog('📥 Received response:', JSON.stringify(responseData, null, 2));
+    consoleLogWithContext(
+        logContext,
+        '📥 Received response:',
+        JSON.stringify(responseData, null, 2),
+    );
 
     if (response.ok && isEbramaLoginPageResponse(parsedResponse, responseUrl)) {
-        await setStorage({ unauthorized: true });
+        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal, true);
         return {
             ...req,
             status: Statuses.AUTHORIZATION_ERROR,
@@ -309,27 +390,34 @@ export async function executeRequest(
             SlotStart: req.body.formData.SlotStart?.[0] || 'not set',
             SlotEnd: req.body.formData.SlotEnd?.[0] || 'not set',
         };
-        consoleLog('✅ Request retried successfully:', JSON.stringify(successData, null, 2));
+        consoleLogWithContext(
+            logContext,
+            '✅ Request retried successfully:',
+            JSON.stringify(successData, null, 2),
+        );
 
         // Send centralized notifications (Windows + Email)
         try {
-            consoleLog('🎉 Booking success! Preparing to send notifications...');
+            consoleLogWithContext(
+                logContext,
+                '🎉 Booking success! Preparing to send notifications...',
+            );
 
             const notificationData: Partial<BrevoEmailData> = {
-                notificationSource: 'DCT',
+                notificationSource: terminal === BOOKING_TERMINALS.BCT ? 'BCT' : 'DCT',
                 tvAppId,
                 bookingTime: req.startSlot.split(' ')[1].slice(0, 5), // newTime
                 driverName: req.driverName,
                 containerNumber: req.containerNumber,
             };
-            consoleLog('🎉 Notification data prepared:', notificationData);
+            consoleLogWithContext(logContext, '🎉 Notification data prepared:', notificationData);
 
             await notificationService.sendBookingSuccessNotifications(
                 notificationData as BrevoEmailData,
             );
-            consoleLog('🎉 Notification process completed');
+            consoleLogWithContext(logContext, '🎉 Notification process completed');
         } catch (error) {
-            consoleError('❌ Error sending notifications:', error);
+            consoleErrorWithContext(logContext, '❌ Error sending notifications:', error);
         }
 
         return {
@@ -342,7 +430,7 @@ export async function executeRequest(
     const handledResponse = handleErrorResponse(req, parsedResponse, tvAppId, time);
 
     if (handledResponse.status === Statuses.AUTHORIZATION_ERROR) {
-        await setStorage({ unauthorized: true });
+        await setTerminalStorageValue(TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED, terminal, true);
     }
 
     return handledResponse;
@@ -365,6 +453,10 @@ export async function validateRequestBeforeSlotCheck(
     const endTimeStr = parseDateTimeFromDMY(getFirstFormDataString(body?.SlotEnd) || '');
     const currentTimeSlot = new Date(req.currentSlot);
     const currentTime = new Date();
+    const currentSlotDeadline =
+        req.terminal === BOOKING_TERMINALS.BCT
+            ? new Date(currentTimeSlot.getTime() + 60 * 60 * 1000 + 1000)
+            : currentTimeSlot;
 
     if (new Date(endTimeStr.getTime() + 61 * 1000) < currentTime) {
         consoleLog('❌ End time is in the past, cannot process:', tvAppId);
@@ -375,7 +467,7 @@ export async function validateRequestBeforeSlotCheck(
         };
     }
 
-    if (currentTimeSlot < currentTime) {
+    if (currentSlotDeadline < currentTime) {
         consoleLog('❌ Changing the time is no longer possible:', tvAppId);
         return {
             ...req,

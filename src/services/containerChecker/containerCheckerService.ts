@@ -8,7 +8,7 @@ import {
 import { checkPort } from './portCheckers';
 import { authService } from '../authService';
 import { notificationService } from '../notificationService';
-import { consoleLog } from '../../utils/index';
+import { consoleError, consoleLog } from '../../utils/index';
 
 const ALARM_NAME = 'container-check';
 
@@ -220,8 +220,12 @@ async function evaluateContainer(item: WatchlistItem): Promise<WatchlistItem> {
                 currentStateText: best.stateText || '-',
                 dataTimestamp: best.dataTimestamp,
             });
-        } catch {
-            // notification failed; silently continue
+        } catch (error) {
+            consoleError('[Container Checker] Notification failed', {
+                containerNumber: item.containerNumber,
+                port: trackedPort,
+                error,
+            });
         }
     }
 

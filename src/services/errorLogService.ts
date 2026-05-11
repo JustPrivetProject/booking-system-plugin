@@ -5,9 +5,24 @@ import type { SessionLogEntry } from '../utils/logging';
 import { supabase } from './supabaseClient';
 
 type JsonObject = Record<string, unknown>;
-type SanitizedLocalStorageData = Omit<LocalStorageData, 'autoLoginData'> & {
-    autoLoginData: boolean;
+type AutoLoginStorageKey = 'autoLoginData' | 'autoLoginData:dct' | 'autoLoginData:bct';
+type SanitizedLocalStorageData = Omit<LocalStorageData, AutoLoginStorageKey> & {
+    autoLoginData?: boolean;
+    'autoLoginData:dct'?: boolean;
+    'autoLoginData:bct'?: boolean;
 };
+
+function sanitizeLocalStorageData(localData: LocalStorageData): SanitizedLocalStorageData {
+    const sanitizedLocalData = { ...localData } as Record<string, unknown>;
+
+    Object.entries(sanitizedLocalData).forEach(([key, value]) => {
+        if ((key === 'autoLoginData' || key.startsWith('autoLoginData:')) && value) {
+            sanitizedLocalData[key] = true;
+        }
+    });
+
+    return sanitizedLocalData as SanitizedLocalStorageData;
+}
 
 interface ErrorLog {
     error_message: string;
@@ -89,12 +104,8 @@ export const errorLogService = {
         let sanitizedLocalData: LocalStorageData | SanitizedLocalStorageData | null =
             localData ?? null;
 
-        if (localData && localData.autoLoginData) {
-            // Hide sensitive auto login data, preserve presence flag
-            sanitizedLocalData = {
-                ...localData,
-                autoLoginData: true,
-            };
+        if (localData) {
+            sanitizedLocalData = sanitizeLocalStorageData(localData);
         }
 
         const logRow = {

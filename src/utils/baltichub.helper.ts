@@ -49,9 +49,12 @@ export function isEbramaLoginPageResponse(parsedResponse: string, responseUrl?: 
         parsedResponse.includes('/Account/Login') ||
         parsedResponse.includes('action="/Account/Login"') ||
         parsedResponse.includes("action='/Account/Login'");
+    const hasPublicHomeLoginCta =
+        parsedResponse.includes('/login') && parsedResponse.includes('Przejdź do logowania');
 
     return (
         hasLoginFormMarker ||
+        hasPublicHomeLoginCta ||
         (parsedResponse.includes('Vehicle Booking System - BALTIC HUB') && hasLoginFormMarker) ||
         normalizedUrl.includes('/account/login') ||
         normalizedUrl.endsWith('/login')

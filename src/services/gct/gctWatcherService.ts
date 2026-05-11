@@ -12,6 +12,7 @@ import {
 } from '../../gct/types';
 import { getGctState, saveGctGroups, touchGctLastTickAt } from '../../gct/storage';
 import { authService } from '../authService';
+import { analyticsService } from '../analyticsService';
 import { notificationService } from '../notificationService';
 import { syncStatusBadgeFromStorage } from '../../utils/badge';
 import { consoleError, consoleLog } from '../../utils';
@@ -399,6 +400,15 @@ export class GctWatcherService {
         }
 
         await this.saveGroups(nextGroups);
+        if (existingGroup) {
+            await analyticsService.trackSlotAdded('booking', 'GCT', {
+                containerNumber: normalizedDraft.containerNumber,
+            });
+        } else {
+            await analyticsService.trackContainerAdded('booking', 'GCT', {
+                containerNumber: normalizedDraft.containerNumber,
+            });
+        }
         const nextState = await this.getState();
         await this.ensureSchedules();
         return nextState;
@@ -1070,6 +1080,9 @@ export class GctWatcherService {
             await this.persistGroup(groupClone);
 
             if (shouldStopGroup) {
+                await analyticsService.trackBookingSuccess('GCT', {
+                    containerNumber: groupClone.containerNumber,
+                });
                 await notificationService.sendBookingSuccessNotifications(
                     buildSuccessNotificationPayload(
                         groupClone,

@@ -51,6 +51,16 @@ describe('EmailTemplates', () => {
             const result = EmailTemplates.generateSubject(emailData);
             expect(result).toBe('[GCT] BSIU3108038 / ANDRZEJ KOLAKOWSKI / 19:00');
         });
+
+        it('should generate subject with BCT prefix when source is BCT', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'BCT' as const,
+            };
+
+            const result = EmailTemplates.generateSubject(emailData);
+            expect(result).toBe('[BCT] BSIU3108038 / ANDRZEJ KOLAKOWSKI / 19:00');
+        });
     });
 
     describe('generateHTML', () => {
@@ -99,6 +109,17 @@ describe('EmailTemplates', () => {
                 'Twoja rezerwacja w BalticHub została pomyślnie zmieniona',
             );
         });
+
+        it('should use BCT wording in HTML body for BCT notifications', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'BCT' as const,
+            };
+
+            const result = EmailTemplates.generateHTML(emailData);
+
+            expect(result).toContain('Twoja rezerwacja w BCT została pomyślnie zmieniona');
+        });
     });
 
     describe('generateText', () => {
@@ -134,6 +155,17 @@ describe('EmailTemplates', () => {
             expect(result).not.toContain(
                 'Twoja rezerwacja w BalticHub została pomyślnie zmieniona',
             );
+        });
+
+        it('should use BCT wording in text body for BCT notifications', () => {
+            const emailData = {
+                ...baseEmailData,
+                notificationSource: 'BCT' as const,
+            };
+
+            const result = EmailTemplates.generateText(emailData);
+
+            expect(result).toContain('Twoja rezerwacja w BCT została pomyślnie zmieniona');
         });
     });
 });

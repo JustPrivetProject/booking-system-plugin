@@ -1,23 +1,18 @@
 import { authService } from './authService';
 import { supabase } from './supabaseClient';
+import type { Database } from '../types/supabase/database';
 
 export const FEATURE_KEYS = {
-    GCT_TAB: 'gct_tab',
+    GCT: 'gct',
+    BCT: 'bct',
 } as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[keyof typeof FEATURE_KEYS];
 
-function isMissingFeatureError(error: unknown): boolean {
-    if (!error || typeof error !== 'object') {
-        return false;
-    }
+type FeatureAccessRecord = Pick<Database['public']['Tables']['feature_access']['Row'], FeatureKey>;
 
-    const typedError = error as { code?: string; details?: string };
-
-    return (
-        typedError.code === 'PGRST116' ||
-        typedError.details?.includes('Results contain 0 rows') === true
-    );
+export function isFeatureKey(value: unknown): value is FeatureKey {
+    return Object.values(FEATURE_KEYS).includes(value as FeatureKey);
 }
 
 export const featureAccessService = {
@@ -30,19 +25,18 @@ export const featureAccessService = {
 
         const { data, error } = await supabase
             .from('feature_access')
-            .select('enabled')
+            .select(featureKey)
             .eq('user_id', user.id)
-            .eq('feature_key', featureKey)
-            .single();
-
-        if (isMissingFeatureError(error)) {
-            return false;
-        }
+            .maybeSingle();
 
         if (error) {
             throw error;
         }
 
-        return Boolean(data?.enabled);
+        if (!data) {
+            return false;
+        }
+
+        return Boolean((data as FeatureAccessRecord)[featureKey]);
     },
 };

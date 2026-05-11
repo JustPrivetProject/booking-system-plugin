@@ -3,20 +3,35 @@ import { QueueManagerAdapter } from '../../../src/services/queueManagerAdapter';
 import { MessageHandler } from '../../../src/background/handlers/MessageHandler';
 import { RequestHandler } from '../../../src/background/handlers/RequestHandler';
 import { StorageHandler } from '../../../src/background/handlers/StorageHandler';
-import { setStorage, getStorage } from '../../../src/utils/storage';
+import { clearLegacyDctStorage, setStorage, getStorage } from '../../../src/utils/storage';
 import { consoleLog, consoleError } from '../../../src/utils';
 import { clearBadge } from '../../../src/utils/badge';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { getEbramaKeepAliveIntervalMs } from '../../../src/services/ebramaSessionService';
 import { sessionService } from '../../../src/services/sessionService';
 import { GCT_WATCHER_DEFAULTS } from '../../../src/gct/types';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
 jest.mock('../../../src/background/handlers/MessageHandler');
 jest.mock('../../../src/background/handlers/RequestHandler');
 jest.mock('../../../src/background/handlers/StorageHandler');
-jest.mock('../../../src/utils/storage');
+jest.mock('../../../src/utils/storage', () => ({
+    clearLegacyDctStorage: jest.fn(() => Promise.resolve()),
+    getStorage: jest.fn(),
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
+    setStorage: jest.fn(() => Promise.resolve()),
+    TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
+        GROUP_STATES: 'groupStates',
+        REQUEST_CACHE_BODY: 'requestCacheBody',
+        REQUEST_CACHE_HEADERS: 'requestCacheHeaders',
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
 jest.mock('../../../src/utils');
 jest.mock('../../../src/utils/badge', () => ({
     clearBadge: jest.fn(),
@@ -64,6 +79,10 @@ const mockQueueManager = {
     startProcessing: jest.fn(),
 };
 
+const mockBctQueueManager = {
+    startProcessing: jest.fn(),
+};
+
 const mockMessageHandler = {
     handleMessage: jest.fn(),
 };
@@ -81,7 +100,11 @@ describe('BackgroundController', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        (QueueManagerAdapter.getInstance as jest.Mock).mockReturnValue(mockQueueManager);
+        mockQueueManager.startProcessing.mockResolvedValue(undefined);
+        mockBctQueueManager.startProcessing.mockResolvedValue(undefined);
+        (QueueManagerAdapter.getInstance as jest.Mock).mockImplementation((storageKey?: string) =>
+            storageKey === 'retryQueue:bct' ? mockBctQueueManager : mockQueueManager,
+        );
         (MessageHandler as jest.Mock).mockImplementation(() => mockMessageHandler);
         (RequestHandler as jest.Mock).mockImplementation(() => mockRequestHandler);
         (StorageHandler as jest.Mock).mockImplementation(() => mockStorageHandler);
@@ -107,9 +130,11 @@ describe('BackgroundController', () => {
             await backgroundController.initialize();
 
             expect(consoleLog).toHaveBeenCalledWith('Initializing Background Controller...');
+            expect(clearLegacyDctStorage).toHaveBeenCalled();
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
             expect(mockQueueManager.startProcessing).toHaveBeenCalled();
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalled();
             expect(chrome.runtime.onInstalled.addListener).toHaveBeenCalled();
             expect(chrome.runtime.onMessage.addListener).toHaveBeenCalled();
             expect(mockRequestHandler.setupRequestListeners).toHaveBeenCalled();
@@ -153,6 +178,12 @@ describe('BackgroundController', () => {
             await backgroundController['startQueueProcessing']();
 
             expect(mockQueueManager.startProcessing).toHaveBeenCalledWith({
+                intervalMin: expect.any(Number),
+                intervalMax: expect.any(Number),
+                retryEnabled: true,
+            });
+            expect(QueueManagerAdapter.getInstance).toHaveBeenCalledWith('retryQueue:bct');
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalledWith({
                 intervalMin: expect.any(Number),
                 intervalMax: expect.any(Number),
                 retryEnabled: true,
@@ -222,7 +253,14 @@ describe('BackgroundController', () => {
 
             backgroundController['handleInstallation'](details);
 
-            expect(autoLoginService.migrateAndCleanData).toHaveBeenCalled();
+            expect(autoLoginService.migrateAndCleanData).toHaveBeenNthCalledWith(
+                1,
+                BOOKING_TERMINALS.DCT,
+            );
+            expect(autoLoginService.migrateAndCleanData).toHaveBeenNthCalledWith(
+                2,
+                BOOKING_TERMINALS.BCT,
+            );
         });
 
         it('should handle migration errors gracefully', () => {
@@ -260,15 +298,26 @@ describe('BackgroundController', () => {
             await backgroundController['initializeDefaultStorageValues']();
 
             // Check that all default values are set
+            expect(clearLegacyDctStorage).toHaveBeenCalled();
             expect(setStorage).toHaveBeenCalledWith({ retryEnabled: true });
             expect(setStorage).toHaveBeenCalledWith({ testEnv: false });
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: false });
+            expect(setStorage).toHaveBeenCalledWith({
+                'unauthorized:dct': false,
+                'unauthorized:bct': false,
+            });
             expect(setStorage).toHaveBeenCalledWith({ headerHidden: false });
             expect(setStorage).toHaveBeenCalledWith({ tableData: [] });
-            expect(setStorage).toHaveBeenCalledWith({ retryQueue: [] });
-            expect(setStorage).toHaveBeenCalledWith({ groupStates: {} });
-            expect(setStorage).toHaveBeenCalledWith({ requestCacheBody: {} });
-            expect(setStorage).toHaveBeenCalledWith({ requestCacheHeaders: {} });
+            expect(setStorage).toHaveBeenCalledWith({ 'tableData:bct': [] });
+            expect(setStorage).toHaveBeenCalledWith({
+                'retryQueue:dct': [],
+                'retryQueue:bct': [],
+                'groupStates:dct': {},
+                'groupStates:bct': {},
+                'requestCacheBody:dct': {},
+                'requestCacheBody:bct': {},
+                'requestCacheHeaders:dct': {},
+                'requestCacheHeaders:bct': {},
+            });
             expect(setStorage).toHaveBeenCalledWith({
                 gctSettings: { ...GCT_WATCHER_DEFAULTS },
             });
@@ -298,6 +347,7 @@ describe('BackgroundController', () => {
             const existingData = {
                 notificationSettings: { email: { enabled: true } },
                 tableData: [['existing', 'data']],
+                'tableData:bct': [['existing', 'bct-data']],
             };
             (getStorage as jest.Mock).mockResolvedValue(existingData);
 
@@ -373,6 +423,7 @@ describe('BackgroundController', () => {
 
             // Verify queue processing is started
             expect(mockQueueManager.startProcessing).toHaveBeenCalled();
+            expect(mockBctQueueManager.startProcessing).toHaveBeenCalled();
 
             // Verify event listeners are set up
             expect(chrome.runtime.onInstalled.addListener).toHaveBeenCalled();
@@ -420,6 +471,7 @@ describe('BackgroundController', () => {
             (getStorage as jest.Mock).mockResolvedValue({});
             const error = new Error('Queue error');
             mockQueueManager.startProcessing.mockRejectedValue(error);
+            mockBctQueueManager.startProcessing.mockResolvedValue(undefined);
 
             try {
                 await backgroundController.initialize();

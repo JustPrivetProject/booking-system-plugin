@@ -1,5 +1,9 @@
 import { RequestHandler } from '../../../src/background/handlers/RequestHandler';
-import { getStorage, setStorage } from '../../../src/utils/storage';
+import {
+    getTerminalStorageValue,
+    setTerminalStorageValue,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../../../src/utils/storage';
 import { consoleLog } from '../../../src/utils';
 
 // Mock dependencies
@@ -54,7 +58,7 @@ describe('RequestHandler', () => {
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 method: 'POST',
                 requestBody: {
                     formData: {
@@ -68,13 +72,17 @@ describe('RequestHandler', () => {
                 type: 'main_frame' as chrome.webRequest.ResourceType,
             } as chrome.webRequest.OnBeforeRequestDetails;
 
-            (getStorage as jest.Mock).mockResolvedValue({});
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             listener(details);
 
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(getStorage).toHaveBeenCalledWith('requestCacheBody');
+            expect(getTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {},
+            );
         });
 
         it('should handle error in cacheRequestBody callback', async () => {
@@ -85,7 +93,7 @@ describe('RequestHandler', () => {
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 method: 'POST',
                 requestBody: {
                     formData: {
@@ -99,7 +107,7 @@ describe('RequestHandler', () => {
                 type: 'main_frame' as chrome.webRequest.ResourceType,
             } as chrome.webRequest.OnBeforeRequestDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             listener(details);
 
@@ -118,7 +126,7 @@ describe('RequestHandler', () => {
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 method: 'GET',
                 frameId: 0,
                 parentFrameId: -1,
@@ -129,10 +137,10 @@ describe('RequestHandler', () => {
 
             listener(details);
 
-            expect(getStorage).not.toHaveBeenCalled();
+            expect(getTerminalStorageValue).not.toHaveBeenCalled();
         });
 
-        it('should call handleRequestHeaders in beforeSendHeaders listener', () => {
+        it('should call handleRequestHeaders in beforeSendHeaders listener', async () => {
             requestHandler.setupRequestListeners();
 
             const listener = (chrome.webRequest.onBeforeSendHeaders.addListener as jest.Mock).mock
@@ -140,7 +148,7 @@ describe('RequestHandler', () => {
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -149,13 +157,16 @@ describe('RequestHandler', () => {
                 requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockResolvedValue({});
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             listener(details);
 
+            await new Promise(resolve => setTimeout(resolve, 0));
+
             expect(consoleLog).toHaveBeenCalledWith(
-                '🔍 Checking for our header:',
+                '✅ Cached Request Headers:',
+                'test-request-1',
                 expect.any(String),
             );
         });
@@ -163,7 +174,7 @@ describe('RequestHandler', () => {
         it('should handle error in removeCachedBody callback', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -175,14 +186,13 @@ describe('RequestHandler', () => {
                 ],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             requestHandler['handleRequestHeaders'](details);
 
             await new Promise(resolve => setTimeout(resolve, 50));
-            // With new approach, we just mark requestId, no immediate removal
             expect(consoleLog).toHaveBeenCalledWith(
-                '✅ Found X-Extension-Request header, marking request as ours:',
+                '✅ Marked request as extension-owned:',
                 'test-request-1',
             );
         });
@@ -190,7 +200,7 @@ describe('RequestHandler', () => {
         it('should handle error in cacheRequestHeaders callback', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -199,7 +209,7 @@ describe('RequestHandler', () => {
                 requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             requestHandler['handleRequestHeaders'](details);
 
@@ -215,7 +225,7 @@ describe('RequestHandler', () => {
         it('should cache request body successfully', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 method: 'POST',
                 frameId: 0,
                 parentFrameId: -1,
@@ -239,29 +249,37 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue(
+                mockStorageData.requestCacheBody,
+            );
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             await requestHandler['cacheRequestBody'](details);
 
-            expect(getStorage).toHaveBeenCalledWith('requestCacheBody');
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheBody: {
+            expect(getTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {},
+            );
+            expect(setTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {
                     'existing-request': mockStorageData.requestCacheBody['existing-request'],
                     'test-request-1': {
-                        url: 'https://example.com/test',
+                        url: 'https://ebrama.baltichub.com/test',
                         body: details.requestBody,
                         timestamp: expect.any(Number),
                     },
                 },
-            });
+            );
             expect(consoleLog).toHaveBeenCalledWith('✅ Cached Request Body:', expect.any(String));
         });
 
         it('should handle storage errors gracefully', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 method: 'POST',
                 frameId: 0,
                 parentFrameId: -1,
@@ -275,7 +293,7 @@ describe('RequestHandler', () => {
                 },
             } as chrome.webRequest.OnBeforeRequestDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             await requestHandler['cacheRequestBody'](details);
 
@@ -288,7 +306,7 @@ describe('RequestHandler', () => {
         it('should handle empty storage data', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 method: 'POST',
                 frameId: 0,
                 parentFrameId: -1,
@@ -302,20 +320,22 @@ describe('RequestHandler', () => {
                 },
             } as chrome.webRequest.OnBeforeRequestDetails;
 
-            (getStorage as jest.Mock).mockResolvedValue({});
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             await requestHandler['cacheRequestBody'](details);
 
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheBody: {
+            expect(setTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {
                     'test-request-1': {
-                        url: 'https://example.com/test',
+                        url: 'https://ebrama.baltichub.com/test',
                         body: details.requestBody,
                         timestamp: expect.any(Number),
                     },
                 },
-            });
+            );
         });
     });
 
@@ -323,7 +343,7 @@ describe('RequestHandler', () => {
         it('should cache headers when no extension header is present', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -335,8 +355,8 @@ describe('RequestHandler', () => {
                 ],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockResolvedValue({});
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             requestHandler['handleRequestHeaders'](details);
 
@@ -344,24 +364,27 @@ describe('RequestHandler', () => {
             await new Promise(resolve => setTimeout(resolve, 0));
 
             expect(consoleLog).toHaveBeenCalledWith(
-                '🔍 Checking for our header:',
+                '✅ Cached Request Headers:',
+                'test-request-1',
                 expect.any(String),
             );
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheHeaders: {
+            expect(setTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                'dct',
+                {
                     'test-request-1': {
-                        url: 'https://example.com/test',
+                        url: 'https://ebrama.baltichub.com/test',
                         headers: details.requestHeaders,
                         timestamp: expect.any(Number),
                     },
                 },
-            });
+            );
         });
 
         it('should mark request as ours when extension header is present', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -373,27 +396,57 @@ describe('RequestHandler', () => {
                 ],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockResolvedValue({});
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             requestHandler['handleRequestHeaders'](details);
 
             // Wait for async operations
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            // Should mark request as ours (will be cleaned up in onCompleted)
             expect(consoleLog).toHaveBeenCalledWith(
-                '✅ Found X-Extension-Request header, marking request as ours:',
+                '✅ Marked request as extension-owned:',
                 'test-request-1',
             );
             // RequestId should be added to ourRequestIds Set
             expect(requestHandler['ourRequestIds'].has('test-request-1')).toBe(true);
         });
 
+        it('should suppress missing body warning during pre-send cleanup for our requests', async () => {
+            const details = {
+                requestId: 'test-request-1',
+                url: 'https://ebrama.baltichub.com/test',
+                frameId: 0,
+                parentFrameId: -1,
+                tabId: 1,
+                timeStamp: Date.now(),
+                type: 'main_frame' as chrome.webRequest.ResourceType,
+                requestHeaders: [
+                    { name: 'x-extension-request', value: 'JustPrivetProject' },
+                    { name: 'Content-Type', value: 'application/json' },
+                ],
+            } as chrome.webRequest.OnBeforeSendHeadersDetails;
+
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue({});
+
+            requestHandler['handleRequestHeaders'](details);
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(consoleLog).not.toHaveBeenCalledWith(
+                '⚠️ cacheBody not found for requestId:',
+                'test-request-1',
+            );
+            expect(consoleLog).toHaveBeenCalledWith(
+                '✅ Marked request as extension-owned:',
+                'test-request-1',
+            );
+        });
+
         it('should handle storage errors gracefully', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -402,7 +455,7 @@ describe('RequestHandler', () => {
                 requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             requestHandler['handleRequestHeaders'](details);
 
@@ -434,17 +487,28 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue(
+                mockStorageData.requestCacheBody,
+            );
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
-            await requestHandler['removeCachedBody'](requestId);
+            await requestHandler['removeCachedBody'](
+                requestId,
+                'https://ebrama.baltichub.com/test',
+            );
 
-            expect(getStorage).toHaveBeenCalledWith('requestCacheBody');
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheBody: {
+            expect(getTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {},
+            );
+            expect(setTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                'dct',
+                {
                     'other-request': mockStorageData.requestCacheBody['other-request'],
                 },
-            });
+            );
             expect(consoleLog).toHaveBeenCalledWith(
                 '🗑️ Removed cacheBody (our request):',
                 expect.any(String),
@@ -463,12 +527,17 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue(
+                mockStorageData.requestCacheBody,
+            );
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
-            await requestHandler['removeCachedBody'](requestId);
+            await requestHandler['removeCachedBody'](
+                requestId,
+                'https://ebrama.baltichub.com/test',
+            );
 
-            expect(setStorage).not.toHaveBeenCalled();
+            expect(setTerminalStorageValue).not.toHaveBeenCalled();
             expect(consoleLog).toHaveBeenCalledWith(
                 '⚠️ cacheBody not found for requestId:',
                 'non-existent-request',
@@ -478,9 +547,12 @@ describe('RequestHandler', () => {
         it('should handle storage errors gracefully', async () => {
             const requestId = 'test-request-1';
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
-            await requestHandler['removeCachedBody'](requestId);
+            await requestHandler['removeCachedBody'](
+                requestId,
+                'https://ebrama.baltichub.com/test',
+            );
 
             expect(consoleLog).toHaveBeenCalledWith(
                 'Error removing cached body:',
@@ -493,7 +565,7 @@ describe('RequestHandler', () => {
         it('should cache request headers successfully', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -515,22 +587,30 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock).mockResolvedValue(
+                mockStorageData.requestCacheHeaders,
+            );
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             await requestHandler['cacheRequestHeaders'](details);
 
-            expect(getStorage).toHaveBeenCalledWith('requestCacheHeaders');
-            expect(setStorage).toHaveBeenCalledWith({
-                requestCacheHeaders: {
+            expect(getTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                'dct',
+                {},
+            );
+            expect(setTerminalStorageValue).toHaveBeenCalledWith(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                'dct',
+                {
                     'existing-request': mockStorageData.requestCacheHeaders['existing-request'],
                     'test-request-1': {
-                        url: 'https://example.com/test',
+                        url: 'https://ebrama.baltichub.com/test',
                         headers: details.requestHeaders,
                         timestamp: expect.any(Number),
                     },
                 },
-            });
+            );
             expect(consoleLog).toHaveBeenCalledWith(
                 '✅ Cached Request Headers:',
                 'test-request-1',
@@ -541,7 +621,7 @@ describe('RequestHandler', () => {
         it('should handle storage errors gracefully', async () => {
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/test',
+                url: 'https://ebrama.baltichub.com/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -550,7 +630,7 @@ describe('RequestHandler', () => {
                 requestHeaders: [{ name: 'Content-Type', value: 'application/json' }],
             } as chrome.webRequest.OnBeforeSendHeadersDetails;
 
-            (getStorage as jest.Mock).mockRejectedValue(new Error('Storage error'));
+            (getTerminalStorageValue as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
             await requestHandler['cacheRequestHeaders'](details);
 
@@ -592,15 +672,17 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock)
+                .mockResolvedValueOnce(mockStorageData.requestCacheBody)
+                .mockResolvedValueOnce(mockStorageData.requestCacheHeaders);
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             const onCompletedListener = (chrome.webRequest.onCompleted.addListener as jest.Mock)
                 .mock.calls[0][0];
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -644,15 +726,17 @@ describe('RequestHandler', () => {
                 },
             };
 
-            (getStorage as jest.Mock).mockResolvedValue(mockStorageData);
-            (setStorage as jest.Mock).mockResolvedValue(undefined);
+            (getTerminalStorageValue as jest.Mock)
+                .mockResolvedValueOnce(mockStorageData.requestCacheBody)
+                .mockResolvedValueOnce(mockStorageData.requestCacheHeaders);
+            (setTerminalStorageValue as jest.Mock).mockResolvedValue(undefined);
 
             const onErrorListener = (chrome.webRequest.onErrorOccurred.addListener as jest.Mock)
                 .mock.calls[0][0];
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,
@@ -680,7 +764,7 @@ describe('RequestHandler', () => {
 
             const details = {
                 requestId: 'test-request-1',
-                url: 'https://example.com/TVApp/EditTvAppSubmit/test',
+                url: 'https://ebrama.baltichub.com/TVApp/EditTvAppSubmit/test',
                 frameId: 0,
                 parentFrameId: -1,
                 tabId: 1,

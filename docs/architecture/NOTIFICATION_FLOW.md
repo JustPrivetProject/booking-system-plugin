@@ -146,6 +146,7 @@ interface NotificationSettings {
 - Use `Promise.allSettled()` for parallel execution
 - Log all errors for debugging
 - Graceful degradation
+- Container Checker change notifications should log failures and continue the polling cycle
 
 ## Testing
 

@@ -6,6 +6,8 @@ import { sessionService } from '../../../src/services/sessionService';
 import { autoLoginService } from '../../../src/services/autoLoginService';
 import { errorLogService } from '../../../src/services/errorLogService';
 import { featureAccessService } from '../../../src/services/featureAccessService';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
+const chromeMock = require('../mocks/chrome').chromeMock;
 
 // Mock dependencies
 jest.mock('../../../src/services/queueManagerAdapter');
@@ -17,6 +19,7 @@ jest.mock('../../../src/services/featureAccessService', () => ({
     featureAccessService: {
         isFeatureEnabled: jest.fn(),
     },
+    isFeatureKey: jest.fn(value => value === 'gct' || value === 'bct'),
 }));
 jest.mock('../../../src/utils/storage', () => {
     const actual = jest.requireActual('../../../src/utils/storage');
@@ -78,6 +81,32 @@ async function waitForAsyncOperations(
     await new Promise(resolve => setTimeout(resolve, 100));
 }
 
+function withNamespacedDctStorage<T extends Record<string, unknown>>(storage: T): T {
+    const namespacedStorage = { ...storage } as Record<string, unknown>;
+
+    if ('unauthorized' in storage) {
+        namespacedStorage['unauthorized:dct'] = storage.unauthorized;
+    }
+
+    if ('retryQueue' in storage) {
+        namespacedStorage['retryQueue:dct'] = storage.retryQueue;
+    }
+
+    if ('groupStates' in storage) {
+        namespacedStorage['groupStates:dct'] = storage.groupStates;
+    }
+
+    if ('requestCacheBody' in storage) {
+        namespacedStorage['requestCacheBody:dct'] = storage.requestCacheBody;
+    }
+
+    if ('requestCacheHeaders' in storage) {
+        namespacedStorage['requestCacheHeaders:dct'] = storage.requestCacheHeaders;
+    }
+
+    return namespacedStorage as T;
+}
+
 describe('MessageHandler', () => {
     let messageHandler: MessageHandler;
     let mockGetLastProperty: jest.Mock;
@@ -95,6 +124,15 @@ describe('MessageHandler', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        chromeMock.runtime.lastError = null;
+        chromeMock.storage.session.get.mockReset();
+        chromeMock.storage.session.set.mockReset();
+        chromeMock.storage.session.remove.mockReset();
+        chromeMock.storage.local.get.mockReset();
+        chromeMock.storage.local.set.mockReset();
+        chromeMock.storage.local.remove.mockReset();
+        chromeMock.tabs.query.mockReset();
+        chromeMock.tabs.sendMessage.mockReset();
         // Reset mock functions to ensure clean state
         mockQueueManager.addToQueue.mockReset();
         mockQueueManager.addToQueue.mockResolvedValue([]);
@@ -133,6 +171,24 @@ describe('MessageHandler', () => {
         // Setup mocks for baltichub
         const baltichub = require('../../../src/services/baltichub');
         mockGetDriverNameAndContainer = baltichub.getDriverNameAndContainer = jest.fn();
+        chromeMock.storage.session.get.mockImplementation((keys, callback) => {
+            callback({});
+        });
+        chromeMock.storage.session.set.mockImplementation((data, callback) => {
+            callback();
+        });
+        chromeMock.storage.session.remove.mockImplementation((key, callback) => {
+            callback?.();
+        });
+        chromeMock.storage.local.get.mockImplementation((keys, callback) => {
+            callback({});
+        });
+        chromeMock.storage.local.set.mockImplementation((data, callback) => {
+            callback();
+        });
+        chromeMock.storage.local.remove.mockImplementation((key, callback) => {
+            callback?.();
+        });
     });
 
     describe('handleMessage', () => {
@@ -158,7 +214,7 @@ describe('MessageHandler', () => {
             });
 
             // Mock storage
-            mockGetStorage.mockResolvedValue(mockStorageData);
+            mockGetStorage.mockResolvedValue(withNamespacedDctStorage(mockStorageData));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
@@ -214,11 +270,27 @@ describe('MessageHandler', () => {
             const message = { action: Actions.GET_AUTH_STATUS };
             const sender = {} as chrome.runtime.MessageSender;
 
-            mockGetStorage.mockResolvedValue({ unauthorized: false });
+            mockGetStorage.mockResolvedValue(withNamespacedDctStorage({ unauthorized: false }));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+        });
+
+        it('should resolve BCT auth status from the sender url', async () => {
+            const message = { action: Actions.GET_AUTH_STATUS };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/tv-apps',
+            } as chrome.runtime.MessageSender;
+
+            mockGetStorage.mockResolvedValue({ 'unauthorized:bct': true });
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockGetStorage).toHaveBeenCalledWith('unauthorized:bct');
+            expect(mockSendResponse).toHaveBeenCalledWith({ unauthorized: true });
         });
 
         it('should handle LOGIN_SUCCESS action', () => {
@@ -257,6 +329,25 @@ describe('MessageHandler', () => {
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+            expect(autoLoginService.loadCredentials).toHaveBeenCalledWith('dct');
+        });
+
+        it('should route BCT LOAD_AUTO_LOGIN_CREDENTIALS by sender url', async () => {
+            const message = { action: Actions.LOAD_AUTO_LOGIN_CREDENTIALS };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/login',
+            } as chrome.runtime.MessageSender;
+
+            (autoLoginService.loadCredentials as jest.Mock).mockResolvedValue({
+                login: 'bct@example.com',
+                password: 'password123',
+            });
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(autoLoginService.loadCredentials).toHaveBeenCalledWith('bct');
         });
 
         it('should handle IS_AUTO_LOGIN_ENABLED action', () => {
@@ -268,6 +359,7 @@ describe('MessageHandler', () => {
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+            expect(autoLoginService.isEnabled).toHaveBeenCalledWith('dct');
         });
 
         describe('background target actions', () => {
@@ -285,6 +377,26 @@ describe('MessageHandler', () => {
 
                 expect(result).toBe(true);
                 expect(mockQueueManager.removeFromQueue).toHaveBeenCalledWith('request-1');
+            });
+
+            it('should route BCT REMOVE_REQUEST to the BCT queue manager', () => {
+                const mockBctQueueManager = {
+                    removeFromQueue: jest.fn().mockResolvedValue(undefined),
+                };
+                const message = {
+                    target: 'background',
+                    action: Actions.REMOVE_REQUEST,
+                    data: { id: 'request-1', terminal: 'bct' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                (QueueManagerAdapter.getInstance as jest.Mock).mockReturnValue(mockBctQueueManager);
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+                expect(QueueManagerAdapter.getInstance).toHaveBeenCalledWith('retryQueue:bct');
+                expect(mockBctQueueManager.removeFromQueue).toHaveBeenCalledWith('request-1');
             });
 
             it('should handle UPDATE_REQUEST_STATUS action', () => {
@@ -332,7 +444,7 @@ describe('MessageHandler', () => {
                 const message = {
                     target: 'background',
                     action: Actions.GET_FEATURE_ACCESS,
-                    data: { featureKey: 'gct_tab' },
+                    data: { featureKey: 'gct' },
                 };
                 const sender = {} as chrome.runtime.MessageSender;
 
@@ -344,8 +456,26 @@ describe('MessageHandler', () => {
 
                 await waitForAsyncOperations(mockSendResponse);
 
-                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct_tab');
+                expect(featureAccessService.isFeatureEnabled).toHaveBeenCalledWith('gct');
                 expect(mockSendResponse).toHaveBeenCalledWith({ success: true, enabled: true });
+            });
+
+            it('should reject invalid feature keys', () => {
+                const message = {
+                    target: 'background',
+                    action: Actions.GET_FEATURE_ACCESS,
+                    data: { featureKey: 'invalid-feature' },
+                };
+                const sender = {} as chrome.runtime.MessageSender;
+
+                const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+                expect(result).toBe(true);
+                expect(mockSendResponse).toHaveBeenCalledWith({
+                    success: false,
+                    enabled: false,
+                    error: 'Invalid feature key',
+                });
             });
 
             it('should handle unknown action', () => {
@@ -371,6 +501,23 @@ describe('MessageHandler', () => {
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
 
             expect(result).toBe(true);
+        });
+
+        it('should reject booking actions from unknown web hosts', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {
+                url: 'https://example.com/tv-apps',
+            } as chrome.runtime.MessageSender;
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+            expect(mockQueueManager.addToQueue).not.toHaveBeenCalled();
+            expect(mockSendResponse).toHaveBeenCalledWith({
+                success: false,
+                error: 'Unable to resolve booking terminal',
+            });
         });
     });
 
@@ -451,22 +598,28 @@ describe('MessageHandler', () => {
             // 2. Second call in processCachedRequest for [requestCacheBody, retryQueue, testEnv, tableData]
             // 3-4. Two calls inside removeCachedRequest for requestCacheBody and requestCacheHeaders
             mockGetStorage
-                .mockResolvedValueOnce(mockStorageData) // First call: requestCacheHeaders
-                .mockResolvedValueOnce({
-                    // Second call: [requestCacheBody, retryQueue, testEnv, tableData]
-                    requestCacheBody: mockRequestCacheBody,
-                    retryQueue: [],
-                    testEnv: false,
-                    tableData: null,
-                })
-                .mockResolvedValueOnce({
-                    // Third call: inside removeCachedRequest for requestCacheBody
-                    requestCacheBody: mockRequestCacheBody,
-                })
-                .mockResolvedValueOnce({
-                    // Fourth call: inside removeCachedRequest for requestCacheHeaders
-                    requestCacheHeaders: mockStorageData.requestCacheHeaders,
-                });
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Second call: [requestCacheBody, retryQueue, testEnv, tableData]
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Third call: inside removeCachedRequest for requestCacheBody
+                        requestCacheBody: mockRequestCacheBody,
+                    }),
+                )
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        // Fourth call: inside removeCachedRequest for requestCacheHeaders
+                        requestCacheHeaders: mockStorageData.requestCacheHeaders,
+                    }),
+                );
 
             mockGetDriverNameAndContainer.mockResolvedValue({
                 driverName: 'Test Driver',
@@ -495,20 +648,22 @@ describe('MessageHandler', () => {
             // Wait for async operations to complete
             await waitForAsyncOperations(mockSendResponse);
 
-            expect(mockGetStorage).toHaveBeenCalledWith('requestCacheHeaders');
+            expect(mockGetStorage).toHaveBeenCalledWith('requestCacheHeaders:dct');
             expect(mockQueueManager.addToQueue).toHaveBeenCalled();
             // removeCachedRequest calls setStorage twice: once for body, once for headers
             // After removing 'request-1', both caches should be empty (no 'request-1' key)
             expect(mockSetStorage).toHaveBeenCalledTimes(2);
             const setStorageCalls = mockSetStorage.mock.calls;
-            const bodyCall = setStorageCalls.find(call => call[0].requestCacheBody !== undefined);
+            const bodyCall = setStorageCalls.find(
+                call => call[0]['requestCacheBody:dct'] !== undefined,
+            );
             const headersCall = setStorageCalls.find(
-                call => call[0].requestCacheHeaders !== undefined,
+                call => call[0]['requestCacheHeaders:dct'] !== undefined,
             );
             expect(bodyCall).toBeDefined();
             expect(headersCall).toBeDefined();
-            expect(bodyCall[0].requestCacheBody).not.toHaveProperty('request-1');
-            expect(headersCall[0].requestCacheHeaders).not.toHaveProperty('request-1');
+            expect(bodyCall[0]['requestCacheBody:dct']).not.toHaveProperty('request-1');
+            expect(headersCall[0]['requestCacheHeaders:dct']).not.toHaveProperty('request-1');
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
         });
 
@@ -558,12 +713,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -641,12 +800,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -676,6 +839,58 @@ describe('MessageHandler', () => {
 
             expect(mockQueueManager.addToQueue).toHaveBeenCalled();
             expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
+        });
+
+        it('should build BCT currentSlot from terminal-specific table headers', async () => {
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: '',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['bct-tv-id'],
+                    SlotStart: ['10.04.2026 13:00'],
+                    SlotEnd: ['10.04.2026 14:00'],
+                },
+            });
+
+            const retryObject = await (messageHandler as any).createRetryObject(
+                {
+                    url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                    body: {
+                        formData: {
+                            TvAppId: ['bct-tv-id'],
+                            SlotStart: ['10.04.2026 13:00'],
+                            SlotEnd: ['10.04.2026 14:00'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+                {
+                    url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                    headers: [],
+                    timestamp: Date.now(),
+                },
+                {
+                    retryQueue: [],
+                    tableData: [
+                        [
+                            'Status',
+                            'ID',
+                            'Data rozpoczęcia okna',
+                            'Start',
+                            'Koniec',
+                            'Nr kont. / ERO/EDO',
+                        ],
+                        ['AKTYWNA', 'bct-tv-id', '2026-04-10', '18:00', '19:00', 'CONT123'],
+                    ],
+                },
+                Actions.SHOW_ERROR,
+                BOOKING_TERMINALS.BCT,
+            );
+
+            expect(retryObject.currentSlot).toBe('2026-04-10 18:00');
+            expect(retryObject.containerNumber).toBe('CONT123');
         });
 
         it('should create retry object with SUCCEED_BOOKING action', async () => {
@@ -712,12 +927,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: null,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -768,12 +987,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: {},
-                retryQueue: [],
-                testEnv: false,
-                tableData: null,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: {},
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: null,
+                    }),
+                );
 
             mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
             mockExtractFirstId.mockReturnValue('request-1');
@@ -806,7 +1029,7 @@ describe('MessageHandler', () => {
             });
 
             mockGetStorage
-                .mockResolvedValueOnce(mockStorageData)
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
                 .mockRejectedValueOnce(new Error('Storage error'));
 
             const result = messageHandler.handleMessage(message, sender, mockSendResponse);
@@ -900,6 +1123,23 @@ describe('MessageHandler', () => {
             });
         });
 
+        it('should write BCT auth restoration to the BCT unauthorized key', async () => {
+            const message = {
+                action: Actions.LOGIN_SUCCESS,
+                message: { success: true },
+            };
+            const sender = {
+                url: 'https://ebrama.bct.ictsi.com/login',
+            } as chrome.runtime.MessageSender;
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            expect(mockSetStorage).toHaveBeenCalledWith({ 'unauthorized:bct': false });
+            expect(mockSendResponse).toHaveBeenCalledWith({ success: true });
+        });
+
         it('should handle AUTO_LOGIN_ATTEMPT with success false', async () => {
             const message = {
                 action: Actions.AUTO_LOGIN_ATTEMPT,
@@ -950,7 +1190,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -970,7 +1210,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -990,7 +1230,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -1010,7 +1250,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 credentials: null,
@@ -1045,7 +1285,7 @@ describe('MessageHandler', () => {
 
             expect(result).toBe(true);
             await new Promise(resolve => setTimeout(resolve, 50));
-            expect(autoLoginService.clearCredentials).toHaveBeenCalled();
+            expect(autoLoginService.clearCredentials).toHaveBeenCalledWith('dct');
             expect(mockSendResponse).toHaveBeenCalledWith({
                 success: false,
                 error: 'Load error',
@@ -1373,12 +1613,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1457,12 +1701,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1540,12 +1788,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({
@@ -1573,6 +1825,92 @@ describe('MessageHandler', () => {
 
             expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
                 expect.objectContaining({ slotType: 4 }),
+            );
+        });
+
+        it('should prefer table row matched by tvAppId over same container number', async () => {
+            const message = { action: Actions.SHOW_ERROR };
+            const sender = {} as chrome.runtime.MessageSender;
+
+            const { TABLE_DATA_NAMES } = require('../../../src/data');
+
+            const mockStorageData = {
+                requestCacheHeaders: {
+                    'request-1': {
+                        url: 'test-url',
+                        headers: [{ name: 'test', value: 'test' }],
+                        timestamp: Date.now(),
+                    },
+                },
+            };
+
+            const mockRequestCacheBody = {
+                'request-1': {
+                    url: 'test-url',
+                    body: {
+                        formData: {
+                            TvAppId: ['tv-app-19'],
+                            SlotStart: ['01.01.2025 19:00'],
+                            SlotEnd: ['01.01.2025 20:00'],
+                        },
+                    },
+                    timestamp: Date.now(),
+                },
+            };
+
+            const mockTableData = [
+                [
+                    TABLE_DATA_NAMES.CONTAINER_NUMBER,
+                    TABLE_DATA_NAMES.ID,
+                    TABLE_DATA_NAMES.SELECTED_DATE,
+                    TABLE_DATA_NAMES.START,
+                ],
+                ['TEST123', 'tv-app-17', '01.01.2025', '17:00'],
+                ['TEST123', 'tv-app-19', '01.01.2025', '19:00'],
+            ];
+
+            (authService.getCurrentUser as jest.Mock).mockResolvedValue({
+                id: 'user-1',
+                email: 'test@example.com',
+            });
+
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
+
+            mockRemoveCachedRequest.mockResolvedValue(true);
+            mockGetDriverNameAndContainer.mockResolvedValue({
+                driverName: 'Test Driver',
+                containerNumber: 'TEST123',
+            });
+            mockNormalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['tv-app-19'],
+                    SlotStart: ['01.01.2025 19:00'],
+                    SlotEnd: ['01.01.2025 20:00'],
+                },
+            });
+
+            mockGetLastProperty.mockReturnValue(mockStorageData.requestCacheHeaders['request-1']);
+            mockExtractFirstId.mockReturnValue('request-1');
+            mockGetPropertyById.mockReturnValue(mockRequestCacheBody['request-1']);
+
+            mockQueueManager.addToQueue.mockResolvedValue([]);
+
+            const result = messageHandler.handleMessage(message, sender, mockSendResponse);
+
+            expect(result).toBe(true);
+            await waitForAsyncOperations(mockSendResponse);
+
+            expect(mockQueueManager.addToQueue).toHaveBeenCalledWith(
+                expect.objectContaining({ currentSlot: '01.01.2025 19:00' }),
             );
         });
 
@@ -1622,12 +1960,16 @@ describe('MessageHandler', () => {
                 email: 'test@example.com',
             });
 
-            mockGetStorage.mockResolvedValueOnce(mockStorageData).mockResolvedValueOnce({
-                requestCacheBody: mockRequestCacheBody,
-                retryQueue: [],
-                testEnv: false,
-                tableData: mockTableData,
-            });
+            mockGetStorage
+                .mockResolvedValueOnce(withNamespacedDctStorage(mockStorageData))
+                .mockResolvedValueOnce(
+                    withNamespacedDctStorage({
+                        requestCacheBody: mockRequestCacheBody,
+                        retryQueue: [],
+                        testEnv: false,
+                        tableData: mockTableData,
+                    }),
+                );
 
             mockRemoveCachedRequest.mockResolvedValue(true);
             mockGetDriverNameAndContainer.mockResolvedValue({

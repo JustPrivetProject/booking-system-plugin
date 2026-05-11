@@ -3,23 +3,56 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export interface Database {
     public: {
         Tables: {
+            analytics_events: {
+                Row: {
+                    created_at: string;
+                    user_email: string;
+                    extension_version: string;
+                    feature_area: 'booking' | 'container_monitor';
+                    terminal: 'DCT' | 'BCT' | 'GCT';
+                    action: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key: string | null;
+                };
+                Insert: {
+                    created_at?: string;
+                    user_email: string;
+                    extension_version: string;
+                    feature_area: 'booking' | 'container_monitor';
+                    terminal: 'DCT' | 'BCT' | 'GCT';
+                    action: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key?: string | null;
+                };
+                Update: {
+                    created_at?: string;
+                    user_email?: string;
+                    extension_version?: string;
+                    feature_area?: 'booking' | 'container_monitor';
+                    terminal?: 'DCT' | 'BCT' | 'GCT';
+                    action?: 'container_added' | 'slot_added' | 'booking_success';
+                    container_key?: string | null;
+                };
+                Relationships: [];
+            };
             feature_access: {
                 Row: {
                     user_id: string;
-                    feature_key: string;
-                    enabled: boolean;
+                    gct: boolean;
+                    bct: boolean;
+                    email: string | null;
                     updated_at: string | null;
                 };
                 Insert: {
                     user_id: string;
-                    feature_key: string;
-                    enabled?: boolean;
+                    gct?: boolean;
+                    bct?: boolean;
+                    email?: string | null;
                     updated_at?: string | null;
                 };
                 Update: {
                     user_id?: string;
-                    feature_key?: string;
-                    enabled?: boolean;
+                    gct?: boolean;
+                    bct?: boolean;
+                    email?: string | null;
                     updated_at?: string | null;
                 };
                 Relationships: [

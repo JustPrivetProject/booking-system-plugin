@@ -1,20 +1,29 @@
 import type { RetryObject } from '../types/baltichub';
 import type { ProcessingOptions } from '../types/queue';
+import { BOOKING_TERMINALS } from '../types/terminal';
+import { getTerminalStorageKey, TERMINAL_STORAGE_NAMESPACES } from '../utils/storage';
 
 import type { QueueManager } from './queueManager';
 import { QueueManagerFactory } from './queueManagerFactory';
+
+const DEFAULT_DCT_QUEUE_STORAGE_KEY = getTerminalStorageKey(
+    TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+    BOOKING_TERMINALS.DCT,
+);
 
 /**
  * Adapter class to maintain backward compatibility with the old QueueManager singleton pattern
  * This allows gradual migration from the old implementation to the new one
  */
 export class QueueManagerAdapter {
-    private static instance: QueueManagerAdapter | null = null;
+    private static instances = new Map<string, QueueManagerAdapter>();
     private queueManager!: QueueManager;
 
-    constructor(storageKey = 'retryQueue') {
-        if (QueueManagerAdapter.instance) {
-            return QueueManagerAdapter.instance;
+    constructor(storageKey = DEFAULT_DCT_QUEUE_STORAGE_KEY) {
+        const existingInstance = QueueManagerAdapter.instances.get(storageKey);
+
+        if (existingInstance) {
+            return existingInstance;
         }
 
         this.queueManager = QueueManagerFactory.create({
@@ -22,14 +31,17 @@ export class QueueManagerAdapter {
             enableLogging: true,
         });
 
-        QueueManagerAdapter.instance = this;
+        QueueManagerAdapter.instances.set(storageKey, this);
     }
 
-    static getInstance(storageKey = 'retryQueue'): QueueManagerAdapter {
-        if (!QueueManagerAdapter.instance) {
-            QueueManagerAdapter.instance = new QueueManagerAdapter(storageKey);
+    static getInstance(storageKey = DEFAULT_DCT_QUEUE_STORAGE_KEY): QueueManagerAdapter {
+        const existingInstance = QueueManagerAdapter.instances.get(storageKey);
+
+        if (existingInstance) {
+            return existingInstance;
         }
-        return QueueManagerAdapter.instance;
+
+        return new QueueManagerAdapter(storageKey);
     }
 
     // Forward all methods to the new QueueManager implementation

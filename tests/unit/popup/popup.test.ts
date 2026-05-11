@@ -53,10 +53,12 @@ describe('Popup', () => {
                 <button id="notificationSettingsToggle">Notifications</button>
                 <div class="tabs-row">
                     <button id="tabBooking">DCT</button>
+                    <button id="tabBct">BCT</button>
                     <button id="tabContainerChecker">Monitor kontenerów</button>
                     <button id="tabGct">GCT</button>
                 </div>
                 <div id="bookingView"></div>
+                <div id="bctView"></div>
                 <div id="containerCheckerView"></div>
                 <div id="gctView"></div>
             </div>
@@ -85,7 +87,9 @@ describe('Popup', () => {
             const loginForm = document.getElementById('loginForm');
             const registerForm = document.getElementById('registerForm');
             const unbindForm = document.getElementById('unbindForm');
+            const tabBct = document.getElementById('tabBct');
             const tabGct = document.getElementById('tabGct');
+            const bctView = document.getElementById('bctView');
             const gctView = document.getElementById('gctView');
 
             expect(authContainer).toBeTruthy();
@@ -93,7 +97,9 @@ describe('Popup', () => {
             expect(loginForm).toBeTruthy();
             expect(registerForm).toBeTruthy();
             expect(unbindForm).toBeTruthy();
+            expect(tabBct).toBeTruthy();
             expect(tabGct).toBeTruthy();
+            expect(bctView).toBeTruthy();
             expect(gctView).toBeTruthy();
         });
 

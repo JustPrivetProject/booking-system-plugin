@@ -115,37 +115,7 @@ export const authService = {
     },
 
     async getCurrentUser(): Promise<AuthUser | null> {
-        // First check local session
-        const localUser = await sessionService.getCurrentUser();
-        if (localUser) {
-            return localUser;
-        }
-
-        // If no local session, check Supabase session
-        const {
-            data: { user },
-            error,
-        } = await supabase.auth.getUser();
-        if (error || !user) return null;
-
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('device_id')
-            .eq('id', user.id)
-            .single();
-
-        if (profileError) return null;
-
-        const authUser = {
-            id: user.id,
-            email: requireEmail(user.email),
-            deviceId: profile.device_id,
-        };
-
-        // Save session for future use
-        await sessionService.saveSession(authUser);
-
-        return authUser;
+        return await sessionService.getCurrentUser();
     },
 
     async isAuthenticated(): Promise<boolean> {

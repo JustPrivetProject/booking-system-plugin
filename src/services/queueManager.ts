@@ -15,14 +15,28 @@ import { clearBadge, syncStatusBadgeFromStorage } from '../utils/badge';
 import {
     consoleLog,
     consoleError,
+    consoleLogWithContext,
+    consoleErrorWithContext,
     setStorage,
     generateUniqueId,
     getStorage,
     consoleLogWithoutSave,
+    consoleLogWithoutSaveWithContext,
     normalizeFormData,
     getFirstFormDataString,
 } from '../utils/index';
 import { Statuses, ErrorType, Messages } from '../data';
+import {
+    BOOKING_TERMINALS,
+    getBookingTerminalFromUrl,
+    isBookingTerminal,
+    type BookingTerminal,
+} from '../types/terminal';
+import {
+    getTerminalStorageKey,
+    setTerminalStorageValue,
+    TERMINAL_STORAGE_NAMESPACES,
+} from '../utils/storage';
 import {
     getSlots,
     checkSlotAvailability,
@@ -30,6 +44,7 @@ import {
     validateRequestBeforeSlotCheck,
 } from './baltichub';
 import { isSlotRefreshTooOftenResponse } from '../utils/baltichub.helper';
+import { analyticsService } from './analyticsService';
 
 export class QueueManager implements IQueueManager {
     private authService: IAuthService;
@@ -37,6 +52,7 @@ export class QueueManager implements IQueueManager {
     private events: QueueEvents;
     private processingState: QueueProcessingState;
     private processingTimeoutId: NodeJS.Timeout | null = null;
+    private mutationLock: Promise<void> = Promise.resolve();
     private recentServer500Timestamps: number[] = [];
     private readonly server500WindowMs = 2 * 60 * 1000;
     private readonly server500Threshold = 2;
@@ -50,7 +66,10 @@ export class QueueManager implements IQueueManager {
         this.events = events;
 
         this.config = {
-            storageKey: 'retryQueue',
+            storageKey: getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+                BOOKING_TERMINALS.DCT,
+            ),
             retryDelay: 1000,
             batchSize: 10,
             enableLogging: true,
@@ -66,19 +85,38 @@ export class QueueManager implements IQueueManager {
         };
     }
 
+    private getManagerTerminal(): BookingTerminal {
+        return this.config.storageKey.endsWith(`:${BOOKING_TERMINALS.BCT}`)
+            ? BOOKING_TERMINALS.BCT
+            : BOOKING_TERMINALS.DCT;
+    }
+
+    private getLogContext(terminal: BookingTerminal = this.getManagerTerminal()) {
+        return {
+            scope: 'queue',
+            terminal,
+        };
+    }
+
     async addToQueue(newItem: RetryObject): Promise<RetryObject[]> {
         return this.withMutex(async () => {
             const queue = await this.getQueue();
+            const terminal = this.resolveRequestTerminal(newItem);
 
             // Validate item
             if (!this.isValidItem(newItem)) {
-                consoleLog('Invalid item provided to queue', newItem);
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
+                    'Invalid item provided to queue',
+                    newItem,
+                );
                 return queue;
             }
 
             // Check for duplicates
             if (this.isDuplicate(newItem, queue)) {
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     `Duplicate item with tvAppId ${newItem.tvAppId} and startSlot ${newItem.startSlot} not added to ${this.config.storageKey}`,
                 );
                 return queue;
@@ -86,7 +124,8 @@ export class QueueManager implements IQueueManager {
 
             // Handle success status items
             if (newItem.status === 'success' && !this.hasSameTvAppId(newItem.tvAppId, queue)) {
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     `Item with status 'success' and new tvAppId ${newItem.tvAppId} not added to ${this.config.storageKey}`,
                 );
                 return queue;
@@ -100,7 +139,14 @@ export class QueueManager implements IQueueManager {
             queue.push(newItem);
             await setStorage({ [this.config.storageKey]: queue });
 
-            consoleLog(`Item added to ${this.config.storageKey}:`, newItem);
+            consoleLogWithContext(
+                this.getLogContext(terminal),
+                `Item added to ${this.config.storageKey}:`,
+                newItem,
+            );
+            await analyticsService.trackSlotAdded('booking', terminal, {
+                containerNumber: newItem.containerNumber,
+            });
             this.events.onItemAdded?.(newItem);
 
             return queue;
@@ -188,7 +234,7 @@ export class QueueManager implements IQueueManager {
         const { intervalMin = 1000, intervalMax = 5000, retryEnabled = true } = options;
 
         if (this.processingState.isProcessing) {
-            consoleLog('Processing is already running');
+            consoleLogWithContext(this.getLogContext(), 'Processing is already running');
             return;
         }
 
@@ -205,7 +251,10 @@ export class QueueManager implements IQueueManager {
                 const isAuthenticated = await this.authService.isAuthenticated();
 
                 if (!isAuthenticated) {
-                    consoleLogWithoutSave('User is not authenticated. Skipping this cycle.');
+                    consoleLogWithoutSaveWithContext(
+                        this.getLogContext(),
+                        'User is not authenticated. Skipping this cycle.',
+                    );
                     clearBadge();
                     this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests, false);
                     return;
@@ -223,7 +272,7 @@ export class QueueManager implements IQueueManager {
                 return;
             } catch (error) {
                 this.processingState.errorCount++;
-                consoleError('Error in queue processing:', error);
+                consoleErrorWithContext(this.getLogContext(), 'Error in queue processing:', error);
                 this.events.onProcessingError?.(error as Error);
             }
 
@@ -243,7 +292,7 @@ export class QueueManager implements IQueueManager {
         }
 
         this.events.onProcessingStopped?.();
-        consoleLog('Queue processing stopped');
+        consoleLogWithContext(this.getLogContext(), 'Queue processing stopped');
     }
 
     // Public methods for monitoring
@@ -273,8 +322,14 @@ export class QueueManager implements IQueueManager {
 
     // Private helper methods
     private async withMutex<T>(operation: () => Promise<T>): Promise<T> {
-        // Simple mutex implementation - can be enhanced with proper locking
-        return operation();
+        const runOperation = this.mutationLock.then(operation, operation);
+
+        this.mutationLock = runOperation.then(
+            () => undefined,
+            () => undefined,
+        );
+
+        return runOperation;
     }
 
     private isValidItem(item: RetryObject): boolean {
@@ -305,7 +360,10 @@ export class QueueManager implements IQueueManager {
         this.processingTimeoutId = setTimeout(processNextRequests, randomInterval);
 
         if (hasActiveSubscriptions) {
-            consoleLogWithoutSave(`Next processing cycle in ${randomInterval / 1000} seconds`);
+            consoleLogWithoutSaveWithContext(
+                this.getLogContext(),
+                `Next processing cycle in ${randomInterval / 1000} seconds`,
+            );
         }
     }
 
@@ -352,7 +410,20 @@ export class QueueManager implements IQueueManager {
 
         // Step 2: Fetch slots SEQUENTIALLY per (date, slotType) (avoids rate limit from parallel bursts)
         for (const key of subscriptionKeys) {
-            const [date, slotTypeStr] = key.split('|');
+            const [terminalKey, date, slotTypeStr] = key.split('|');
+            const terminal = isBookingTerminal(terminalKey)
+                ? terminalKey
+                : this.getManagerTerminal();
+            if (!isBookingTerminal(terminalKey)) {
+                consoleErrorWithContext(
+                    this.getLogContext(terminal),
+                    'Invalid subscription terminal key, falling back to manager terminal',
+                    {
+                        subscriptionKey: key,
+                        storageKey: this.config.storageKey,
+                    },
+                );
+            }
             const slotType = slotTypeStr ? parseInt(slotTypeStr, 10) : 1;
             const requests = subscriptions.get(key);
             if (!requests) {
@@ -364,7 +435,7 @@ export class QueueManager implements IQueueManager {
             let error: ErrorResponse | null = null;
 
             try {
-                slots = await getSlots(date, slotType);
+                slots = await getSlots(date, slotType, terminal);
             } catch (err) {
                 error = {
                     ok: false,
@@ -406,7 +477,8 @@ export class QueueManager implements IQueueManager {
 
             if (isSlotRefreshTooOftenResponse(slotsText)) {
                 slotRefreshTooOften = true;
-                consoleLog(
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
                     '⏸️ SlotRefreshTooOftenInfo: pausing 10s before next getSlots cycle',
                     date,
                 );
@@ -477,9 +549,10 @@ export class QueueManager implements IQueueManager {
                     continue;
                 }
 
-                // Group by date + slotType (1 = default, 4 = PUSTE)
+                // Group by terminal + date + slotType so DCT and BCT never share a slot fetch cycle.
                 const slotType = req.slotType ?? 1;
-                const key = `${date}|${slotType}`;
+                const terminal = this.resolveRequestTerminal(req);
+                const key = `${terminal}|${date}|${slotType}`;
 
                 if (!subscriptions.has(key)) {
                     subscriptions.set(key, []);
@@ -491,6 +564,7 @@ export class QueueManager implements IQueueManager {
                         '📅 Added request to date/slotType group:',
                         `req.id=${req.id}`,
                         `tvAppId=${req.tvAppId}`,
+                        `terminal=${terminal}`,
                         `Date=${date}`,
                         `slotType=${slotType}`,
                         `req.startSlot=${req.startSlot || 'not set'}`,
@@ -632,6 +706,14 @@ export class QueueManager implements IQueueManager {
 
                 const updatedReq = await executeRequest(reqForProcessing, tvAppId, time);
                 await this.updateQueueItem(req.id, updatedReq);
+                if (updatedReq.status === Statuses.SUCCESS) {
+                    await analyticsService.trackBookingSuccess(
+                        updatedReq.terminal || getBookingTerminalFromUrl(updatedReq.url),
+                        {
+                            containerNumber: updatedReq.containerNumber,
+                        },
+                    );
+                }
                 this.processingState.processedCount++;
             } catch (error) {
                 this.processingState.errorCount++;
@@ -661,7 +743,7 @@ export class QueueManager implements IQueueManager {
                     }
 
                     if (errorData.type === ErrorType.CLIENT_ERROR && errorData.status === 401) {
-                        setStorage({ unauthorized: true });
+                        await this.markRequestUnauthorized(req);
                         await this.updateQueueItem(req.id, {
                             status: Statuses.AUTHORIZATION_ERROR,
                             status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
@@ -671,7 +753,7 @@ export class QueueManager implements IQueueManager {
 
                     if (errorData.type === ErrorType.SERVER_ERROR) {
                         if (this.shouldTreatServer500AsUnauthorized()) {
-                            await setStorage({ unauthorized: true });
+                            await this.markRequestUnauthorized(req);
                             await this.updateQueueItem(req.id, {
                                 status: Statuses.AUTHORIZATION_ERROR,
                                 status_message:
@@ -702,7 +784,7 @@ export class QueueManager implements IQueueManager {
                     'status' in error &&
                     error.status === 401
                 ) {
-                    setStorage({ unauthorized: true });
+                    await this.markRequestUnauthorized(req);
                     await this.updateQueueItem(req.id, {
                         status: Statuses.AUTHORIZATION_ERROR,
                         status_message: 'Problem z autoryzacją - nieautoryzowany dostęp',
@@ -748,5 +830,37 @@ export class QueueManager implements IQueueManager {
 
     private clearRecentServer500Errors(): void {
         this.recentServer500Timestamps = [];
+    }
+
+    private resolveRequestTerminal(req: RetryObject): BookingTerminal {
+        if (req.terminal) {
+            return req.terminal;
+        }
+
+        const terminalFromUrl = getBookingTerminalFromUrl(req.url);
+        if (terminalFromUrl) {
+            return terminalFromUrl;
+        }
+
+        const managerTerminal = this.getManagerTerminal();
+        consoleErrorWithContext(
+            this.getLogContext(managerTerminal),
+            'Missing request terminal metadata, falling back to manager terminal',
+            {
+                requestId: req.id,
+                url: req.url,
+                storageKey: this.config.storageKey,
+            },
+        );
+
+        return managerTerminal;
+    }
+
+    private async markRequestUnauthorized(req: RetryObject): Promise<void> {
+        await setTerminalStorageValue(
+            TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+            this.resolveRequestTerminal(req),
+            true,
+        );
     }
 }

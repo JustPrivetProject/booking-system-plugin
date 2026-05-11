@@ -408,101 +408,25 @@ describe('AuthService', () => {
             expect(sessionService.getCurrentUser).toHaveBeenCalled();
         });
 
-        it('should return user from Supabase if no local session', async () => {
-            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
-
+        it('should return null if no local session exists', async () => {
             (sessionService.getCurrentUser as jest.Mock).mockResolvedValue(null);
-
-            const mockUser = {
-                id: 'user-123',
-                email: 'test@example.com',
-            };
-
-            mockSupabase.auth.getUser.mockResolvedValue({
-                data: { user: mockUser },
-                error: null,
-            });
-
-            mockSupabase.from.mockReturnValue({
-                select: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        single: jest.fn().mockResolvedValue({
-                            data: { device_id: 'test-device-id' },
-                            error: null,
-                        }),
-                    }),
-                }),
-            });
-
-            const result = await authService.getCurrentUser();
-
-            expect(result).toEqual({
-                id: 'user-123',
-                email: 'test@example.com',
-                deviceId: 'test-device-id',
-            });
-            expect(sessionService.saveSession).toHaveBeenCalledWith(result);
-        });
-
-        it('should return null if Supabase user fetch fails', async () => {
-            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
-
-            (sessionService.getCurrentUser as jest.Mock).mockResolvedValue(null);
-
-            mockSupabase.auth.getUser.mockResolvedValue({
-                data: { user: null },
-                error: new Error('Failed to get user'),
-            });
 
             const result = await authService.getCurrentUser();
 
             expect(result).toBeNull();
+            expect(sessionService.getCurrentUser).toHaveBeenCalled();
         });
 
-        it('should return null if Supabase user is null', async () => {
+        it('should not query Supabase when local session is missing', async () => {
             const mockSupabase = require('../../../src/services/supabaseClient').supabase;
 
             (sessionService.getCurrentUser as jest.Mock).mockResolvedValue(null);
 
-            mockSupabase.auth.getUser.mockResolvedValue({
-                data: { user: null },
-                error: null,
-            });
-
             const result = await authService.getCurrentUser();
 
             expect(result).toBeNull();
-        });
-
-        it('should return null if profile fetch fails', async () => {
-            const mockSupabase = require('../../../src/services/supabaseClient').supabase;
-
-            (sessionService.getCurrentUser as jest.Mock).mockResolvedValue(null);
-
-            const mockUser = {
-                id: 'user-123',
-                email: 'test@example.com',
-            };
-
-            mockSupabase.auth.getUser.mockResolvedValue({
-                data: { user: mockUser },
-                error: null,
-            });
-
-            mockSupabase.from.mockReturnValue({
-                select: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        single: jest.fn().mockResolvedValue({
-                            data: null,
-                            error: new Error('Profile error'),
-                        }),
-                    }),
-                }),
-            });
-
-            const result = await authService.getCurrentUser();
-
-            expect(result).toBeNull();
+            expect(mockSupabase.auth.getUser).not.toHaveBeenCalled();
+            expect(sessionService.saveSession).not.toHaveBeenCalled();
         });
     });
 

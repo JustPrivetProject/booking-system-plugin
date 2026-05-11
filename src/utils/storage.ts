@@ -1,5 +1,6 @@
 import { consoleLog, consoleError } from './logging';
 import type { LocalStorageData } from '../types/general';
+import { BOOKING_TERMINALS, type BookingTerminal } from '../types/terminal';
 
 type StorageKey<T extends string | string[]> = T extends string ? T : T[number];
 type KnownStorageValue<K extends string> = K extends keyof LocalStorageData
@@ -8,6 +9,65 @@ type KnownStorageValue<K extends string> = K extends keyof LocalStorageData
 type StorageResult<T extends string | string[]> = {
     [K in StorageKey<T>]: KnownStorageValue<K>;
 };
+
+export const TERMINAL_STORAGE_NAMESPACES = {
+    RETRY_QUEUE: 'retryQueue',
+    GROUP_STATES: 'groupStates',
+    REQUEST_CACHE_BODY: 'requestCacheBody',
+    REQUEST_CACHE_HEADERS: 'requestCacheHeaders',
+    UNAUTHORIZED: 'unauthorized',
+} as const;
+
+export type TerminalStorageNamespace =
+    (typeof TERMINAL_STORAGE_NAMESPACES)[keyof typeof TERMINAL_STORAGE_NAMESPACES];
+
+export const LEGACY_DCT_STORAGE_KEYS: readonly string[] = [
+    TERMINAL_STORAGE_NAMESPACES.RETRY_QUEUE,
+    TERMINAL_STORAGE_NAMESPACES.GROUP_STATES,
+    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+    TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+    TERMINAL_STORAGE_NAMESPACES.UNAUTHORIZED,
+] as const;
+
+export function getTerminalStorageKey(
+    namespace: TerminalStorageNamespace,
+    terminal: BookingTerminal,
+): string {
+    return `${namespace}:${terminal}`;
+}
+
+export async function clearLegacyDctStorage(): Promise<void> {
+    try {
+        await removeStorage([...LEGACY_DCT_STORAGE_KEYS]);
+    } catch (error) {
+        consoleError('Error clearing legacy DCT storage:', error);
+    }
+}
+
+export async function getTerminalStorageValue<T>(
+    namespace: TerminalStorageNamespace,
+    terminal: BookingTerminal,
+    defaultValue: T,
+): Promise<T> {
+    const terminalKey = getTerminalStorageKey(namespace, terminal);
+    const result = (await getStorage(terminalKey)) as Record<string, unknown>;
+    const terminalValue = result[terminalKey];
+
+    if (terminalValue !== undefined) {
+        return terminalValue as T;
+    }
+
+    return defaultValue;
+}
+
+export async function setTerminalStorageValue<T>(
+    namespace: TerminalStorageNamespace,
+    terminal: BookingTerminal,
+    value: T,
+): Promise<void> {
+    const terminalKey = getTerminalStorageKey(namespace, terminal);
+    await setStorage({ [terminalKey]: value });
+}
 
 /**
  * Получает значение из chrome.storage.local
@@ -99,8 +159,22 @@ export async function cleanupCache(): Promise<boolean> {
     consoleLog('Cleaning up cache...');
     try {
         await setStorage({
-            requestCacheBody: {},
-            requestCacheHeaders: {},
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                BOOKING_TERMINALS.DCT,
+            )]: {},
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                BOOKING_TERMINALS.DCT,
+            )]: {},
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_BODY,
+                BOOKING_TERMINALS.BCT,
+            )]: {},
+            [getTerminalStorageKey(
+                TERMINAL_STORAGE_NAMESPACES.REQUEST_CACHE_HEADERS,
+                BOOKING_TERMINALS.BCT,
+            )]: {},
         });
         return true;
     } catch (error) {

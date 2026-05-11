@@ -52,6 +52,7 @@ const chromeMock = {
             removeListener: jest.fn(),
         },
         getURL: jest.fn(),
+        getManifest: jest.fn(() => ({ version: '3.0.2' })),
         lastError: null,
     },
     action: {

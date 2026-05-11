@@ -11,6 +11,7 @@ import {
     runContainerCheckCycle,
     acknowledgeContainerCheckerUiChanges,
 } from '../../services/containerChecker/containerCheckerService';
+import { analyticsService } from '../../services/analyticsService';
 
 function normalizeContainerId(containerId: string): string {
     return containerId.trim().toUpperCase();
@@ -89,6 +90,9 @@ export class ContainerCheckerHandler {
                 ];
 
                 await saveContainerCheckerWatchlist(watchlist);
+                await analyticsService.trackContainerAdded('container_monitor', port, {
+                    containerNumber,
+                });
                 return getNormalizedContainerCheckerState();
             }
 

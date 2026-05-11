@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome-Web%20Store-blue.svg)](https://chrome.google.com/webstore)
-[![Version](https://img.shields.io/badge/version-2.1.10-green.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-3.0.8-green.svg)](package.json)
 
 ## Overview
 

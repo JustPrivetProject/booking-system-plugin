@@ -4,6 +4,11 @@ import * as containerCheckerService from '../../../src/services/containerChecker
 
 jest.mock('../../../src/containerChecker/storage');
 jest.mock('../../../src/services/containerChecker/containerCheckerService');
+jest.mock('../../../src/services/analyticsService', () => ({
+    analyticsService: {
+        trackContainerAdded: jest.fn(),
+    },
+}));
 
 const mockState = {
     watchlist: [],
@@ -17,6 +22,10 @@ describe('ContainerCheckerHandler', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         handler = new ContainerCheckerHandler();
+        (
+            require('../../../src/services/analyticsService').analyticsService
+                .trackContainerAdded as jest.Mock
+        ).mockResolvedValue(undefined);
         (containerCheckerService.getNormalizedContainerCheckerState as jest.Mock).mockResolvedValue(
             mockState,
         );
@@ -95,7 +104,53 @@ describe('ContainerCheckerHandler', () => {
                     }),
                 ]),
             );
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).toHaveBeenCalledWith('container_monitor', 'DCT', {
+                containerNumber: 'ABCD1234567',
+            });
             expect(result).toBeDefined();
+        });
+
+        it('should wait for analytics before resolving ADD_CONTAINER', async () => {
+            const message = {
+                target: 'containerChecker' as const,
+                type: 'ADD_CONTAINER' as const,
+                containerNumber: 'ABCD1234567',
+                port: 'DCT',
+            };
+            (containerCheckerService.getNormalizedContainerCheckerState as jest.Mock)
+                .mockResolvedValueOnce({ ...mockState, watchlist: [] })
+                .mockResolvedValueOnce(mockState);
+
+            let resolveAnalytics: () => void = () => undefined;
+            const trackContainerAdded = require('../../../src/services/analyticsService')
+                .analyticsService.trackContainerAdded as jest.Mock;
+            trackContainerAdded.mockImplementation(
+                () =>
+                    new Promise<void>(resolve => {
+                        resolveAnalytics = resolve;
+                    }),
+            );
+
+            let settled = false;
+            const handlePromise = handler.handleMessage(message).then(result => {
+                settled = true;
+                return result;
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(trackContainerAdded).toHaveBeenCalledWith('container_monitor', 'DCT', {
+                containerNumber: 'ABCD1234567',
+            });
+            expect(settled).toBe(false);
+
+            resolveAnalytics();
+            await handlePromise;
+
+            expect(settled).toBe(true);
         });
 
         it('should throw when container number is missing', async () => {
@@ -152,6 +207,10 @@ describe('ContainerCheckerHandler', () => {
             const result = await handler.handleMessage(message);
 
             expect(storage.saveContainerCheckerWatchlist).not.toHaveBeenCalled();
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).not.toHaveBeenCalled();
             expect(result).toEqual({ ...mockState, watchlist: existingWatchlist });
         });
     });
@@ -188,6 +247,10 @@ describe('ContainerCheckerHandler', () => {
             await handler.handleMessage(message);
 
             expect(storage.saveContainerCheckerWatchlist).toHaveBeenCalledWith([]);
+            expect(
+                require('../../../src/services/analyticsService').analyticsService
+                    .trackContainerAdded,
+            ).not.toHaveBeenCalled();
         });
     });
 

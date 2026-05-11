@@ -9,6 +9,7 @@ import {
 import { RetryObject } from '../../../src/types/baltichub';
 import { Statuses, ErrorType } from '../../../src/data';
 import { notificationService } from '../../../src/services/notificationService';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 // Test Data Constants Pattern
 const TEST_DATES = {
@@ -178,30 +179,39 @@ const TEST_HTML_RESPONSES = {
 } as const;
 
 // Mock utils functions
-jest.mock('../../../src/utils', () => ({
-    fetchRequest: jest.fn(),
-    consoleLog: jest.fn(),
-    consoleLogWithoutSave: jest.fn(),
-    consoleError: jest.fn(),
-    formatDateToDMY: jest.fn(),
-    JSONstringify: jest.fn(obj => JSON.stringify(obj)),
-    getFirstFormDataString: jest.fn((values?: unknown[]) => {
-        const value = values?.[0];
-        return typeof value === 'string' ? value : null;
-    }),
-    normalizeFormData: jest.fn(),
-    createFormData: jest.fn(),
-    parseDateTimeFromDMY: jest.fn(),
-    setStorage: jest.fn(),
-    ErrorType: {
-        NETWORK: 'NETWORK',
-        SERVER_ERROR: 'SERVER_ERROR',
-        CLIENT_ERROR: 'CLIENT_ERROR',
-        HTML_ERROR: 'HTML_ERROR',
-        TIMEOUT: 'TIMEOUT',
-        UNKNOWN: 'UNKNOWN',
-    },
-}));
+jest.mock('../../../src/utils', () => {
+    const consoleLog = jest.fn();
+    const consoleLogWithoutSave = jest.fn();
+    const consoleError = jest.fn();
+
+    return {
+        fetchRequest: jest.fn(),
+        consoleLog,
+        consoleLogWithContext: consoleLog,
+        consoleLogWithoutSave,
+        consoleLogWithoutSaveWithContext: consoleLogWithoutSave,
+        consoleError,
+        consoleErrorWithContext: consoleError,
+        formatDateToDMY: jest.fn(),
+        JSONstringify: jest.fn(obj => JSON.stringify(obj)),
+        getFirstFormDataString: jest.fn((values?: unknown[]) => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        }),
+        normalizeFormData: jest.fn(),
+        createFormData: jest.fn(),
+        parseDateTimeFromDMY: jest.fn(),
+        setStorage: jest.fn(),
+        ErrorType: {
+            NETWORK: 'NETWORK',
+            SERVER_ERROR: 'SERVER_ERROR',
+            CLIENT_ERROR: 'CLIENT_ERROR',
+            HTML_ERROR: 'HTML_ERROR',
+            TIMEOUT: 'TIMEOUT',
+            UNKNOWN: 'UNKNOWN',
+        },
+    };
+});
 
 // Mock helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({
@@ -218,6 +228,13 @@ jest.mock('../../../src/services/notificationService', () => ({
     },
 }));
 
+jest.mock('../../../src/utils/storage', () => ({
+    setTerminalStorageValue: jest.fn(),
+    TERMINAL_STORAGE_NAMESPACES: {
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
+
 // Mock chrome notifications
 global.chrome = {
     notifications: {
@@ -231,6 +248,7 @@ class BaltichubTestHelper {
     private mockHelper: any;
     private mockChrome: any;
     private mockNotificationService: any;
+    private mockStorageUtils: any;
 
     constructor() {
         this.mockUtils = require('../../../src/utils');
@@ -239,6 +257,7 @@ class BaltichubTestHelper {
         this.mockNotificationService = notificationService as jest.Mocked<
             typeof notificationService
         >;
+        this.mockStorageUtils = require('../../../src/utils/storage');
     }
 
     setupMocks(): void {
@@ -368,6 +387,14 @@ class BaltichubTestHelper {
         expect(this.mockNotificationService.sendBookingSuccessNotifications).toHaveBeenCalled();
     }
 
+    expectUnauthorizedFlagSet(terminal: string): void {
+        expect(this.mockStorageUtils.setTerminalStorageValue).toHaveBeenCalledWith(
+            'unauthorized',
+            terminal,
+            true,
+        );
+    }
+
     resetMocks(): void {
         jest.clearAllMocks();
         this.setupMocks();
@@ -412,6 +439,26 @@ describe('Baltichub Service', () => {
             expect(result).toEqual(TEST_RESPONSES.SUCCESS);
         });
 
+        it('should fetch BCT slots for given date', async () => {
+            const result = await getSlots(TEST_DATES.VALID, 1, BOOKING_TERMINALS.BCT);
+
+            testHelper.expectFetchRequestCalledWith(
+                'https://ebrama.bct.ictsi.com/Home/GetSlotsForPreview',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        Referer: 'https://ebrama.bct.ictsi.com/tv-apps',
+                        Accept: '*/*',
+                    },
+                    body: JSON.stringify({ date: '25.12.2024', type: 1 }),
+                    credentials: 'omit',
+                },
+            );
+            expect(result).toEqual(TEST_RESPONSES.SUCCESS);
+        });
+
         it('should handle fetch error', async () => {
             // Arrange
             const { fetchRequest } = require('../../../src/utils');
@@ -439,6 +486,26 @@ describe('Baltichub Service', () => {
                         'Content-Type': 'application/json; charset=UTF-8',
                         'X-requested-with': 'XMLHttpRequest',
                         Referer: 'https://ebrama.baltichub.com/tv-apps',
+                        Accept: '*/*',
+                        'X-Extension-Request': 'JustPrivetProject',
+                    },
+                    credentials: 'include',
+                },
+            );
+            expect(result).toEqual(TEST_RESPONSES.SUCCESS);
+        });
+
+        it('should fetch BCT edit form for tvAppId', async () => {
+            const result = await getEditForm(TEST_TV_APP_IDS.VALID, BOOKING_TERMINALS.BCT);
+
+            testHelper.expectFetchRequestCalledWith(
+                'https://ebrama.bct.ictsi.com/TVApp/EditTvAppModal?tvAppId=tv-app-123',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=UTF-8',
+                        'X-requested-with': 'XMLHttpRequest',
+                        Referer: 'https://ebrama.bct.ictsi.com/tv-apps',
                         Accept: '*/*',
                         'X-Extension-Request': 'JustPrivetProject',
                     },
@@ -645,7 +712,7 @@ describe('Baltichub Service', () => {
         });
 
         it('should mark unauthorized storage only for eBrama authorization errors', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { fetchRequest, createFormData } = require('../../../src/utils');
             const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
 
             createFormData.mockReturnValue(new FormData());
@@ -666,15 +733,14 @@ describe('Baltichub Service', () => {
 
             const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.DCT);
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
         });
 
         it('should treat 200 login page response as eBrama authorization loss', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
+            const { fetchRequest, createFormData } = require('../../../src/utils');
             const { isEbramaLoginPageResponse } = require('../../../src/utils/baltichub.helper');
 
-            setStorage.mockClear();
             createFormData.mockReturnValue(new FormData());
             fetchRequest.mockResolvedValue({
                 ok: true,
@@ -694,18 +760,47 @@ describe('Baltichub Service', () => {
 
             const result = await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).toHaveBeenCalledWith({ unauthorized: true });
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.DCT);
             expect(result.status).toBe(Statuses.AUTHORIZATION_ERROR);
             expect(result.status_message).toBe(
                 'Problem z autoryzacją - wymagane ponowne logowanie',
             );
         });
 
-        it('should not mark unauthorized storage for non-auth handled errors', async () => {
-            const { fetchRequest, createFormData, setStorage } = require('../../../src/utils');
-            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+        it('should mark BCT unauthorized storage for BCT login page response', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            const { isEbramaLoginPageResponse } = require('../../../src/utils/baltichub.helper');
 
-            setStorage.mockClear();
+            createFormData.mockReturnValue(new FormData());
+            fetchRequest.mockResolvedValue({
+                ok: true,
+                url: 'https://ebrama.bct.ictsi.com/Account/Login',
+                text: jest
+                    .fn()
+                    .mockResolvedValue(
+                        '<!DOCTYPE html><html><form action="/Account/Login"></form></html>',
+                    ),
+            });
+            isEbramaLoginPageResponse.mockReturnValue(true);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+                body: { formData: { TvAppId: ['123'], SlotStart: ['01.01.2025 10:00'] } },
+            };
+
+            await executeRequest(req, '123', ['01.01.2025', '10:00']);
+
+            testHelper.expectUnauthorizedFlagSet(BOOKING_TERMINALS.BCT);
+        });
+
+        it('should not mark unauthorized storage for non-auth handled errors', async () => {
+            const { fetchRequest, createFormData } = require('../../../src/utils');
+            const { handleErrorResponse } = require('../../../src/utils/baltichub.helper');
+            const { setTerminalStorageValue } = require('../../../src/utils/storage');
+
+            setTerminalStorageValue.mockClear();
             createFormData.mockReturnValue(new FormData());
             fetchRequest.mockResolvedValue({
                 ok: false,
@@ -724,7 +819,7 @@ describe('Baltichub Service', () => {
 
             await executeRequest(req, '123', ['01.01.2025', '10:00']);
 
-            expect(setStorage).not.toHaveBeenCalledWith({ unauthorized: true });
+            expect(setTerminalStorageValue).not.toHaveBeenCalled();
         });
 
         it('should send notifications on success', async () => {
@@ -854,6 +949,70 @@ describe('Baltichub Service', () => {
             const req: RetryObject = {
                 ...TEST_RETRY_OBJECTS.VALID,
                 currentSlot: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 hour ago
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).not.toBeNull();
+            expect(result?.status).toBe(Statuses.EXPIRED);
+        });
+
+        it('should allow BCT requests while the current slot hour is still in progress', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const currentHourStart = new Date();
+            currentHourStart.setMinutes(0, 0, 0);
+
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                currentSlot: currentHourStart.toISOString(),
+            };
+
+            const result = await validateRequestBeforeSlotCheck(req, []);
+
+            expect(result).toBeNull();
+        });
+
+        it('should still return EXPIRED for BCT when the current slot hour has already ended', async () => {
+            const { normalizeFormData, parseDateTimeFromDMY } = require('../../../src/utils');
+            const {
+                isTaskCompletedInAnotherQueue,
+            } = require('../../../src/utils/baltichub.helper');
+
+            const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            const previousHourStart = new Date();
+            previousHourStart.setMinutes(0, 0, 0);
+            previousHourStart.setHours(previousHourStart.getHours() - 1);
+
+            normalizeFormData.mockReturnValue({
+                formData: {
+                    TvAppId: ['123'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            });
+            parseDateTimeFromDMY.mockReturnValue(futureDate);
+            isTaskCompletedInAnotherQueue.mockReturnValue(false);
+
+            const req: RetryObject = {
+                ...TEST_RETRY_OBJECTS.VALID,
+                terminal: BOOKING_TERMINALS.BCT,
+                currentSlot: previousHourStart.toISOString(),
             };
 
             const result = await validateRequestBeforeSlotCheck(req, []);

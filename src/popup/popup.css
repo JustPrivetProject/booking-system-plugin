@@ -104,7 +104,7 @@ tr:last-child td {
 }
 
 /* Empty table */
-#queueTableBody:empty::after {
+.booking-queue-body:empty::after {
     content: 'Proszę dodać zadania do realizacji';
     display: block;
     font-size: var(--font-size-table);
@@ -114,7 +114,7 @@ tr:last-child td {
     width: var(--app-width);
 }
 
-#queueTableBody:empty + tr {
+.booking-queue-body:empty + tr {
     display: none;
 }
 
@@ -344,7 +344,7 @@ tr:hover td {
     background-color: transparent; /* Убираем фон у ячеек при наведении */
 }
 
-#queueTable td:first-child {
+.booking-queue-table tbody tr:not(.group-row) td:first-child {
     width: 22px;
     padding-left: var(--spacing-small);
     padding-right: var(--spacing-small);
@@ -378,7 +378,7 @@ td.group-header {
     height: var(--header-row-height);
     vertical-align: middle;
     border-top: none;
-    cursor: pointer;
+    cursor: default;
 }
 
 td.group-header.actions {
@@ -388,6 +388,13 @@ td.group-header.actions {
     max-width: 138px;
     text-align: right;
     vertical-align: middle;
+    cursor: default;
+}
+
+tr.group-row:not(.gct-group-row) td.group-header.toggle-cell,
+tr.group-row:not(.gct-group-row) td.group-header.status,
+tr.gct-group-row td.group-header.toggle-cell {
+    cursor: pointer;
 }
 
 .gct-group-actions {
@@ -420,9 +427,6 @@ td.group-header.toggle-cell,
 td.group-header.toggle-cell.open {
     padding-top: 3px;
     padding-bottom: 3px;
-    width: 22px !important;
-    min-width: 22px;
-    max-width: 22px;
 }
 
 td.group-header.status {
@@ -1106,11 +1110,34 @@ tr[data-is-open='false'] .status-icon {
     padding: 0;
 }
 
+#bctView,
 #gctView {
     width: 100%;
     min-width: var(--app-width);
-    min-height: 240px;
     padding-top: 4px;
+}
+
+.feature-shell-view {
+    min-height: 240px;
+    padding: 12px;
+}
+
+.feature-shell-card {
+    border: 1px dashed #d4d4d4;
+    border-radius: 10px;
+    background: #fafafa;
+    padding: 16px;
+}
+
+.feature-shell-card h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+}
+
+.feature-shell-card p {
+    margin: 0;
+    color: #666;
+    line-height: 1.45;
 }
 
 .gct-controls {

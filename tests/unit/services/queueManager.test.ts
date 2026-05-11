@@ -1,32 +1,41 @@
 // Mock the existing utilities FIRST, before any imports
-jest.mock('../../../src/utils', () => ({
-    generateUniqueId: jest.fn(() => 'mock-id'),
-    consoleLog: jest.fn(),
-    consoleError: jest.fn(),
-    consoleLogWithoutSave: jest.fn(),
-    getStorage: jest.fn(),
-    setStorage: jest.fn(),
-    getFirstFormDataString: jest.fn((values?: unknown[]) => {
-        const value = values?.[0];
-        return typeof value === 'string' ? value : null;
-    }),
-    normalizeFormData: jest.fn((body: any) => {
-        // normalizeFormData should return the same structure if body already has formData
-        // In real code it normalizes arrays, but for tests we preserve the structure
-        if (body && body.formData) {
-            return body;
-        }
-        // If body is already formData structure, return it wrapped
-        return {
-            formData: {
-                TvAppId: ['test-tv-app'],
-                SlotStart: ['01.01.2025 10:00'],
-                SlotEnd: ['01.01.2025 11:00'],
-            },
-        };
-    }),
-    parseDateTimeFromDMY: jest.fn((_date: string) => new Date('2025-01-01T11:00:00')),
-}));
+jest.mock('../../../src/utils', () => {
+    const consoleLog = jest.fn();
+    const consoleError = jest.fn();
+    const consoleLogWithoutSave = jest.fn();
+
+    return {
+        generateUniqueId: jest.fn(() => 'mock-id'),
+        consoleLog,
+        consoleLogWithContext: consoleLog,
+        consoleError,
+        consoleErrorWithContext: consoleError,
+        consoleLogWithoutSave,
+        consoleLogWithoutSaveWithContext: consoleLogWithoutSave,
+        getStorage: jest.fn(),
+        setStorage: jest.fn(),
+        getFirstFormDataString: jest.fn((values?: unknown[]) => {
+            const value = values?.[0];
+            return typeof value === 'string' ? value : null;
+        }),
+        normalizeFormData: jest.fn((body: any) => {
+            // normalizeFormData should return the same structure if body already has formData
+            // In real code it normalizes arrays, but for tests we preserve the structure
+            if (body && body.formData) {
+                return body;
+            }
+            // If body is already formData structure, return it wrapped
+            return {
+                formData: {
+                    TvAppId: ['test-tv-app'],
+                    SlotStart: ['01.01.2025 10:00'],
+                    SlotEnd: ['01.01.2025 11:00'],
+                },
+            };
+        }),
+        parseDateTimeFromDMY: jest.fn((_date: string) => new Date('2025-01-01T11:00:00')),
+    };
+});
 
 // Mock baltichub helper functions
 jest.mock('../../../src/utils/baltichub.helper', () => ({
@@ -44,7 +53,16 @@ jest.mock('../../../src/services/baltichub', () => ({
     executeRequest: jest.fn(),
 }));
 
-// Storage functions are now included in the main utils mock above
+jest.mock('../../../src/utils/storage', () => ({
+    getTerminalStorageKey: jest.fn(
+        (namespace: string, terminal: string) => `${namespace}:${terminal}`,
+    ),
+    setTerminalStorageValue: jest.fn(),
+    TERMINAL_STORAGE_NAMESPACES: {
+        RETRY_QUEUE: 'retryQueue',
+        UNAUTHORIZED: 'unauthorized',
+    },
+}));
 
 jest.mock('../../../src/utils/badge', () => ({
     updateBadge: jest.fn(),
@@ -52,10 +70,19 @@ jest.mock('../../../src/utils/badge', () => ({
     syncStatusBadgeFromStorage: jest.fn(),
 }));
 
+jest.mock('../../../src/services/analyticsService', () => ({
+    analyticsService: {
+        trackContainerAdded: jest.fn(),
+        trackSlotAdded: jest.fn(),
+        trackBookingSuccess: jest.fn(),
+    },
+}));
+
 // Import AFTER all mocks are declared
 import { QueueManager } from '../../../src/services/queueManager';
 import { RetryObject } from '../../../src/types/baltichub';
 import { QueueEvents } from '../../../src/types/queue';
+import { BOOKING_TERMINALS } from '../../../src/types/terminal';
 
 describe('QueueManager', () => {
     let queueManager: QueueManager;
@@ -67,6 +94,9 @@ describe('QueueManager', () => {
     let mockConsoleLogWithoutSave: jest.Mock;
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
+    let mockSetTerminalStorageValue: jest.Mock;
+    let mockTrackSlotAdded: jest.Mock;
+    let mockTrackBookingSuccess: jest.Mock;
 
     const mockRetryObject: RetryObject = {
         id: 'test-id-1',
@@ -76,6 +106,7 @@ describe('QueueManager', () => {
         currentSlot: '2025-01-01 10:00:00',
         status: 'in-progress',
         status_message: 'Processing',
+        containerNumber: 'MSNU2991953',
         url: 'https://test.com',
         body: {
             formData: {
@@ -97,6 +128,8 @@ describe('QueueManager', () => {
         const { getStorage, setStorage, normalizeFormData } = require('../../../src/utils');
         const { consoleLog, consoleLogWithoutSave, consoleError } = require('../../../src/utils');
         const { clearBadge } = require('../../../src/utils/badge');
+        const { setTerminalStorageValue } = require('../../../src/utils/storage');
+        const { analyticsService } = require('../../../src/services/analyticsService');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
@@ -104,6 +137,11 @@ describe('QueueManager', () => {
         mockConsoleLogWithoutSave = consoleLogWithoutSave;
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
+        mockSetTerminalStorageValue = setTerminalStorageValue;
+        mockTrackSlotAdded = analyticsService.trackSlotAdded;
+        mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
+        mockTrackSlotAdded.mockResolvedValue(undefined);
+        mockTrackBookingSuccess.mockResolvedValue(undefined);
 
         // Restore normalizeFormData implementation after clearAllMocks
         normalizeFormData.mockImplementation((body: any) => {
@@ -154,6 +192,64 @@ describe('QueueManager', () => {
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: [mockRetryObject],
             });
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+        });
+
+        it('should wait for slot-added analytics before resolving addToQueue', async () => {
+            mockGetStorage.mockResolvedValue({ testQueue: [] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            let resolveAnalytics: () => void = () => undefined;
+            mockTrackSlotAdded.mockImplementation(
+                () =>
+                    new Promise<void>(resolve => {
+                        resolveAnalytics = resolve;
+                    }),
+            );
+
+            let settled = false;
+            const addPromise = queueManager.addToQueue(mockRetryObject).then(result => {
+                settled = true;
+                return result;
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+            expect(settled).toBe(false);
+
+            resolveAnalytics();
+            await addPromise;
+
+            expect(settled).toBe(true);
+        });
+
+        it('should track BCT container additions with the BCT terminal', async () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const bctRetryObject: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct-add',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            mockGetStorage.mockResolvedValue({ 'retryQueue:bct': [] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await bctQueueManager.addToQueue(bctRetryObject);
+
+            expect(result).toHaveLength(1);
+            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.BCT, {
+                containerNumber: 'MSNU2991953',
+            });
         });
 
         it('should not add duplicate items', async () => {
@@ -164,7 +260,10 @@ describe('QueueManager', () => {
             const result = await queueManager.addToQueue(duplicateItem);
 
             expect(result).toHaveLength(1);
-            expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Duplicate item'));
+            expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
+                expect.stringContaining('Duplicate item'),
+            );
         });
 
         it('should not add invalid items', async () => {
@@ -175,6 +274,7 @@ describe('QueueManager', () => {
 
             expect(result).toHaveLength(0);
             expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
                 'Invalid item provided to queue',
                 invalidItem,
             );
@@ -188,6 +288,7 @@ describe('QueueManager', () => {
 
             expect(result).toHaveLength(0);
             expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
                 expect.stringContaining("Item with status 'success'"),
             );
         });
@@ -380,6 +481,7 @@ describe('QueueManager', () => {
             mockCheckSlotAvailability.mockResolvedValue(true); // Slot available
             mockExecuteRequest.mockResolvedValue({
                 ...mockRetryObject,
+                terminal: BOOKING_TERMINALS.DCT,
                 status: 'success',
                 status_message: 'Processed',
             });
@@ -406,7 +508,10 @@ describe('QueueManager', () => {
             queueManager.startProcessing();
             queueManager.startProcessing(); // Second call
 
-            expect(mockConsoleLog).toHaveBeenCalledWith('Processing is already running');
+            expect(mockConsoleLog).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: 'dct' }),
+                'Processing is already running',
+            );
         });
 
         it('should stop processing when user is not authenticated', async () => {
@@ -497,7 +602,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             // Verify that getSlots was called with the date
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             // Verify that validateRequestBeforeSlotCheck was called
             expect(mockValidateRequest).toHaveBeenCalled();
             // Verify that checkSlotAvailability was called
@@ -506,6 +611,40 @@ describe('QueueManager', () => {
             expect(mockExecuteRequest).toHaveBeenCalled();
             // Verify that item was updated
             expect(mockSetStorage).toHaveBeenCalled();
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+        });
+
+        it('should wait for booking-success analytics before finishing a successful process cycle', async () => {
+            const existingQueue = [mockRetryObject];
+            mockGetStorage.mockResolvedValue({ testQueue: existingQueue });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            let resolveAnalytics: () => void = () => undefined;
+            mockTrackBookingSuccess.mockImplementation(
+                () =>
+                    new Promise<void>(resolve => {
+                        resolveAnalytics = resolve;
+                    }),
+            );
+
+            queueManager.startProcessing({
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockTrackBookingSuccess).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+            expect(queueManager.getProcessingState().processedCount).toBe(0);
+
+            resolveAnalytics();
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            expect(queueManager.getProcessingState().processedCount).toBe(1);
         });
 
         it('should keep request in queue when slot is not available', async () => {
@@ -637,7 +776,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date extracted from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             // text() throws in main loop -> handleDateGroupError (not processDateGroup)
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error processing date group'),
@@ -664,7 +803,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -692,7 +831,7 @@ describe('QueueManager', () => {
 
             // Should update queue item with error status
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalled();
         });
 
@@ -747,11 +886,10 @@ describe('QueueManager', () => {
             // Wait longer to ensure processing completes
             await new Promise(resolve => setTimeout(resolve, 200));
 
-            // Check that unauthorized was set (setStorage is called with {unauthorized: true})
-            expect(mockSetStorage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
             );
             // Check that queue item was updated
             expect(mockSetStorage).toHaveBeenCalledWith({
@@ -788,7 +926,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -830,10 +968,10 @@ describe('QueueManager', () => {
             );
             dateNowSpy.mockRestore();
 
-            expect(mockSetStorage).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
             );
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
@@ -879,11 +1017,7 @@ describe('QueueManager', () => {
             );
             dateNowSpy.mockRestore();
 
-            expect(mockSetStorage).not.toHaveBeenCalledWith(
-                expect.objectContaining({
-                    unauthorized: true,
-                }),
-            );
+            expect(mockSetTerminalStorageValue).not.toHaveBeenCalled();
         });
 
         it('should handle HTML error', async () => {
@@ -910,7 +1044,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -945,12 +1079,66 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
-            expect(mockSetStorage).toHaveBeenCalledWith(
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
+            expect(mockSetTerminalStorageValue).toHaveBeenCalledWith(
+                'unauthorized',
+                BOOKING_TERMINALS.DCT,
+                true,
+            );
+        });
+
+        it('should separate DCT and BCT subscription groups for the same date', () => {
+            const bctRequest: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            const subscriptions = (queueManager as any).createDateSlotTypeSubscriptions([
+                mockRetryObject,
+                bctRequest,
+            ]);
+
+            expect(Array.from(subscriptions.keys())).toEqual(
+                expect.arrayContaining([
+                    `${BOOKING_TERMINALS.DCT}|01.01.2025|1`,
+                    `${BOOKING_TERMINALS.BCT}|01.01.2025|1`,
+                ]),
+            );
+            expect(subscriptions).toHaveProperty('size', 2);
+        });
+
+        it('should fall back to the manager terminal when request metadata is ambiguous', () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const ambiguousRequest: RetryObject = {
+                ...mockRetryObject,
+                url: 'not-a-valid-url',
+            };
+
+            delete (ambiguousRequest as Partial<RetryObject>).terminal;
+
+            const subscriptions = (bctQueueManager as any).createDateSlotTypeSubscriptions([
+                ambiguousRequest,
+            ]);
+
+            expect(Array.from(subscriptions.keys())).toEqual([
+                `${BOOKING_TERMINALS.BCT}|01.01.2025|1`,
+            ]);
+            expect(mockConsoleError).toHaveBeenCalledWith(
+                expect.objectContaining({ scope: 'queue', terminal: BOOKING_TERMINALS.BCT }),
+                'Missing request terminal metadata, falling back to manager terminal',
                 expect.objectContaining({
-                    unauthorized: true,
+                    requestId: 'test-id-1',
+                    storageKey: 'retryQueue:bct',
                 }),
             );
+
+            bctQueueManager.stopProcessing();
         });
 
         it('should handle default network error', async () => {
@@ -971,7 +1159,7 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: expect.arrayContaining([
                     expect.objectContaining({
@@ -1005,7 +1193,7 @@ describe('QueueManager', () => {
 
             // Should have error updating request (when setStorage rejects in updateQueueItem)
             // getSlots should be called with the date from SlotStart
-            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+            expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             expect(mockConsoleError).toHaveBeenCalledWith(
                 expect.stringContaining('Error updating request'),
                 expect.any(Error),
@@ -1106,7 +1294,7 @@ describe('QueueManager', () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 // getSlots should be called for active request date
-                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1);
+                expect(mockGetSlots).toHaveBeenCalledWith('01.01.2025', 1, BOOKING_TERMINALS.DCT);
             });
 
             it('should log remaining pause time when skipping paused request', async () => {

@@ -261,6 +261,12 @@ describe('Baltichub Helper Functions', () => {
                 ),
             ).toBe(true);
             expect(
+                isEbramaLoginPageResponse(
+                    '<!DOCTYPE html><html><a href="/login">Przejdź do logowania</a></html>',
+                    'https://ebrama.bct.ictsi.com/',
+                ),
+            ).toBe(true);
+            expect(
                 isEbramaLoginPageResponse('ok', 'https://ebrama.baltichub.com/Account/Login'),
             ).toBe(true);
             expect(isEbramaLoginPageResponse('ok', 'https://ebrama.baltichub.com/tv-apps')).toBe(
