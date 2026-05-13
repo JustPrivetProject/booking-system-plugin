@@ -98,6 +98,40 @@ export class QueueManager implements IQueueManager {
         };
     }
 
+    private normalizeContainerNumber(containerNumber?: string | null): string | null {
+        if (typeof containerNumber !== 'string') {
+            return null;
+        }
+
+        const normalizedContainerNumber = containerNumber.trim().toUpperCase();
+        return normalizedContainerNumber.length > 0 ? normalizedContainerNumber : null;
+    }
+
+    private isTerminalAttemptStatus(status: string): boolean {
+        return [Statuses.ANOTHER_TASK, Statuses.SUCCESS, Statuses.ERROR, Statuses.EXPIRED].includes(
+            status as (typeof Statuses)[keyof typeof Statuses],
+        );
+    }
+
+    private isSameAttemptEntity(left: RetryObject, right: RetryObject): boolean {
+        const leftContainerNumber = this.normalizeContainerNumber(left.containerNumber);
+        const rightContainerNumber = this.normalizeContainerNumber(right.containerNumber);
+
+        if (leftContainerNumber && rightContainerNumber) {
+            return leftContainerNumber === rightContainerNumber;
+        }
+
+        return left.tvAppId === right.tvAppId;
+    }
+
+    private hasLiveAttemptForItem(queue: RetryObject[], newItem: RetryObject): boolean {
+        return queue.some(
+            item =>
+                this.isSameAttemptEntity(item, newItem) &&
+                !this.isTerminalAttemptStatus(item.status),
+        );
+    }
+
     async addToQueue(newItem: RetryObject): Promise<RetryObject[]> {
         return this.withMutex(async () => {
             const queue = await this.getQueue();
@@ -136,6 +170,9 @@ export class QueueManager implements IQueueManager {
                 newItem.id = generateUniqueId();
             }
 
+            const shouldTrackAttemptStarted =
+                newItem.status !== Statuses.SUCCESS && !this.hasLiveAttemptForItem(queue, newItem);
+
             queue.push(newItem);
             await setStorage({ [this.config.storageKey]: queue });
 
@@ -144,9 +181,15 @@ export class QueueManager implements IQueueManager {
                 `Item added to ${this.config.storageKey}:`,
                 newItem,
             );
-            await analyticsService.trackSlotAdded('booking', terminal, {
-                containerNumber: newItem.containerNumber,
-            });
+            if (shouldTrackAttemptStarted) {
+                await analyticsService.trackBookingAttemptStarted(terminal, {
+                    containerNumber: newItem.containerNumber,
+                });
+            } else if (newItem.status !== Statuses.SUCCESS) {
+                await analyticsService.trackSlotAdded('booking', terminal, {
+                    containerNumber: newItem.containerNumber,
+                });
+            }
             this.events.onItemAdded?.(newItem);
 
             return queue;

@@ -73,6 +73,7 @@ jest.mock('../../../src/utils/badge', () => ({
 jest.mock('../../../src/services/analyticsService', () => ({
     analyticsService: {
         trackContainerAdded: jest.fn(),
+        trackBookingAttemptStarted: jest.fn(),
         trackSlotAdded: jest.fn(),
         trackBookingSuccess: jest.fn(),
     },
@@ -95,6 +96,7 @@ describe('QueueManager', () => {
     let mockConsoleError: jest.Mock;
     let mockClearBadge: jest.Mock;
     let mockSetTerminalStorageValue: jest.Mock;
+    let mockTrackBookingAttemptStarted: jest.Mock;
     let mockTrackSlotAdded: jest.Mock;
     let mockTrackBookingSuccess: jest.Mock;
 
@@ -138,8 +140,10 @@ describe('QueueManager', () => {
         mockConsoleError = consoleError;
         mockClearBadge = clearBadge;
         mockSetTerminalStorageValue = setTerminalStorageValue;
+        mockTrackBookingAttemptStarted = analyticsService.trackBookingAttemptStarted;
         mockTrackSlotAdded = analyticsService.trackSlotAdded;
         mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
+        mockTrackBookingAttemptStarted.mockResolvedValue(undefined);
         mockTrackSlotAdded.mockResolvedValue(undefined);
         mockTrackBookingSuccess.mockResolvedValue(undefined);
 
@@ -192,17 +196,78 @@ describe('QueueManager', () => {
             expect(mockSetStorage).toHaveBeenCalledWith({
                 testQueue: [mockRetryObject],
             });
+            expect(mockTrackBookingAttemptStarted).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+            expect(mockTrackSlotAdded).not.toHaveBeenCalled();
+        });
+
+        it('should track extra slots within the same live attempt', async () => {
+            const existingItem = { ...mockRetryObject, id: 'existing-item-id' };
+            const nextSlotForSameContainer: RetryObject = {
+                ...mockRetryObject,
+                id: 'next-slot-id',
+                startSlot: '01.01.2025 11:00:00',
+                endSlot: '01.01.2025 12:00:00',
+                body: {
+                    formData: {
+                        TvAppId: ['test-tv-app'],
+                        SlotStart: ['01.01.2025 11:00'],
+                        SlotEnd: ['01.01.2025 12:00'],
+                    },
+                },
+            };
+
+            mockGetStorage.mockResolvedValue({ testQueue: [existingItem] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await queueManager.addToQueue(nextSlotForSameContainer);
+
+            expect(result).toHaveLength(2);
             expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
                 containerNumber: 'MSNU2991953',
             });
+            expect(mockTrackBookingAttemptStarted).not.toHaveBeenCalled();
         });
 
-        it('should wait for slot-added analytics before resolving addToQueue', async () => {
+        it('should treat additions after terminal items as a fresh attempt', async () => {
+            const completedItem: RetryObject = {
+                ...mockRetryObject,
+                id: 'completed-item-id',
+                status: 'success',
+            };
+            const nextAttempt: RetryObject = {
+                ...mockRetryObject,
+                id: 'next-attempt-id',
+                startSlot: '01.01.2025 11:00:00',
+                endSlot: '01.01.2025 12:00:00',
+                body: {
+                    formData: {
+                        TvAppId: ['test-tv-app'],
+                        SlotStart: ['01.01.2025 11:00'],
+                        SlotEnd: ['01.01.2025 12:00'],
+                    },
+                },
+            };
+
+            mockGetStorage.mockResolvedValue({ testQueue: [completedItem] });
+            mockSetStorage.mockResolvedValue(undefined);
+
+            const result = await queueManager.addToQueue(nextAttempt);
+
+            expect(result).toHaveLength(2);
+            expect(mockTrackBookingAttemptStarted).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
+                containerNumber: 'MSNU2991953',
+            });
+            expect(mockTrackSlotAdded).not.toHaveBeenCalled();
+        });
+
+        it('should wait for attempt-started analytics before resolving addToQueue', async () => {
             mockGetStorage.mockResolvedValue({ testQueue: [] });
             mockSetStorage.mockResolvedValue(undefined);
 
             let resolveAnalytics: () => void = () => undefined;
-            mockTrackSlotAdded.mockImplementation(
+            mockTrackBookingAttemptStarted.mockImplementation(
                 () =>
                     new Promise<void>(resolve => {
                         resolveAnalytics = resolve;
@@ -217,7 +282,7 @@ describe('QueueManager', () => {
 
             await new Promise(resolve => setTimeout(resolve, 0));
 
-            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.DCT, {
+            expect(mockTrackBookingAttemptStarted).toHaveBeenCalledWith(BOOKING_TERMINALS.DCT, {
                 containerNumber: 'MSNU2991953',
             });
             expect(settled).toBe(false);
@@ -247,7 +312,7 @@ describe('QueueManager', () => {
             const result = await bctQueueManager.addToQueue(bctRetryObject);
 
             expect(result).toHaveLength(1);
-            expect(mockTrackSlotAdded).toHaveBeenCalledWith('booking', BOOKING_TERMINALS.BCT, {
+            expect(mockTrackBookingAttemptStarted).toHaveBeenCalledWith(BOOKING_TERMINALS.BCT, {
                 containerNumber: 'MSNU2991953',
             });
         });
@@ -322,6 +387,8 @@ describe('QueueManager', () => {
             expect(result).toHaveLength(2);
             expect(result.find(item => item.id === 'new-id')).toBeDefined();
             expect(result.find(item => item.id === 'existing-id')).toBeDefined();
+            expect(mockTrackBookingAttemptStarted).not.toHaveBeenCalled();
+            expect(mockTrackSlotAdded).not.toHaveBeenCalled();
         });
 
         it('should generate id if not present', async () => {

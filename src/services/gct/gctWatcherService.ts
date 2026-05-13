@@ -164,6 +164,10 @@ function hasActiveRows(group: GctWatchGroup): boolean {
     return group.rows.some(row => row.active && !isTerminalRow(row));
 }
 
+function isLiveAttemptGroup(group: GctWatchGroup): boolean {
+    return group.status !== 'success' && group.status !== 'completed';
+}
+
 function summarizeGroupStatus(
     group: GctWatchGroup,
 ): Pick<GctWatchGroup, 'status' | 'statusMessage'> {
@@ -400,12 +404,12 @@ export class GctWatcherService {
         }
 
         await this.saveGroups(nextGroups);
-        if (existingGroup) {
-            await analyticsService.trackSlotAdded('booking', 'GCT', {
+        if (!existingGroup || !isLiveAttemptGroup(existingGroup)) {
+            await analyticsService.trackBookingAttemptStarted('GCT', {
                 containerNumber: normalizedDraft.containerNumber,
             });
         } else {
-            await analyticsService.trackContainerAdded('booking', 'GCT', {
+            await analyticsService.trackSlotAdded('booking', 'GCT', {
                 containerNumber: normalizedDraft.containerNumber,
             });
         }

@@ -7,7 +7,7 @@ import { supabase } from './supabaseClient';
 
 type AnalyticsFeatureArea = 'booking' | 'container_monitor';
 type AnalyticsTerminal = 'DCT' | 'BCT' | 'GCT';
-type AnalyticsAction = 'container_added' | 'slot_added' | 'booking_success';
+type AnalyticsAction = 'container_added' | 'attempt_started' | 'slot_added' | 'booking_success';
 
 interface AnalyticsEventRow {
     created_at: string;
@@ -236,6 +236,21 @@ export const analyticsService = {
             featureArea,
             terminal,
             action: 'container_added',
+            userEmail,
+            containerNumber,
+        });
+    },
+
+    async trackBookingAttemptStarted(
+        terminal: AnalyticsTerminal | BookingTerminal | null,
+        options: TrackEventOptions = {},
+    ): Promise<void> {
+        const { userEmail, containerNumber } = options;
+
+        await this.trackActivity({
+            featureArea: 'booking',
+            terminal,
+            action: 'attempt_started',
             userEmail,
             containerNumber,
         });

@@ -53,7 +53,7 @@ describe('analyticsService', () => {
         mockSessionService.getCurrentUser.mockResolvedValue(null);
         mockAuthService.getCurrentUser.mockResolvedValue(null);
 
-        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.DCT);
+        await analyticsService.trackContainerAdded('container_monitor', BOOKING_TERMINALS.DCT);
 
         expect(mockSupabase.from).not.toHaveBeenCalled();
     });
@@ -64,16 +64,35 @@ describe('analyticsService', () => {
         const insert = jest.fn().mockResolvedValue({ error: null });
         mockSupabase.from.mockReturnValue({ insert });
 
-        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.BCT);
+        await analyticsService.trackContainerAdded('container_monitor', BOOKING_TERMINALS.BCT);
 
         expect(mockSupabase.from).toHaveBeenCalledWith('analytics_events');
         expect(insert).toHaveBeenCalledWith([
             expect.objectContaining({
                 user_email: 'user@example.com',
                 extension_version: '3.0.5',
-                feature_area: 'booking',
+                feature_area: 'container_monitor',
                 terminal: 'BCT',
                 action: 'container_added',
+            }),
+        ]);
+    });
+
+    it('inserts attempt_started rows for booking attempt starts', async () => {
+        mockSessionService.getCurrentUser.mockResolvedValue({ email: 'user@example.com' });
+
+        const insert = jest.fn().mockResolvedValue({ error: null });
+        mockSupabase.from.mockReturnValue({ insert });
+
+        await analyticsService.trackBookingAttemptStarted(BOOKING_TERMINALS.DCT, {
+            containerNumber: ' msnu 2991953 ',
+        });
+
+        expect(insert).toHaveBeenCalledWith([
+            expect.objectContaining({
+                feature_area: 'booking',
+                terminal: 'DCT',
+                action: 'attempt_started',
             }),
         ]);
     });
@@ -135,7 +154,7 @@ describe('analyticsService', () => {
         const insert = jest.fn().mockResolvedValue({ error: null });
         mockSupabase.from.mockReturnValue({ insert });
 
-        await analyticsService.trackContainerAdded('booking', BOOKING_TERMINALS.DCT);
+        await analyticsService.trackContainerAdded('container_monitor', BOOKING_TERMINALS.DCT);
 
         expect(insert).not.toHaveBeenCalled();
     });

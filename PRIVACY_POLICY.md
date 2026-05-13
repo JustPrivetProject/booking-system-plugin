@@ -57,7 +57,7 @@ The extension sends limited analytics and diagnostics data to a third-party back
 - authenticated account email
 - extension version
 - feature area and terminal
-- analytics action type, such as `container_added`, `slot_added`, and `booking_success`
+- analytics action type, such as `container_added`, `attempt_started`, `slot_added`, and `booking_success`
 - one-way hashed container key derived from a normalized container number
 - technical error and request diagnostics such as URL, HTTP status, truncated response text, stack traces, and related metadata
 - user-submitted session logs and issue descriptions when the user explicitly chooses to send logs

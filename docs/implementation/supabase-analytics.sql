@@ -9,7 +9,9 @@ create table public.analytics_events (
     extension_version text not null,
     feature_area text not null check (feature_area in ('booking', 'container_monitor')),
     terminal text not null check (terminal in ('DCT', 'BCT', 'GCT')),
-    action text not null check (action in ('container_added', 'slot_added', 'booking_success')),
+    action text not null check (
+        action in ('container_added', 'attempt_started', 'slot_added', 'booking_success')
+    ),
     container_key text
 );
 
@@ -86,6 +88,21 @@ where feature_area = 'booking'
 group by 1
 order by 1;
 
+-- Booking attempt summary by terminal.
+-- A/B(C) is derived as attempts / unique_containers (successful_bookings).
+select
+    terminal,
+    count(*) filter (where action = 'attempt_started') as attempts,
+    count(distinct container_key) filter (
+        where action = 'attempt_started'
+          and container_key is not null
+    ) as unique_containers,
+    count(*) filter (where action = 'booking_success') as successful_bookings
+from public.analytics_events
+where feature_area = 'booking'
+group by 1
+order by 1;
+
 -- Container additions (Monitor Kontenerow) split by terminal
 select
     feature_area,
@@ -98,7 +115,7 @@ where action = 'container_added'
 group by 1, 2
 order by 1, 2;
 
--- Slot additions (booking) split by terminal
+-- Slot additions (booking) split by terminal for diagnostics only.
 select
     terminal,
     count(*) as slots_added,

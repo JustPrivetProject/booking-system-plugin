@@ -36,6 +36,7 @@ jest.mock('../../../../src/utils/badge', () => ({
 jest.mock('../../../../src/services/analyticsService', () => ({
     analyticsService: {
         trackContainerAdded: jest.fn(),
+        trackBookingAttemptStarted: jest.fn(),
         trackSlotAdded: jest.fn(),
         trackBookingSuccess: jest.fn(),
     },
@@ -124,7 +125,7 @@ describe('GctWatcherService', () => {
         (buildBookPayload as jest.Mock).mockImplementation(slot => slot);
         (
             require('../../../../src/services/analyticsService').analyticsService
-                .trackContainerAdded as jest.Mock
+                .trackBookingAttemptStarted as jest.Mock
         ).mockResolvedValue(undefined);
         (
             require('../../../../src/services/analyticsService').analyticsService
@@ -178,8 +179,8 @@ describe('GctWatcherService', () => {
         expect(state.groups[0].rows).toHaveLength(2);
         expect(
             require('../../../../src/services/analyticsService').analyticsService
-                .trackContainerAdded,
-        ).toHaveBeenCalledWith('booking', 'GCT', {
+                .trackBookingAttemptStarted,
+        ).toHaveBeenCalledWith('GCT', {
             containerNumber: 'TCLU3141931',
         });
         expect(
@@ -187,6 +188,42 @@ describe('GctWatcherService', () => {
         ).toHaveBeenCalledWith('booking', 'GCT', {
             containerNumber: 'TCLU3141931',
         });
+    });
+
+    it('tracks additions to terminal groups as fresh attempts', async () => {
+        jest.spyOn(service, 'ensureSchedules').mockResolvedValue(undefined);
+        state.groups = [
+            createGroup({
+                status: 'success',
+                statusMessage: 'Slot zarezerwowany',
+                rows: [
+                    createRow({
+                        status: Statuses.SUCCESS,
+                        statusMessage: Messages.SUCCESS,
+                        active: false,
+                    }),
+                ],
+            }),
+        ];
+
+        await service.addGroup({
+            documentNumber: 'DOC123',
+            vehicleNumber: 'NDZ45396',
+            containerNumber: 'TCLU3141931',
+            slots: [{ date: '2026-03-18', startTime: '06:30' }],
+        });
+
+        expect(state.groups).toHaveLength(1);
+        expect(state.groups[0].rows).toHaveLength(2);
+        expect(
+            require('../../../../src/services/analyticsService').analyticsService
+                .trackBookingAttemptStarted,
+        ).toHaveBeenCalledWith('GCT', {
+            containerNumber: 'TCLU3141931',
+        });
+        expect(
+            require('../../../../src/services/analyticsService').analyticsService.trackSlotAdded,
+        ).not.toHaveBeenCalled();
     });
 
     it('does not create a new group when the initial login fails', async () => {
