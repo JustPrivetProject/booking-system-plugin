@@ -43,6 +43,7 @@ import {
     executeRequest,
     validateRequestBeforeSlotCheck,
 } from './baltichub';
+import { FEATURE_KEYS, featureAccessService } from './featureAccessService';
 import { isSlotRefreshTooOftenResponse } from '../utils/baltichub.helper';
 import { analyticsService } from './analyticsService';
 
@@ -56,6 +57,8 @@ export class QueueManager implements IQueueManager {
     private recentServer500Timestamps: number[] = [];
     private readonly server500WindowMs = 2 * 60 * 1000;
     private readonly server500Threshold = 2;
+    private bctFeatureAccessCache: { enabled: boolean; checkedAt: number } | null = null;
+    private readonly bctFeatureAccessCacheTtlMs = 30_000;
 
     constructor(
         authService: IAuthService,
@@ -136,6 +139,18 @@ export class QueueManager implements IQueueManager {
         return this.withMutex(async () => {
             const queue = await this.getQueue();
             const terminal = this.resolveRequestTerminal(newItem);
+
+            if (!(await this.isTerminalFeatureEnabled(terminal, { forceRefresh: true }))) {
+                consoleLogWithContext(
+                    this.getLogContext(terminal),
+                    `Skipping ${this.config.storageKey} add because ${terminal.toUpperCase()} feature access is disabled`,
+                    {
+                        requestId: newItem.id,
+                        tvAppId: newItem.tvAppId,
+                    },
+                );
+                return queue;
+            }
 
             // Validate item
             if (!this.isValidItem(newItem)) {
@@ -303,6 +318,11 @@ export class QueueManager implements IQueueManager {
                     return;
                 }
 
+                if (!(await this.isTerminalFeatureEnabled(this.getManagerTerminal()))) {
+                    this.scheduleNextProcess(intervalMin, intervalMax, processNextRequests, false);
+                    return;
+                }
+
                 const { hasActiveSubscriptions, slotRefreshTooOften } =
                     await this.processQueueBatchWithSubscriptions(intervalMin, intervalMax);
                 const pauseMs = slotRefreshTooOften ? 10000 : 0;
@@ -423,6 +443,39 @@ export class QueueManager implements IQueueManager {
         }, 0);
 
         return totalTime / completedItems.length;
+    }
+
+    private async isTerminalFeatureEnabled(
+        terminal: BookingTerminal,
+        options: { forceRefresh?: boolean } = {},
+    ): Promise<boolean> {
+        if (terminal !== BOOKING_TERMINALS.BCT) {
+            return true;
+        }
+
+        const now = Date.now();
+        const cachedFeatureAccess = this.bctFeatureAccessCache;
+        const shouldUseCache =
+            !options.forceRefresh &&
+            cachedFeatureAccess !== null &&
+            now - cachedFeatureAccess.checkedAt < this.bctFeatureAccessCacheTtlMs;
+
+        if (shouldUseCache) {
+            return cachedFeatureAccess.enabled;
+        }
+
+        try {
+            const enabled = await featureAccessService.isFeatureEnabled(FEATURE_KEYS.BCT);
+            this.bctFeatureAccessCache = { enabled, checkedAt: now };
+            return enabled;
+        } catch (error) {
+            consoleErrorWithContext(
+                this.getLogContext(terminal),
+                'Failed to resolve BCT feature access for queue operations',
+                error,
+            );
+            return this.bctFeatureAccessCache?.enabled ?? false;
+        }
     }
 
     // Subscription-based processing methods

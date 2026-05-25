@@ -79,6 +79,16 @@ jest.mock('../../../src/services/analyticsService', () => ({
     },
 }));
 
+jest.mock('../../../src/services/featureAccessService', () => ({
+    FEATURE_KEYS: {
+        BCT: 'bct',
+        GCT: 'gct',
+    },
+    featureAccessService: {
+        isFeatureEnabled: jest.fn(),
+    },
+}));
+
 // Import AFTER all mocks are declared
 import { QueueManager } from '../../../src/services/queueManager';
 import { RetryObject } from '../../../src/types/baltichub';
@@ -99,6 +109,7 @@ describe('QueueManager', () => {
     let mockTrackBookingAttemptStarted: jest.Mock;
     let mockTrackSlotAdded: jest.Mock;
     let mockTrackBookingSuccess: jest.Mock;
+    let mockIsFeatureEnabled: jest.Mock;
 
     const mockRetryObject: RetryObject = {
         id: 'test-id-1',
@@ -132,6 +143,7 @@ describe('QueueManager', () => {
         const { clearBadge } = require('../../../src/utils/badge');
         const { setTerminalStorageValue } = require('../../../src/utils/storage');
         const { analyticsService } = require('../../../src/services/analyticsService');
+        const { featureAccessService } = require('../../../src/services/featureAccessService');
 
         mockGetStorage = getStorage;
         mockSetStorage = setStorage;
@@ -143,9 +155,11 @@ describe('QueueManager', () => {
         mockTrackBookingAttemptStarted = analyticsService.trackBookingAttemptStarted;
         mockTrackSlotAdded = analyticsService.trackSlotAdded;
         mockTrackBookingSuccess = analyticsService.trackBookingSuccess;
+        mockIsFeatureEnabled = featureAccessService.isFeatureEnabled;
         mockTrackBookingAttemptStarted.mockResolvedValue(undefined);
         mockTrackSlotAdded.mockResolvedValue(undefined);
         mockTrackBookingSuccess.mockResolvedValue(undefined);
+        mockIsFeatureEnabled.mockResolvedValue(true);
 
         // Restore normalizeFormData implementation after clearAllMocks
         normalizeFormData.mockImplementation((body: any) => {
@@ -315,6 +329,32 @@ describe('QueueManager', () => {
             expect(mockTrackBookingAttemptStarted).toHaveBeenCalledWith(BOOKING_TERMINALS.BCT, {
                 containerNumber: 'MSNU2991953',
             });
+            expect(mockIsFeatureEnabled).toHaveBeenCalledWith('bct');
+        });
+
+        it('should block BCT additions when feature access is disabled', async () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const bctRetryObject: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct-blocked',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            mockGetStorage.mockResolvedValue({ 'retryQueue:bct': [] });
+            mockIsFeatureEnabled.mockResolvedValue(false);
+
+            const result = await bctQueueManager.addToQueue(bctRetryObject);
+
+            expect(result).toEqual([]);
+            expect(mockSetStorage).not.toHaveBeenCalled();
+            expect(mockEvents.onItemAdded).not.toHaveBeenCalled();
+            expect(mockTrackBookingAttemptStarted).not.toHaveBeenCalled();
+            expect(mockTrackSlotAdded).not.toHaveBeenCalled();
         });
 
         it('should not add duplicate items', async () => {
@@ -594,6 +634,38 @@ describe('QueueManager', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
 
             expect(mockClearBadge).toHaveBeenCalled();
+        });
+
+        it('should skip BCT processing when feature access is disabled', async () => {
+            const bctQueueManager = new QueueManager(
+                mockAuthService,
+                { storageKey: 'retryQueue:bct' },
+                mockEvents,
+            );
+            const bctRetryObject: RetryObject = {
+                ...mockRetryObject,
+                id: 'test-id-bct-processing',
+                terminal: BOOKING_TERMINALS.BCT,
+                url: 'https://ebrama.bct.ictsi.com/TVApp/EditTvAppSubmit/',
+            };
+
+            mockGetStorage.mockResolvedValue({ 'retryQueue:bct': [bctRetryObject] });
+            mockIsFeatureEnabled.mockResolvedValue(false);
+
+            bctQueueManager.startProcessing({
+                intervalMin: 10,
+                intervalMax: 20,
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            expect(mockGetSlots).not.toHaveBeenCalled();
+            expect(mockValidateRequest).not.toHaveBeenCalled();
+            expect(mockCheckSlotAvailability).not.toHaveBeenCalled();
+            expect(mockExecuteRequest).not.toHaveBeenCalled();
+            expect(mockIsFeatureEnabled).toHaveBeenCalledWith('bct');
+
+            bctQueueManager.stopProcessing();
         });
 
         it('should stop processing when retryEnabled is false', async () => {
